@@ -1,4 +1,4 @@
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ArrowLeft, Check, Copy, Eye, EyeOff } from "lucide-react";
@@ -10,28 +10,19 @@ import { ThesisBreakdown } from "@/components/wingman/ThesisBreakdown";
 import { PositionFramework } from "@/components/wingman/PositionFramework";
 import { EntryStateMachine } from "@/components/wingman/EntryStateMachine";
 import { MiniChart } from "@/components/wingman/MiniChart";
+import { EmptyState } from "@/components/wingman/EmptyState";
 import { Button } from "@/components/ui/button";
-import { getOpportunity } from "@/lib/wingman/mock-data";
+import { useOpportunity } from "@/lib/wingman/hooks";
 import { MOCK_DATA_NOTICE, STRUCTURAL_MULTIPLIERS } from "@/lib/wingman/config";
 import { formatNumber, formatPct, formatUsd, shortenAddress, tokenAge } from "@/lib/wingman/format";
 import { useWatchlist } from "@/lib/wingman/watchlist";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/token/$tokenId")({
-  loader: ({ params }) => {
-    const opportunity = getOpportunity(params.tokenId);
-    if (!opportunity) throw notFound();
-    return { opportunity };
-  },
-  head: ({ loaderData }) => {
-    if (!loaderData) {
-      return {
-        meta: [{ title: "Unavailable — Wingman AI" }, { name: "robots", content: "noindex" }],
-      };
-    }
-    const { token, thesisScore, entryScore } = loaderData.opportunity;
-    const title = `${token.name} (${token.ticker}) research — Wingman AI`;
-    const description = `Thesis ${thesisScore}/100, entry ${entryScore}/10. Full Wingman research report covering distribution, wallets, liquidity, mindshare and invalidation.`;
+  head: () => {
+    const title = "Token research report — Wingman AI";
+    const description =
+      "Full Wingman research report: thesis score, evidence confidence, entry quality, distribution, wallets, liquidity, mindshare and invalidation.";
     return {
       meta: [
         { title },
@@ -53,12 +44,30 @@ function Prose({ title, body }: { title: string; body: string }) {
 }
 
 function TokenResearch() {
-  const { opportunity } = Route.useLoaderData();
+  const { tokenId } = Route.useParams();
+  const { data: opportunity, isLoading } = useOpportunity(tokenId);
+  const watchlist = useWatchlist();
+  const [copied, setCopied] = useState(false);
+
+  if (isLoading || !opportunity) {
+    return (
+      <AppShell title="Research report" subtitle={MOCK_DATA_NOTICE}>
+        {isLoading ? (
+          <p className="text-xs text-muted-foreground">Loading report…</p>
+        ) : (
+          <EmptyState
+            title="Report not found"
+            description="This opportunity is no longer available. Return to the dashboard for the current shortlist."
+          />
+        )}
+      </AppShell>
+    );
+  }
+
   const { token, snapshot, report } = opportunity;
   const structural = STRUCTURAL_MULTIPLIERS[opportunity.structuralRisk];
-  const watchlist = useWatchlist();
   const watched = watchlist.isWatched(token.id);
-  const [copied, setCopied] = useState(false);
+
 
   const copyAddress = async () => {
     try {

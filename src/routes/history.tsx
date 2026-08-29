@@ -2,10 +2,13 @@ import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/wingman/AppShell";
 import { Section } from "@/components/wingman/Section";
 import { StatTile } from "@/components/wingman/StatTile";
-import { getTradeOutcomes } from "@/lib/wingman/mock-data";
+import { EmptyState } from "@/components/wingman/EmptyState";
+import { useOutcomes } from "@/lib/wingman/hooks";
+import { OutcomeService } from "@/lib/wingman/services";
 import { formatDate, formatUsd } from "@/lib/wingman/format";
 import { MOCK_DATA_NOTICE } from "@/lib/wingman/config";
 import { cn } from "@/lib/utils";
+
 
 export const Route = createFileRoute("/history")({
   head: () => ({
@@ -34,19 +37,10 @@ const STATUS_TONE: Record<string, string> = {
 };
 
 function HistoryPage() {
-  const outcomes = getTradeOutcomes();
-  const avgScore = Math.round(
-    outcomes.reduce((s, o) => s + o.thesisScoreAtDiscovery, 0) / outcomes.length,
-  );
-  const avgMaxReturn = Math.round(outcomes.reduce((s, o) => s + o.maxGainPct, 0) / outcomes.length);
-  const band = (min: number, max: number) => {
-    const set = outcomes.filter(
-      (o) => o.thesisScoreAtDiscovery >= min && o.thesisScoreAtDiscovery <= max,
-    );
-    if (set.length === 0) return "—";
-    const hits = set.filter((o) => o.maxGainPct >= 100).length;
-    return `${Math.round((hits / set.length) * 100)}% (${hits}/${set.length})`;
-  };
+  const { data: outcomes = [], isLoading } = useOutcomes();
+  const stats = OutcomeService.stats(outcomes);
+  const rate = (band: { hits: number; total: number } | null) =>
+    band ? `${Math.round((band.hits / band.total) * 100)}% (${band.hits}/${band.total})` : "—";
 
   return (
     <AppShell
@@ -56,31 +50,45 @@ function HistoryPage() {
     >
       <div className="space-y-6">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <StatTile label="Average thesis score" value={avgScore} detail="Across all discoveries" />
+          <StatTile
+            label="Average thesis score"
+            value={stats.averageThesisScore ?? "—"}
+            detail="Across all discoveries"
+          />
           <StatTile
             label="Average max return"
-            value={`+${avgMaxReturn}%`}
+            value={stats.averageMaxReturnPct == null ? "—" : `+${stats.averageMaxReturnPct}%`}
             tone="positive"
             detail="Peak vs discovery market cap"
           />
           <StatTile
             label="Hit rate — 80+"
-            value={band(80, 100)}
+            value={rate(stats.hitRate80Plus)}
             tone="primary"
             detail="≥100% max gain counts as a hit"
           />
           <StatTile
             label="Hit rate — 70–79"
-            value={band(70, 79)}
+            value={rate(stats.hitRate70to79)}
             detail="≥100% max gain counts as a hit"
           />
         </div>
+
 
         <Section
           title="Previous Recommendations"
           description="Every token that reached the Wingman shortlist."
         >
+          {isLoading ? (
+            <p className="text-xs text-muted-foreground">Loading outcomes…</p>
+          ) : outcomes.length === 0 ? (
+            <EmptyState
+              title="No recorded outcomes yet"
+              description="Outcome tracking begins once promoted opportunities have measurable history."
+            />
+          ) : (
           <div className="overflow-x-auto">
+
             <table className="w-full min-w-[1000px] text-left">
               <thead>
                 <tr className="[&>th]:label-xs [&>th]:pb-2.5 [&>th]:font-medium">
@@ -132,7 +140,9 @@ function HistoryPage() {
               </tbody>
             </table>
           </div>
+          )}
         </Section>
+
       </div>
     </AppShell>
   );

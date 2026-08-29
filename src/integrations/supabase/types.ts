@@ -1,0 +1,741 @@
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
+
+export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.5"
+  }
+  public: {
+    Tables: {
+      opportunities: {
+        Row: {
+          created_at: string
+          entry_state_at_promotion: string | null
+          id: string
+          is_active: boolean
+          market_cap_at_promotion: number | null
+          rank: number
+          research_report_id: string | null
+          scan_run_id: string | null
+          thesis_score_at_promotion: number | null
+          token_id: string
+        }
+        Insert: {
+          created_at?: string
+          entry_state_at_promotion?: string | null
+          id?: string
+          is_active?: boolean
+          market_cap_at_promotion?: number | null
+          rank?: number
+          research_report_id?: string | null
+          scan_run_id?: string | null
+          thesis_score_at_promotion?: number | null
+          token_id: string
+        }
+        Update: {
+          created_at?: string
+          entry_state_at_promotion?: string | null
+          id?: string
+          is_active?: boolean
+          market_cap_at_promotion?: number | null
+          rank?: number
+          research_report_id?: string | null
+          scan_run_id?: string | null
+          thesis_score_at_promotion?: number | null
+          token_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "opportunities_research_report_id_fkey"
+            columns: ["research_report_id"]
+            isOneToOne: false
+            referencedRelation: "research_reports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "opportunities_scan_run_id_fkey"
+            columns: ["scan_run_id"]
+            isOneToOne: false
+            referencedRelation: "scan_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "opportunities_token_id_fkey"
+            columns: ["token_id"]
+            isOneToOne: false
+            referencedRelation: "tokens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      opportunity_outcomes: {
+        Row: {
+          created_at: string
+          discovery_at: string
+          discovery_entry_score: number | null
+          discovery_market_cap: number | null
+          discovery_price: number | null
+          discovery_thesis_score: number | null
+          id: string
+          last_updated_at: string
+          market_cap_1h: number | null
+          market_cap_24h: number | null
+          market_cap_3d: number | null
+          market_cap_6h: number | null
+          market_cap_7d: number | null
+          maximum_drawdown_pct: number | null
+          maximum_gain_pct: number | null
+          opportunity_id: string | null
+          peak_market_cap: number | null
+          peak_price: number | null
+          status: string
+          time_to_peak_minutes: number | null
+          token_id: string
+        }
+        Insert: {
+          created_at?: string
+          discovery_at: string
+          discovery_entry_score?: number | null
+          discovery_market_cap?: number | null
+          discovery_price?: number | null
+          discovery_thesis_score?: number | null
+          id?: string
+          last_updated_at?: string
+          market_cap_1h?: number | null
+          market_cap_24h?: number | null
+          market_cap_3d?: number | null
+          market_cap_6h?: number | null
+          market_cap_7d?: number | null
+          maximum_drawdown_pct?: number | null
+          maximum_gain_pct?: number | null
+          opportunity_id?: string | null
+          peak_market_cap?: number | null
+          peak_price?: number | null
+          status?: string
+          time_to_peak_minutes?: number | null
+          token_id: string
+        }
+        Update: {
+          created_at?: string
+          discovery_at?: string
+          discovery_entry_score?: number | null
+          discovery_market_cap?: number | null
+          discovery_price?: number | null
+          discovery_thesis_score?: number | null
+          id?: string
+          last_updated_at?: string
+          market_cap_1h?: number | null
+          market_cap_24h?: number | null
+          market_cap_3d?: number | null
+          market_cap_6h?: number | null
+          market_cap_7d?: number | null
+          maximum_drawdown_pct?: number | null
+          maximum_gain_pct?: number | null
+          opportunity_id?: string | null
+          peak_market_cap?: number | null
+          peak_price?: number | null
+          status?: string
+          time_to_peak_minutes?: number | null
+          token_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "opportunity_outcomes_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "opportunities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "opportunity_outcomes_token_id_fkey"
+            columns: ["token_id"]
+            isOneToOne: false
+            referencedRelation: "tokens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      research_reports: {
+        Row: {
+          base_mc_high: number | null
+          base_mc_low: number | null
+          bear_case: string | null
+          bull_case: string | null
+          bull_mc_high: number | null
+          bull_mc_low: number | null
+          catalyst_analysis: string | null
+          catalyst_score: number | null
+          chart_analysis: string | null
+          chart_entry_score: number | null
+          core_thesis: string | null
+          created_at: string
+          dev_integrity_score: number | null
+          developer_analysis: string | null
+          distribution_analysis: string | null
+          distribution_score: number | null
+          entry_score: number
+          entry_state: string
+          evidence_confidence: number
+          failure_mc_high: number | null
+          failure_mc_low: number | null
+          id: string
+          invalidation: string[]
+          liquidity_analysis: string | null
+          liquidity_score: number | null
+          meme_lore: string | null
+          meme_quality_score: number | null
+          mindshare_analysis: string | null
+          mindshare_score: number | null
+          model_name: string | null
+          opportunity_stage: string
+          prompt_version: string | null
+          scan_run_id: string | null
+          scoring_version: string | null
+          structural_multiplier: number
+          thesis_score: number
+          token_id: string
+          valuation_score: number | null
+          wallet_analysis: string | null
+          why_now: string | null
+          wingman_verdict: string | null
+        }
+        Insert: {
+          base_mc_high?: number | null
+          base_mc_low?: number | null
+          bear_case?: string | null
+          bull_case?: string | null
+          bull_mc_high?: number | null
+          bull_mc_low?: number | null
+          catalyst_analysis?: string | null
+          catalyst_score?: number | null
+          chart_analysis?: string | null
+          chart_entry_score?: number | null
+          core_thesis?: string | null
+          created_at?: string
+          dev_integrity_score?: number | null
+          developer_analysis?: string | null
+          distribution_analysis?: string | null
+          distribution_score?: number | null
+          entry_score: number
+          entry_state: string
+          evidence_confidence: number
+          failure_mc_high?: number | null
+          failure_mc_low?: number | null
+          id?: string
+          invalidation?: string[]
+          liquidity_analysis?: string | null
+          liquidity_score?: number | null
+          meme_lore?: string | null
+          meme_quality_score?: number | null
+          mindshare_analysis?: string | null
+          mindshare_score?: number | null
+          model_name?: string | null
+          opportunity_stage: string
+          prompt_version?: string | null
+          scan_run_id?: string | null
+          scoring_version?: string | null
+          structural_multiplier?: number
+          thesis_score: number
+          token_id: string
+          valuation_score?: number | null
+          wallet_analysis?: string | null
+          why_now?: string | null
+          wingman_verdict?: string | null
+        }
+        Update: {
+          base_mc_high?: number | null
+          base_mc_low?: number | null
+          bear_case?: string | null
+          bull_case?: string | null
+          bull_mc_high?: number | null
+          bull_mc_low?: number | null
+          catalyst_analysis?: string | null
+          catalyst_score?: number | null
+          chart_analysis?: string | null
+          chart_entry_score?: number | null
+          core_thesis?: string | null
+          created_at?: string
+          dev_integrity_score?: number | null
+          developer_analysis?: string | null
+          distribution_analysis?: string | null
+          distribution_score?: number | null
+          entry_score?: number
+          entry_state?: string
+          evidence_confidence?: number
+          failure_mc_high?: number | null
+          failure_mc_low?: number | null
+          id?: string
+          invalidation?: string[]
+          liquidity_analysis?: string | null
+          liquidity_score?: number | null
+          meme_lore?: string | null
+          meme_quality_score?: number | null
+          mindshare_analysis?: string | null
+          mindshare_score?: number | null
+          model_name?: string | null
+          opportunity_stage?: string
+          prompt_version?: string | null
+          scan_run_id?: string | null
+          scoring_version?: string | null
+          structural_multiplier?: number
+          thesis_score?: number
+          token_id?: string
+          valuation_score?: number | null
+          wallet_analysis?: string | null
+          why_now?: string | null
+          wingman_verdict?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_reports_scan_run_id_fkey"
+            columns: ["scan_run_id"]
+            isOneToOne: false
+            referencedRelation: "scan_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "research_reports_token_id_fkey"
+            columns: ["token_id"]
+            isOneToOne: false
+            referencedRelation: "tokens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scan_candidates: {
+        Row: {
+          created_at: string
+          id: string
+          promoted_reason: string | null
+          quantitative_score: number | null
+          rejection_reason: string | null
+          scan_run_id: string
+          stage_reached: string
+          token_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          promoted_reason?: string | null
+          quantitative_score?: number | null
+          rejection_reason?: string | null
+          scan_run_id: string
+          stage_reached: string
+          token_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          promoted_reason?: string | null
+          quantitative_score?: number | null
+          rejection_reason?: string | null
+          scan_run_id?: string
+          stage_reached?: string
+          token_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scan_candidates_scan_run_id_fkey"
+            columns: ["scan_run_id"]
+            isOneToOne: false
+            referencedRelation: "scan_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scan_candidates_token_id_fkey"
+            columns: ["token_id"]
+            isOneToOne: false
+            referencedRelation: "tokens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scan_runs: {
+        Row: {
+          actionable_count: number
+          completed_at: string | null
+          created_at: string
+          deep_researched: number
+          id: string
+          market_regime: string
+          notes: string | null
+          passed_ai_triage: number
+          passed_hard_filters: number
+          passed_quantitative_ranking: number
+          scanner_version: string | null
+          started_at: string
+          status: string
+          tokens_scanned: number
+        }
+        Insert: {
+          actionable_count?: number
+          completed_at?: string | null
+          created_at?: string
+          deep_researched?: number
+          id?: string
+          market_regime?: string
+          notes?: string | null
+          passed_ai_triage?: number
+          passed_hard_filters?: number
+          passed_quantitative_ranking?: number
+          scanner_version?: string | null
+          started_at?: string
+          status?: string
+          tokens_scanned?: number
+        }
+        Update: {
+          actionable_count?: number
+          completed_at?: string | null
+          created_at?: string
+          deep_researched?: number
+          id?: string
+          market_regime?: string
+          notes?: string | null
+          passed_ai_triage?: number
+          passed_hard_filters?: number
+          passed_quantitative_ranking?: number
+          scanner_version?: string | null
+          started_at?: string
+          status?: string
+          tokens_scanned?: number
+        }
+        Relationships: []
+      }
+      token_snapshots: {
+        Row: {
+          buys_1h: number | null
+          buys_5m: number | null
+          captured_at: string
+          created_at: string
+          data_source: string
+          fdv: number | null
+          holder_count: number | null
+          id: string
+          liquidity_usd: number | null
+          market_cap: number | null
+          paid_boost_count: number | null
+          price_change_1h: number | null
+          price_change_24h: number | null
+          price_change_5m: number | null
+          price_change_6h: number | null
+          price_usd: number | null
+          sells_1h: number | null
+          sells_5m: number | null
+          token_id: string
+          top_10_holder_pct: number | null
+          top_20_holder_pct: number | null
+          unique_buyers_1h: number | null
+          unique_sellers_1h: number | null
+          volume_1h: number | null
+          volume_24h: number | null
+          volume_5m: number | null
+          volume_6h: number | null
+        }
+        Insert: {
+          buys_1h?: number | null
+          buys_5m?: number | null
+          captured_at?: string
+          created_at?: string
+          data_source?: string
+          fdv?: number | null
+          holder_count?: number | null
+          id?: string
+          liquidity_usd?: number | null
+          market_cap?: number | null
+          paid_boost_count?: number | null
+          price_change_1h?: number | null
+          price_change_24h?: number | null
+          price_change_5m?: number | null
+          price_change_6h?: number | null
+          price_usd?: number | null
+          sells_1h?: number | null
+          sells_5m?: number | null
+          token_id: string
+          top_10_holder_pct?: number | null
+          top_20_holder_pct?: number | null
+          unique_buyers_1h?: number | null
+          unique_sellers_1h?: number | null
+          volume_1h?: number | null
+          volume_24h?: number | null
+          volume_5m?: number | null
+          volume_6h?: number | null
+        }
+        Update: {
+          buys_1h?: number | null
+          buys_5m?: number | null
+          captured_at?: string
+          created_at?: string
+          data_source?: string
+          fdv?: number | null
+          holder_count?: number | null
+          id?: string
+          liquidity_usd?: number | null
+          market_cap?: number | null
+          paid_boost_count?: number | null
+          price_change_1h?: number | null
+          price_change_24h?: number | null
+          price_change_5m?: number | null
+          price_change_6h?: number | null
+          price_usd?: number | null
+          sells_1h?: number | null
+          sells_5m?: number | null
+          token_id?: string
+          top_10_holder_pct?: number | null
+          top_20_holder_pct?: number | null
+          unique_buyers_1h?: number | null
+          unique_sellers_1h?: number | null
+          volume_1h?: number | null
+          volume_24h?: number | null
+          volume_5m?: number | null
+          volume_6h?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "token_snapshots_token_id_fkey"
+            columns: ["token_id"]
+            isOneToOne: false
+            referencedRelation: "tokens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tokens: {
+        Row: {
+          chain: string
+          contract_address: string
+          created_at: string
+          deployer_address: string | null
+          description: string | null
+          dex_pair_address: string | null
+          id: string
+          image_url: string | null
+          inserted_at: string
+          is_active: boolean
+          migration_at: string | null
+          name: string
+          symbol: string
+          telegram_url: string | null
+          token_created_at: string | null
+          twitter_url: string | null
+          updated_at: string
+          website_url: string | null
+        }
+        Insert: {
+          chain?: string
+          contract_address: string
+          created_at?: string
+          deployer_address?: string | null
+          description?: string | null
+          dex_pair_address?: string | null
+          id?: string
+          image_url?: string | null
+          inserted_at?: string
+          is_active?: boolean
+          migration_at?: string | null
+          name: string
+          symbol: string
+          telegram_url?: string | null
+          token_created_at?: string | null
+          twitter_url?: string | null
+          updated_at?: string
+          website_url?: string | null
+        }
+        Update: {
+          chain?: string
+          contract_address?: string
+          created_at?: string
+          deployer_address?: string | null
+          description?: string | null
+          dex_pair_address?: string | null
+          id?: string
+          image_url?: string | null
+          inserted_at?: string
+          is_active?: boolean
+          migration_at?: string | null
+          name?: string
+          symbol?: string
+          telegram_url?: string | null
+          token_created_at?: string | null
+          twitter_url?: string | null
+          updated_at?: string
+          website_url?: string | null
+        }
+        Relationships: []
+      }
+      watchlist: {
+        Row: {
+          alerts_enabled: boolean
+          created_at: string
+          id: string
+          notes: string | null
+          token_id: string
+        }
+        Insert: {
+          alerts_enabled?: boolean
+          created_at?: string
+          id?: string
+          notes?: string | null
+          token_id: string
+        }
+        Update: {
+          alerts_enabled?: boolean
+          created_at?: string
+          id?: string
+          notes?: string | null
+          token_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "watchlist_token_id_fkey"
+            columns: ["token_id"]
+            isOneToOne: false
+            referencedRelation: "tokens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      [_ in never]: never
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
+}
+
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+
+export type Tables<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
+
+export type TablesInsert<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
+
+export type TablesUpdate<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
+
+export type Enums<
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  public: {
+    Enums: {},
+  },
+} as const

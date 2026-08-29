@@ -1,21 +1,18 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useMemo } from "react";
 import type { ReactNode } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { WatchlistService } from "./services";
+import { wingmanKeys } from "./hooks";
 import type { WatchlistEntry } from "./types";
 
 /**
- * Local watchlist state. Persisted to localStorage in v0; swap the load/save
- * calls for Supabase reads/writes later without touching components.
+ * Watchlist state, persisted in the backend `watchlist` table through
+ * WatchlistService. Components keep the same API as before.
  */
-
-const STORAGE_KEY = "wingman.watchlist.v1";
-
-const DEFAULT_ENTRIES: WatchlistEntry[] = [
-  { tokenId: "opp-gta", addedAt: "2026-08-29T11:05:00.000Z", alert: "ON" },
-  { tokenId: "opp-ledgerdog", addedAt: "2026-08-28T15:40:00.000Z", alert: "OFF" },
-];
 
 interface WatchlistContextValue {
   entries: WatchlistEntry[];
+  isLoading: boolean;
   isWatched: (tokenId: string) => boolean;
   add: (tokenId: string) => void;
   remove: (tokenId: string) => void;
@@ -26,48 +23,48 @@ interface WatchlistContextValue {
 const WatchlistContext = createContext<WatchlistContextValue | null>(null);
 
 export function WatchlistProvider({ children }: { children: ReactNode }) {
-  const [entries, setEntries] = useState<WatchlistEntry[]>(DEFAULT_ENTRIES);
+  const queryClient = useQueryClient();
+  const { data, isLoading } = useQuery({
+    queryKey: wingmanKeys.watchlist,
+    queryFn: () => WatchlistService.list(),
+  });
+  const entries = useMemo(() => data ?? [], [data]);
 
-  useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (raw) setEntries(JSON.parse(raw) as WatchlistEntry[]);
-    } catch {
-      /* ignore corrupted local state */
-    }
-  }, []);
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ queryKey: wingmanKeys.watchlist });
+  };
 
-  const persist = useCallback((next: WatchlistEntry[]) => {
-    setEntries(next);
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    } catch {
-      /* storage unavailable — keep in-memory state */
-    }
-  }, []);
+  const addMutation = useMutation({
+    mutationFn: (tokenId: string) => WatchlistService.add(tokenId),
+    onSuccess: invalidate,
+  });
+  const removeMutation = useMutation({
+    mutationFn: (tokenId: string) => WatchlistService.remove(tokenId),
+    onSuccess: invalidate,
+  });
+  const alertMutation = useMutation({
+    mutationFn: (vars: { tokenId: string; enabled: boolean }) =>
+      WatchlistService.setAlerts(vars.tokenId, vars.enabled),
+    onSuccess: invalidate,
+  });
 
   const value = useMemo<WatchlistContextValue>(() => {
     const isWatched = (tokenId: string) => entries.some((e) => e.tokenId === tokenId);
     return {
       entries,
+      isLoading,
       isWatched,
-      add: (tokenId) => {
-        if (isWatched(tokenId)) return;
-        persist([...entries, { tokenId, addedAt: new Date().toISOString(), alert: "OFF" }]);
-      },
-      remove: (tokenId) => persist(entries.filter((e) => e.tokenId !== tokenId)),
+      add: (tokenId) => addMutation.mutate(tokenId),
+      remove: (tokenId) => removeMutation.mutate(tokenId),
       toggle: (tokenId) =>
-        isWatched(tokenId)
-          ? persist(entries.filter((e) => e.tokenId !== tokenId))
-          : persist([...entries, { tokenId, addedAt: new Date().toISOString(), alert: "OFF" }]),
-      toggleAlert: (tokenId) =>
-        persist(
-          entries.map((e) =>
-            e.tokenId === tokenId ? { ...e, alert: e.alert === "ON" ? "OFF" : "ON" } : e,
-          ),
-        ),
+        isWatched(tokenId) ? removeMutation.mutate(tokenId) : addMutation.mutate(tokenId),
+      toggleAlert: (tokenId) => {
+        const current = entries.find((e) => e.tokenId === tokenId);
+        alertMutation.mutate({ tokenId, enabled: current?.alert !== "ON" });
+      },
     };
-  }, [entries, persist]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entries, isLoading]);
 
   return <WatchlistContext.Provider value={value}>{children}</WatchlistContext.Provider>;
 }

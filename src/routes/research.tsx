@@ -4,8 +4,9 @@ import { AppShell } from "@/components/wingman/AppShell";
 import { Section } from "@/components/wingman/Section";
 import { EmptyState } from "@/components/wingman/EmptyState";
 import { Button } from "@/components/ui/button";
-import { getOpportunities } from "@/lib/wingman/mock-data";
+import { useOpportunities } from "@/lib/wingman/hooks";
 import { relativeTime } from "@/lib/wingman/format";
+
 
 export const Route = createFileRoute("/research")({
   head: () => ({
@@ -27,7 +28,8 @@ export const Route = createFileRoute("/research")({
 });
 
 function ResearchPage() {
-  const reports = getOpportunities();
+  const { data: reports = [] } = useOpportunities();
+
 
   return (
     <AppShell

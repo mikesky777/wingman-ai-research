@@ -6,7 +6,7 @@ import { Section } from "@/components/wingman/Section";
 import { EmptyState } from "@/components/wingman/EmptyState";
 import { EntryStateBadge } from "@/components/wingman/EntryStateBadge";
 import { Button } from "@/components/ui/button";
-import { getOpportunities } from "@/lib/wingman/mock-data";
+import { useOpportunities } from "@/lib/wingman/hooks";
 import { formatSigned, formatUsd, relativeTime } from "@/lib/wingman/format";
 import { useWatchlist } from "@/lib/wingman/watchlist";
 import { cn } from "@/lib/utils";
@@ -50,26 +50,27 @@ function matches(o: Opportunity, f: FilterKey) {
 }
 
 function WatchlistPage() {
-  const all = getOpportunities();
+  const { data: all = [] } = useOpportunities();
   const { entries, remove, add, toggleAlert, isWatched } = useWatchlist();
   const [filter, setFilter] = useState<FilterKey>("ALL");
 
   const rows = useMemo(
     () =>
       entries
-        .map((e) => ({ entry: e, opp: all.find((o) => o.id === e.tokenId) }))
+        .map((e) => ({ entry: e, opp: all.find((o) => o.token.id === e.tokenId) }))
         .filter((r): r is { entry: (typeof entries)[number]; opp: Opportunity } => Boolean(r.opp))
         .filter((r) => matches(r.opp, filter)),
     [entries, all, filter],
   );
 
-  const addable = all.filter((o) => !isWatched(o.id));
+  const addable = all.filter((o) => !isWatched(o.token.id));
 
   return (
     <AppShell
       title="Watchlist"
-      subtitle="Tokens you are tracking between scans. Stored locally in v0."
+      subtitle="Tokens you are tracking between scans. Saved to your Wingman backend."
     >
+
       <div className="space-y-6">
         <Section
           title="Tracked Tokens"
@@ -155,7 +156,7 @@ function WatchlistPage() {
                       </td>
                       <td>
                         <button
-                          onClick={() => toggleAlert(opp.id)}
+                          onClick={() => toggleAlert(opp.token.id)}
                           className={cn(
                             "inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] transition-colors",
                             entry.alert === "ON"
@@ -173,7 +174,7 @@ function WatchlistPage() {
                       </td>
                       <td className="text-right">
                         <button
-                          onClick={() => remove(opp.id)}
+                          onClick={() => remove(opp.token.id)}
                           aria-label={`Remove ${opp.token.name} from watchlist`}
                           className="text-muted-foreground transition-colors hover:text-destructive"
                         >
@@ -196,7 +197,7 @@ function WatchlistPage() {
           ) : (
             <div className="flex flex-wrap gap-2">
               {addable.map((o) => (
-                <Button key={o.id} variant="outline" size="sm" onClick={() => add(o.id)}>
+                <Button key={o.id} variant="outline" size="sm" onClick={() => add(o.token.id)}>
                   <Plus className="size-3.5" />
                   {o.token.name} · {o.token.ticker}
                 </Button>
