@@ -14,6 +14,88 @@ export type Database = {
   }
   public: {
     Tables: {
+      evidence_observations: {
+        Row: {
+          captured_at: string
+          confidence: number | null
+          domain: string
+          id: string
+          inserted_at: string
+          key: string
+          metadata: Json | null
+          observed_at: string | null
+          research_report_id: string | null
+          scan_run_id: string | null
+          schema_version: string
+          source: string
+          source_reference: string | null
+          status: string
+          token_id: string
+          unit: string | null
+          value_json: Json | null
+        }
+        Insert: {
+          captured_at: string
+          confidence?: number | null
+          domain: string
+          id?: string
+          inserted_at?: string
+          key: string
+          metadata?: Json | null
+          observed_at?: string | null
+          research_report_id?: string | null
+          scan_run_id?: string | null
+          schema_version: string
+          source: string
+          source_reference?: string | null
+          status: string
+          token_id: string
+          unit?: string | null
+          value_json?: Json | null
+        }
+        Update: {
+          captured_at?: string
+          confidence?: number | null
+          domain?: string
+          id?: string
+          inserted_at?: string
+          key?: string
+          metadata?: Json | null
+          observed_at?: string | null
+          research_report_id?: string | null
+          scan_run_id?: string | null
+          schema_version?: string
+          source?: string
+          source_reference?: string | null
+          status?: string
+          token_id?: string
+          unit?: string | null
+          value_json?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "evidence_observations_research_report_id_fkey"
+            columns: ["research_report_id"]
+            isOneToOne: false
+            referencedRelation: "research_reports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "evidence_observations_scan_run_id_fkey"
+            columns: ["scan_run_id"]
+            isOneToOne: false
+            referencedRelation: "scan_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "evidence_observations_token_id_fkey"
+            columns: ["token_id"]
+            isOneToOne: false
+            referencedRelation: "tokens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       opportunities: {
         Row: {
           created_at: string
