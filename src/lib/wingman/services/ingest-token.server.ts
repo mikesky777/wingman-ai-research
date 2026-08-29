@@ -23,10 +23,10 @@ export async function runIngestTokenByAddress(contractAddress: string): Promise<
 
     // One fetch per ingestion; the request layer dedupes identical calls.
     const selection = await DexScreenerAdapter.resolvePrimaryPair(address, { noCache: true });
-    const pair = selection.primary;
+    const primaryPair = selection.primary;
 
-    const identity = normalizeIdentity(pair, address);
-    const snapshot = normalizeSnapshot(pair);
+    const identity = normalizeIdentity(primaryPair, address);
+    const snapshot = normalizeSnapshot(primaryPair);
 
     if (snapshot.liquidityUsd === null || snapshot.liquidityUsd <= 0) {
       throw new ExternalDataError("PAIR_WITHOUT_LIQUIDITY");
