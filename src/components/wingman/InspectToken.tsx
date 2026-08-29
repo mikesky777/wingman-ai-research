@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ingestTokenByAddress } from "@/lib/wingman/ingest.functions";
 import type { IngestTokenResult } from "@/lib/wingman/ingest-types";
-import { snapshotToEvidence, resolveEvidence } from "@/lib/wingman/services/evidence";
+import { buildEvidenceBundle } from "@/lib/wingman/services/evidence";
+import type { EvidenceDomain } from "@/lib/wingman/services/evidence";
 import { formatUsd, formatNumber, shortenAddress, formatTime, tokenAge } from "@/lib/wingman/format";
 import { cn } from "@/lib/utils";
 
@@ -187,9 +188,43 @@ export function InspectToken() {
             />
 
             <Field label="Active boosts" value={count(result.snapshot.promotion.activeBoostCount)} />
-            <Field label="Holder count" value={null} />
+            <Field
+              label="Holder wallets (Birdeye)"
+              value={typeof holderCount?.value === "number" ? formatNumber(holderCount.value) : null}
+            />
             <Field label="Unique buyers 1h" value={null} />
-            <Field label="Top-10 holders" value={null} />
+            <Field
+              label="Top-10 wallets, raw (Birdeye)"
+              value={
+                typeof holderTop10?.value === "number" ? `${holderTop10.value.toFixed(2)}%` : null
+              }
+            />
+          </div>
+
+          <div className="flex flex-wrap gap-2 rounded-md border border-border bg-surface/60 p-3">
+            <span className="label-xs mr-1 text-muted-foreground">Evidence coverage</span>
+            {(Object.keys(bundle.availability) as EvidenceDomain[]).map((domain) => (
+              <span
+                key={domain}
+                className={cn(
+                  "label-xs rounded border px-1.5 py-0.5",
+                  bundle.availability[domain]
+                    ? "border-positive/40 text-positive"
+                    : "border-border text-muted-foreground",
+                )}
+              >
+                {domain}: {bundle.availability[domain] ? "available" : "unavailable"}
+              </span>
+            ))}
+            {result.providers.map((p) => (
+              <span
+                key={p.source}
+                className="label-xs rounded border border-border px-1.5 py-0.5 text-muted-foreground"
+                title={p.message ?? undefined}
+              >
+                {p.source}: {p.ok ? "ok" : "unavailable"}
+              </span>
+            ))}
           </div>
 
           <details className="rounded-md border border-border bg-surface/60 p-3">
