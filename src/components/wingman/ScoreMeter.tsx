@@ -26,7 +26,7 @@ export function ScoreMeter({
   value: number;
   max: number;
   variant?: Variant;
-  hint?: string;
+  hint?: string | undefined;
   className?: string;
   size?: "sm" | "md";
 }) {
