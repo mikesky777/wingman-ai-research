@@ -79,7 +79,16 @@ function HistoryPage() {
           title="Previous Recommendations"
           description="Every token that reached the Wingman shortlist."
         >
+          {isLoading ? (
+            <p className="text-xs text-muted-foreground">Loading outcomes…</p>
+          ) : outcomes.length === 0 ? (
+            <EmptyState
+              title="No recorded outcomes yet"
+              description="Outcome tracking begins once promoted opportunities have measurable history."
+            />
+          ) : (
           <div className="overflow-x-auto">
+
             <table className="w-full min-w-[1000px] text-left">
               <thead>
                 <tr className="[&>th]:label-xs [&>th]:pb-2.5 [&>th]:font-medium">
