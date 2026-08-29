@@ -1,0 +1,2 @@
+ALTER TABLE public.scan_candidates DROP CONSTRAINT IF EXISTS scan_candidates_stage_reached_check;
+ALTER TABLE public.scan_candidates ADD CONSTRAINT scan_candidates_stage_reached_check CHECK (stage_reached IN ('universe','discovered','hard_filters','quantitative','quantitative_ranking','enriched','ai_triage','deep_research','shortlist','rejected'));
