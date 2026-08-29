@@ -63,8 +63,12 @@ export function snapshotToEvidence(
     metadata: {
       ingestionVersion: snapshot.ingestionVersion,
       dataSource: snapshot.dataSource,
+      // DexScreener supplies no per-fact timestamp, so observedAt is our
+      // capture time. Making that explicit keeps timestamp semantics honest.
+      observedAtBasis: "capture_time",
       ...(pair ? { pairSelectionVersion: pair.selectionVersion } : {}),
     },
+
   };
 
   const m = (key: string, value: EvidenceValue, unit?: EvidenceUnit) =>
