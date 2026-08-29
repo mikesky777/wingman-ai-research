@@ -140,7 +140,9 @@ function HistoryPage() {
               </tbody>
             </table>
           </div>
+          )}
         </Section>
+
       </div>
     </AppShell>
   );
