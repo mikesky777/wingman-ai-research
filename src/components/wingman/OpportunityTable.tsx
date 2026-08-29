@@ -57,7 +57,7 @@ export function OpportunityTable({ opportunities }: { opportunities: Opportunity
             return (
               <tr
                 key={o.id}
-                className="group border-t border-border transition-colors hover:bg-secondary/50 [&>td]:border-t [&>td]:border-border [&>td]:py-3"
+                className="group border-t border-border transition-colors hover:bg-secondary/50 [&>td]:border-t [&>td]:border-border [&>td]:px-2 [&>td]:py-3"
               >
                 <td className="tabular text-sm text-muted-foreground">{o.rank}</td>
                 <td className="pr-6">
