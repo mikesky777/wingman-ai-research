@@ -252,6 +252,7 @@ export async function persistCandidates(
         quantitative_priority: c.quantitativePriority,
         priority_components: c.priority?.components ?? null,
         priority_breakdown: c.priority ?? null,
+        lane_rejections: c.laneRejections,
         extension_reasons: c.extensionReasons,
         global_rank: c.globalRank,
         lane_ranks: c.laneRanks,
