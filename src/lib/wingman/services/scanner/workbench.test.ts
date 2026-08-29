@@ -64,7 +64,7 @@ function token(overrides: Partial<DiscoveredToken> = {}): DiscoveredToken {
   };
 }
 
-const evaluate = (t: DiscoveredToken) => evaluateCandidate(t, { now: NOW });
+const evaluate = (t: DiscoveredToken) => evaluateCandidate(t, { nowIso: NOW });
 
 describe("market cap buckets", () => {
   it("places tokens in exactly one bucket and keeps unknown separate from zero", () => {
