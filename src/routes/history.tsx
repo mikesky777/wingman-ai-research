@@ -2,10 +2,13 @@ import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/wingman/AppShell";
 import { Section } from "@/components/wingman/Section";
 import { StatTile } from "@/components/wingman/StatTile";
-import { getTradeOutcomes } from "@/lib/wingman/mock-data";
+import { EmptyState } from "@/components/wingman/EmptyState";
+import { useOutcomes } from "@/lib/wingman/hooks";
+import { OutcomeService } from "@/lib/wingman/services";
 import { formatDate, formatUsd } from "@/lib/wingman/format";
 import { MOCK_DATA_NOTICE } from "@/lib/wingman/config";
 import { cn } from "@/lib/utils";
+
 
 export const Route = createFileRoute("/history")({
   head: () => ({
