@@ -16,6 +16,13 @@ export {
 } from "./types";
 export { snapshotToEvidence } from "./market-evidence";
 export {
+  birdeyeToEvidence,
+  holderDistributionToEvidence,
+  holderProfileToEvidence,
+  type BirdeyeEnrichment,
+} from "./holder-evidence";
+export {
+  EVIDENCE_RESOLVER_VERSION,
   RESOLVED_EVIDENCE_SCHEMA_VERSION,
   type ConflictingValue,
   type EvidenceAvailability,
