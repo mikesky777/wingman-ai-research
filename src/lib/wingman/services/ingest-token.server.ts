@@ -35,8 +35,45 @@ export async function runIngestTokenByAddress(contractAddress: string): Promise<
     const token = await upsertTokenIdentity(identity);
     const inserted = await insertSnapshot(token.id, snapshot);
 
+    const pair: SelectedPairMeta = {
+      pairAddress: identity.dexPairAddress,
+      dexId: identity.primaryDexId,
+      quoteTokenSymbol: identity.primaryQuoteTokenSymbol,
+      quoteTokenAddress: identity.primaryQuoteTokenAddress,
+      pairCreatedAt: identity.pairCreatedAt,
+      eligiblePairCount: selection.eligible.length,
+      rejectedPairCount: selection.rejectedCount,
+      ambiguous: selection.ambiguous,
+      selectionVersion: selection.version,
+    };
+
+    const persistedSnapshot = { ...snapshot, capturedAt: inserted.capturedAt };
+    const marketEvidence = snapshotToEvidence(persistedSnapshot, pair);
+    const providers: ProviderOutcome[] = [
+      { source: "dexscreener", ok: true, message: null },
+    ];
+
+    // Deep enrichment, explicitly requested by a user inspecting this CA.
+    // A Birdeye failure leaves holder evidence unavailable and nothing else.
+    const holders = await enrichTokenHolders({
+      contractAddress: address,
+      chain: DEFAULT_CHAIN,
+      capturedAt: inserted.capturedAt,
+    });
+    providers.push({
+      source: "birdeye",
+      ok: holders.ok,
+      message: holders.failure?.message ?? null,
+    });
+
+    const evidence = [...marketEvidence, ...holders.observations];
+    const { persisted } = await appendEvidenceObservations(evidence, { tokenId: token.id });
+
     return {
       ok: true,
+      evidence,
+      providers,
+      evidencePersisted: persisted,
       token: {
         id: token.id,
         contractAddress: token.contractAddress,
