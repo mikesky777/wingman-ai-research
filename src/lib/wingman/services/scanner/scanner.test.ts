@@ -340,7 +340,7 @@ describe("birdeye discovery normalization", () => {
   });
 
   it("keeps missing fields null rather than zero", () => {
-    const t = normalizeDiscoveryItem({ address: item.address }, { chain: "solana", hit: HIT })!;
+    const t = normalizeDiscoveryItem({ address: item.address! }, { chain: "solana", hit: HIT })!;
     expect(t.marketCap).toBeNull();
     expect(t.volume24h).toBeNull();
     expect(t.trades24h).toBeNull();
