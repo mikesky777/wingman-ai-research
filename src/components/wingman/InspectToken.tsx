@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ingestTokenByAddress } from "@/lib/wingman/ingest.functions";
 import type { IngestTokenResult } from "@/lib/wingman/ingest-types";
-import { snapshotToEvidence } from "@/lib/wingman/services/evidence";
+import { snapshotToEvidence, resolveEvidence } from "@/lib/wingman/services/evidence";
 import { formatUsd, formatNumber, shortenAddress, formatTime, tokenAge } from "@/lib/wingman/format";
 import { cn } from "@/lib/utils";
 
@@ -60,8 +60,14 @@ export function InspectToken() {
   });
 
   const result = mutation.data;
-  const evidence =
-    result?.ok ? snapshotToEvidence(result.snapshot, result.pair) : [];
+  const evidence = result?.ok ? snapshotToEvidence(result.snapshot, result.pair) : [];
+  const resolvedByKey = new Map(
+    resolveEvidence(evidence, result?.ok ? { now: result.snapshot.capturedAt } : {}).map(
+      (r) => [r.key, r] as const,
+    ),
+  );
+
+
 
 
   return (
@@ -196,7 +202,8 @@ export function InspectToken() {
                     <th className="py-1 pr-3 font-medium">Key</th>
                     <th className="py-1 pr-3 font-medium">Value</th>
                     <th className="py-1 pr-3 font-medium">Unit</th>
-                    <th className="py-1 font-medium">Status</th>
+                    <th className="py-1 pr-3 font-medium">Status</th>
+                    <th className="py-1 font-medium">Resolution</th>
                   </tr>
                 </thead>
                 <tbody className="tabular">
@@ -212,9 +219,17 @@ export function InspectToken() {
                         {o.value === null ? UNAVAILABLE : String(o.value)}
                       </td>
                       <td className="py-1 pr-3 text-muted-foreground">{o.unit ?? "—"}</td>
-                      <td className="py-1 text-muted-foreground">{o.status}</td>
+                      <td className="py-1 pr-3 text-muted-foreground">{o.status}</td>
+                      <td className="py-1">
+                        <span className="label-xs rounded border border-border px-1.5 py-0.5 text-muted-foreground">
+                          {(resolvedByKey.get(o.key)?.resolutionStatus ?? "unavailable")
+                            .replace("_", " ")
+                            .toUpperCase()}
+                        </span>
+                      </td>
                     </tr>
                   ))}
+
                 </tbody>
               </table>
             </div>
