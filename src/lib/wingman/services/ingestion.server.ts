@@ -11,6 +11,7 @@
  *   - Unavailable values are stored as NULL, never coerced to 0.
  */
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import type { TablesInsert } from "@/integrations/supabase/types";
 import { ExternalDataError } from "./external/dexscreener/errors";
 import type { NormalizedSnapshot, NormalizedTokenIdentity } from "./external/dexscreener/normalizer";
 
@@ -48,7 +49,7 @@ export async function upsertTokenIdentity(
   if (readError) throw new ExternalDataError("PERSISTENCE_FAILED");
 
   const prev = (existing ?? {}) as Row;
-  const payload: Row = {
+  const payload = {
     contract_address: identity.contractAddress,
     chain: "solana",
     // Identity fields are NOT NULL in the schema; fall back to prior values,
@@ -77,7 +78,7 @@ export async function upsertTokenIdentity(
     ),
     metadata_source: "dexscreener",
     last_ingested_at: new Date().toISOString(),
-  };
+  } satisfies TablesInsert<"tokens">;
 
   const { data, error } = await supabaseAdmin
     .from("tokens")
@@ -109,7 +110,7 @@ export async function insertSnapshot(
   tokenId: string,
   snapshot: NormalizedSnapshot,
 ): Promise<{ id: string; capturedAt: string }> {
-  const payload: Row = {
+  const payload = {
     token_id: tokenId,
     captured_at: snapshot.capturedAt,
     data_source: snapshot.dataSource,
@@ -144,7 +145,7 @@ export async function insertSnapshot(
     unique_sellers_1h: null,
     top_10_holder_pct: null,
     top_20_holder_pct: null,
-  };
+  } satisfies TablesInsert<"token_snapshots">;
 
   const { data, error } = await supabaseAdmin
     .from("token_snapshots")
