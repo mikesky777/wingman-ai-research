@@ -37,15 +37,16 @@ const STAGE_TONE: Record<string, string> = {
 };
 
 function ScannerPage() {
-  const summary = getScanSummary();
-  const candidates = getScannedCandidates();
+  const { data: latestScan } = useLatestScan();
+  const { data: candidates = [] } = useScanCandidates(latestScan?.runId);
+  const summary = latestScan?.summary;
   const counts: Record<string, number> = {
-    universe: summary.tokensScanned,
-    hard_filters: summary.passedFilters,
-    quant: summary.quantRanked,
-    triage: summary.deepResearched + 4,
-    deep: summary.deepResearched,
-    shortlist: summary.actionable,
+    universe: summary?.tokensScanned ?? 0,
+    hard_filters: summary?.passedFilters ?? 0,
+    quant: summary?.quantRanked ?? 0,
+    triage: summary?.deepResearched ?? 0,
+    deep: summary?.deepResearched ?? 0,
+    shortlist: summary?.actionable ?? 0,
   };
 
   return (
@@ -55,11 +56,18 @@ function ScannerPage() {
       actions={<span className="text-[11px] text-muted-foreground">{MOCK_DATA_NOTICE}</span>}
     >
       <div className="space-y-6">
-        <Section title="Pipeline" description="Mock counts from the most recent scan.">
+        <Section title="Pipeline" description="Counts from the most recent completed scan.">
+          {!summary ? (
+            <EmptyState
+              title="No completed scan yet"
+              description="Pipeline counts appear after Wingman finishes its first scan cycle."
+            />
+          ) : (
           <div className="mx-auto max-w-3xl">
             {PIPELINE_STAGES.map((stage, i) => {
               const count = counts[stage.key] ?? 0;
-              const pct = (count / summary.tokensScanned) * 100;
+              const pct = (count / Math.max(summary.tokensScanned, 1)) * 100;
+
               return (
                 <div key={stage.key}>
                   <div className="relative overflow-hidden rounded-md border border-border bg-surface/60 px-4 py-3.5">
