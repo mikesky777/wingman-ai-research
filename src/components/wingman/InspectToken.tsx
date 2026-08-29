@@ -202,7 +202,8 @@ export function InspectToken() {
                     <th className="py-1 pr-3 font-medium">Key</th>
                     <th className="py-1 pr-3 font-medium">Value</th>
                     <th className="py-1 pr-3 font-medium">Unit</th>
-                    <th className="py-1 font-medium">Status</th>
+                    <th className="py-1 pr-3 font-medium">Status</th>
+                    <th className="py-1 font-medium">Resolution</th>
                   </tr>
                 </thead>
                 <tbody className="tabular">
@@ -218,9 +219,17 @@ export function InspectToken() {
                         {o.value === null ? UNAVAILABLE : String(o.value)}
                       </td>
                       <td className="py-1 pr-3 text-muted-foreground">{o.unit ?? "—"}</td>
-                      <td className="py-1 text-muted-foreground">{o.status}</td>
+                      <td className="py-1 pr-3 text-muted-foreground">{o.status}</td>
+                      <td className="py-1">
+                        <span className="label-xs rounded border border-border px-1.5 py-0.5 text-muted-foreground">
+                          {(resolvedByKey.get(o.key)?.resolutionStatus ?? "unavailable")
+                            .replace("_", " ")
+                            .toUpperCase()}
+                        </span>
+                      </td>
                     </tr>
                   ))}
+
                 </tbody>
               </table>
             </div>
