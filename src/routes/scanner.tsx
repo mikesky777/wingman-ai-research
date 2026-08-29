@@ -101,7 +101,9 @@ function ScannerPage() {
               );
             })}
           </div>
+          )}
         </Section>
+
 
         <Section
           title="Recently Scanned Candidates"
