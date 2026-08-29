@@ -62,7 +62,7 @@ export function InspectToken() {
   const result = mutation.data;
   const evidence = result?.ok ? snapshotToEvidence(result.snapshot, result.pair) : [];
   const resolvedByKey = new Map(
-    resolveEvidence(evidence, { now: result?.ok ? result.snapshot.capturedAt : undefined }).map(
+    resolveEvidence(evidence, result?.ok ? { now: result.snapshot.capturedAt } : {}).map(
       (r) => [r.key, r] as const,
     ),
   );

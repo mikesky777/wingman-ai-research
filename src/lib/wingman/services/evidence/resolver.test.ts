@@ -183,7 +183,7 @@ describe("dexscreener evidence through the resolver", () => {
 
   it("marks the capturedAt proxy as capture_time", () => {
     for (const o of observations) {
-      expect(o.metadata?.observedAtBasis).toBe("capture_time");
+      expect(o.metadata?.["observedAtBasis"]).toBe("capture_time");
       expect(o.observedAt).toBe(o.capturedAt);
     }
   });

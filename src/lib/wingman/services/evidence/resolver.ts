@@ -116,10 +116,11 @@ function resolveGroup(
   );
   const available = ordered.filter((o) => o.status === "observed" && o.value !== null);
 
+  const unit = ordered.find((o) => o.unit)?.unit;
   const base = {
     domain,
     key,
-    unit: ordered.find((o) => o.unit)?.unit,
+    ...(unit ? { unit } : {}),
     resolvedAt: options.nowIso,
     observations: ordered,
     schemaVersion: RESOLVED_EVIDENCE_SCHEMA_VERSION,
