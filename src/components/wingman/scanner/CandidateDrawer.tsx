@@ -121,6 +121,19 @@ export function CandidateDrawer({
           </div>
 
           <Block title="Why this candidate surfaced">
+            <Row label="Global rank" value={c.globalRank ?? "—"} />
+            <Row
+              label="Selection"
+              value={
+                c.selectedByLaneReservation
+                  ? "LANE QUOTA"
+                  : c.selectedByGlobalRanking
+                    ? "GLOBAL RANK"
+                    : c.rejectionReason
+                      ? "REJECTED"
+                      : "NEAR MISS"
+              }
+            />
             {c.discoveryQueries.length === 0 ? (
               <p className="text-xs text-muted-foreground">No discovery provenance recorded.</p>
             ) : (

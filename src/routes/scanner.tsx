@@ -19,10 +19,8 @@ import { CandidateDrawer } from "@/components/wingman/scanner/CandidateDrawer";
 import { DiagnosticsPanels } from "@/components/wingman/scanner/DiagnosticsPanels";
 import { ManualCheck } from "@/components/wingman/scanner/ManualCheck";
 import {
-  EXTENSION_TONE,
   LANES,
   LANE_TONE,
-  SIGNAL_TONE,
   formatAge,
   formatRatioPct,
   laneLabel,
@@ -61,13 +59,6 @@ const FILTERS: { key: Filter; label: string }[] = [
   { key: "NEAR_MISS", label: "Near misses" },
   ...LANES.map((lane) => ({ key: lane as Filter, label: laneLabel(lane) })),
 ];
-
-const LABEL_TONE: Record<string, string> = {
-  INTERESTING: "text-primary",
-  RESEARCH: "text-positive",
-  JUNK: "text-destructive",
-  UNREVIEWED: "text-muted-foreground",
-};
 
 type Row = WorkbenchCandidate & { passedNearMiss: boolean };
 
@@ -166,98 +157,132 @@ function ScannerPage() {
           </p>
         ) : null}
 
-        <Section
-          title="Run Status"
-          description="Reproducibility metadata for the most recent scan."
-        >
-          <div className="grid gap-3 text-xs sm:grid-cols-3 xl:grid-cols-6">
-            {[
-              ["State", runState],
-              [
-                "Started",
-                diagnostics?.startedAt ? new Date(diagnostics.startedAt).toLocaleString() : "—",
-              ],
-              [
-                "Duration",
-                diagnostics?.durationMs ? `${Math.round(diagnostics.durationMs / 1000)}s` : "—",
-              ],
-              ["Survivor limit", diagnostics?.survivorLimit ?? "—"],
-              ["Scanner version", diagnostics?.scannerVersion ?? funnel?.scannerVersion ?? "—"],
-              [
-                "Discovery config",
-                diagnostics?.discoveryConfigVersion ?? funnel?.discoveryConfigVersion ?? "—",
-              ],
-            ].map(([label, value]) => (
-              <div key={String(label)} className="rounded-md border border-border bg-surface/60 p-3">
-                <p className="label-xs">{label}</p>
-                <p className="tabular mt-1 text-sm">{String(value)}</p>
+        <div className="panel flex flex-wrap items-center gap-x-2 gap-y-1 px-4 py-3 font-mono text-xs">
+          <span className={runState === "COMPLETED" ? "text-positive" : "text-foreground"}>
+            {runState}
+          </span>
+          <span className="text-muted-foreground">·</span>
+          <span className="tabular">
+            {diagnostics?.durationMs ? `${Math.round(diagnostics.durationMs / 1000)}s` : "—"}
+          </span>
+          <span className="text-muted-foreground">·</span>
+          <span className="tabular">{formatNumber(funnel?.discovered ?? 0)} discovered</span>
+          <span className="text-muted-foreground">→</span>
+          <span className="tabular">{formatNumber(funnel?.passedHardFilters ?? 0)} hard-filtered</span>
+          <span className="text-muted-foreground">→</span>
+          <span className="tabular">{formatNumber(funnel?.quantitativelyRanked ?? 0)} ranked</span>
+          <span className="text-muted-foreground">→</span>
+          <span className="tabular text-primary">{formatNumber(funnel?.enriched ?? 0)} enriched</span>
+          <span className="text-muted-foreground">·</span>
+          <span className="text-muted-foreground">
+            {diagnostics?.scannerVersion ?? funnel?.scannerVersion ?? "scanner/v1"}
+          </span>
+        </div>
+
+        <details className="panel group">
+          <summary className="flex cursor-pointer list-none items-center justify-between px-5 py-3.5 [&::-webkit-details-marker]:hidden">
+            <div>
+              <h2 className="text-sm font-semibold tracking-tight">Calibration</h2>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Run metadata, pipeline stages and diagnostic breakdowns.
+              </p>
+            </div>
+            <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
+          </summary>
+          <div className="space-y-6 border-t border-border px-5 py-4">
+            <section>
+              <h3 className="mb-3 label-xs">Run status</h3>
+              <div className="grid gap-3 text-xs sm:grid-cols-3 xl:grid-cols-6">
+                {[
+                  ["State", runState],
+                  [
+                    "Started",
+                    diagnostics?.startedAt ? new Date(diagnostics.startedAt).toLocaleString() : "—",
+                  ],
+                  [
+                    "Duration",
+                    diagnostics?.durationMs ? `${Math.round(diagnostics.durationMs / 1000)}s` : "—",
+                  ],
+                  ["Survivor limit", diagnostics?.survivorLimit ?? "—"],
+                  ["Scanner version", diagnostics?.scannerVersion ?? funnel?.scannerVersion ?? "—"],
+                  [
+                    "Discovery config",
+                    diagnostics?.discoveryConfigVersion ?? funnel?.discoveryConfigVersion ?? "—",
+                  ],
+                ].map(([label, value]) => (
+                  <div key={String(label)} className="rounded-md border border-border bg-surface/60 p-3">
+                    <p className="label-xs">{label}</p>
+                    <p className="tabular mt-1 text-sm">{String(value)}</p>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-          {diagnostics?.errorMessage ? (
-            <p className="mt-3 text-xs text-destructive">{diagnostics.errorMessage}</p>
-          ) : null}
-        </Section>
+              {diagnostics?.errorMessage ? (
+                <p className="mt-3 text-xs text-destructive">{diagnostics.errorMessage}</p>
+              ) : null}
+            </section>
 
-        <Section
-          title="Pipeline"
-          description="Counts from the most recent completed scan. Wingman discovers through several ranked queries — it does not scan every Solana token."
-        >
-          {!funnel ? (
-            <EmptyState
-              title="No completed scan yet"
-              description="Run a scan to populate the funnel with live discovery counts."
-            />
-          ) : (
-            <div className="mx-auto max-w-3xl">
-              {PIPELINE_STAGES.map((stage, i) => {
-                const count = counts[stage.key] ?? null;
-                const pct = count === null ? 0 : (count / maxCount) * 100;
+            <section>
+              <h3 className="label-xs">Pipeline</h3>
+              <p className="mb-3 mt-0.5 text-xs text-muted-foreground">
+                Counts from the latest scan. Discovery uses several ranked queries, not every Solana token.
+              </p>
+              {!funnel ? (
+                <EmptyState
+                  title="No completed scan yet"
+                  description="Run a scan to populate the funnel with live discovery counts."
+                />
+              ) : (
+                <div className="mx-auto max-w-3xl">
+                  {PIPELINE_STAGES.map((stage, i) => {
+                    const count = counts[stage.key] ?? null;
+                    const pct = count === null ? 0 : (count / maxCount) * 100;
 
-                return (
-                  <div key={stage.key}>
-                    <div
-                      className={cn(
-                        "relative overflow-hidden rounded-md border border-border bg-surface/60 px-4 py-3.5",
-                        !stage.active && "opacity-55",
-                      )}
-                    >
-                      <div
-                        className="absolute inset-y-0 left-0 bg-primary/10 transition-all duration-700"
-                        style={{ width: `${Math.max(pct, stage.active ? 4 : 0)}%` }}
-                      />
-                      <div className="relative flex items-center justify-between gap-4">
-                        <div>
-                          <p className="font-mono text-xs tracking-wide">
-                            {stage.label.toUpperCase()}
-                            {!stage.active ? " — NOT ACTIVE" : ""}
-                          </p>
-                          <p className="mt-0.5 text-xs text-muted-foreground">
-                            {stage.description}
-                          </p>
-                        </div>
-                        <span
+                    return (
+                      <div key={stage.key}>
+                        <div
                           className={cn(
-                            "tabular text-xl font-semibold",
-                            stage.key === "enriched" && "text-primary",
-                            count === null && "text-muted-foreground",
+                            "relative overflow-hidden rounded-md border border-border bg-surface/60 px-4 py-3.5",
+                            !stage.active && "opacity-55",
                           )}
                         >
-                          {count === null ? "—" : formatNumber(count)}
-                        </span>
+                          <div
+                            className="absolute inset-y-0 left-0 bg-primary/10 transition-all duration-700"
+                            style={{ width: `${Math.max(pct, stage.active ? 4 : 0)}%` }}
+                          />
+                          <div className="relative flex items-center justify-between gap-4">
+                            <div>
+                              <p className="font-mono text-xs tracking-wide">
+                                {stage.label.toUpperCase()}
+                                {!stage.active ? " — NOT ACTIVE" : ""}
+                              </p>
+                              <p className="mt-0.5 text-xs text-muted-foreground">{stage.description}</p>
+                            </div>
+                            <span
+                              className={cn(
+                                "tabular text-xl font-semibold",
+                                stage.key === "enriched" && "text-primary",
+                                count === null && "text-muted-foreground",
+                              )}
+                            >
+                              {count === null ? "—" : formatNumber(count)}
+                            </span>
+                          </div>
+                        </div>
+                        {i < PIPELINE_STAGES.length - 1 ? (
+                          <div className="flex justify-center py-1.5">
+                            <ChevronDown className="size-4 text-muted-foreground" />
+                          </div>
+                        ) : null}
                       </div>
-                    </div>
-                    {i < PIPELINE_STAGES.length - 1 ? (
-                      <div className="flex justify-center py-1.5">
-                        <ChevronDown className="size-4 text-muted-foreground" />
-                      </div>
-                    ) : null}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </Section>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+
+            {diagnostics ? <DiagnosticsPanels diagnostics={diagnostics} /> : null}
+          </div>
+        </details>
 
         <Section
           title="Candidates"
@@ -288,26 +313,18 @@ function ScannerPage() {
             />
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1320px] text-left">
+              <table className="w-full min-w-[900px] text-left">
                 <thead>
-                  <tr className="[&>th]:label-xs [&>th]:pb-2.5 [&>th]:font-medium [&>th]:whitespace-nowrap">
-                    <th className="w-10">#</th>
+                  <tr className="[&>th]:label-xs [&>th]:pb-2.5 [&>th]:pr-4 [&>th]:font-medium [&>th]:whitespace-nowrap [&>th:last-child]:pr-0">
+                    <th className="w-10">Rank</th>
                     <th>Token</th>
                     <th className="text-right">Market cap</th>
                     <th className="text-right">Liquidity</th>
                     <th className="text-right">Age</th>
-                    <th>Lane(s)</th>
                     <th className="text-right">24h volume</th>
-                    <th className="text-right">Turnover (vol/MC)</th>
-                    <th>Activity</th>
-                    <th>Persistence</th>
-                    <th>Reaccel.</th>
-                    <th>Extension</th>
-                    <th>Safety</th>
+                    <th className="text-right">Turnover</th>
+                    <th>Primary lane</th>
                     <th className="text-right">Priority</th>
-                    <th className="text-right">Δ vs last</th>
-                    <th>Label</th>
-                    <th>Selection</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -315,7 +332,7 @@ function ScannerPage() {
                     <tr
                       key={c.id}
                       onClick={() => setSelected(c.id)}
-                      className="cursor-pointer transition-colors hover:bg-secondary/50 [&>td]:border-t [&>td]:border-border [&>td]:py-3"
+                      className="cursor-pointer transition-colors hover:bg-secondary/50 [&>td]:border-t [&>td]:border-border [&>td]:py-3 [&>td]:pr-4 [&>td:last-child]:pr-0"
                     >
                       <td className="tabular text-xs text-muted-foreground">
                         {filter !== "ALL" && filter !== "SURVIVORS" && filter !== "NEAR_MISS"
@@ -337,96 +354,35 @@ function ScannerPage() {
                       <td className="tabular text-right text-sm text-muted-foreground">
                         {formatAge(c.ageMinutes)}
                       </td>
-                      <td className="px-3">
-                        <div className="flex flex-wrap gap-1">
-                          {c.lanes.length === 0 ? (
-                            <span className="text-xs text-muted-foreground">—</span>
-                          ) : (
-                            c.lanes.map((lane) => (
-                              <span
-                                key={lane}
-                                className={cn(
-                                  "rounded border px-1.5 py-0.5 font-mono text-[10px] tracking-wide",
-                                  LANE_TONE[lane] ?? "border-border-strong",
-                                )}
-                              >
-                                {laneLabel(lane)}
-                              </span>
-                            ))
-                          )}
-                        </div>
-                      </td>
                       <td className="tabular text-right text-sm">
                         {c.volume24h === null ? "—" : formatUsd(c.volume24h)}
                       </td>
                       <td className="tabular text-right text-sm">
                         {formatRatioPct(c.turnover24h)}
                       </td>
-                      <td
-                        className={cn(
-                          "px-3 font-mono text-[10px]",
-                          SIGNAL_TONE[c.activityState ?? "UNKNOWN"],
+                      <td className="px-3">
+                        {c.lanes.length === 0 ? (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        ) : (
+                          <div className="flex items-center gap-1.5">
+                            <span
+                              className={cn(
+                                "rounded border px-1.5 py-0.5 font-mono text-[10px] tracking-wide",
+                                LANE_TONE[c.lanes[0] ?? "UNKNOWN"] ?? "border-border-strong",
+                              )}
+                            >
+                              {laneLabel(c.lanes[0] ?? "UNKNOWN")}
+                            </span>
+                            {c.lanes.length > 1 ? (
+                              <span className="font-mono text-[10px] text-muted-foreground">
+                                +{c.lanes.length - 1}
+                              </span>
+                            ) : null}
+                          </div>
                         )}
-                      >
-                        {c.activityState ?? "—"}
-                      </td>
-                      <td
-                        className={cn(
-                          "px-3 font-mono text-[10px]",
-                          SIGNAL_TONE[c.persistenceSignal ?? "UNKNOWN"],
-                        )}
-                      >
-                        {c.persistenceSignal ?? "—"}
-                      </td>
-                      <td
-                        className={cn(
-                          "px-3 font-mono text-[10px]",
-                          SIGNAL_TONE[c.reaccelerationSignal ?? "UNKNOWN"],
-                        )}
-                      >
-                        {c.reaccelerationSignal ?? "—"}
-                      </td>
-                      <td
-                        className={cn(
-                          "px-3 font-mono text-[10px]",
-                          EXTENSION_TONE[c.extensionRisk ?? "UNKNOWN"],
-                        )}
-                      >
-                        {c.extensionRisk ?? "—"}
-                      </td>
-                      <td className="px-3 font-mono text-[10px] text-muted-foreground">
-                        {c.structuralSafety}
                       </td>
                       <td className="tabular text-right text-sm font-semibold">
                         {c.quantitativePriority ?? "—"}
-                      </td>
-                      <td
-                        className={cn(
-                          "tabular text-right text-xs",
-                          c.priorityChange === null
-                            ? "text-muted-foreground"
-                            : c.priorityChange > 0
-                              ? "text-positive"
-                              : c.priorityChange < 0
-                                ? "text-destructive"
-                                : "text-muted-foreground",
-                        )}
-                      >
-                        {c.priorityChange === null
-                          ? "new"
-                          : `${c.priorityChange >= 0 ? "+" : ""}${c.priorityChange.toFixed(1)}`}
-                      </td>
-                      <td className={cn("px-3 font-mono text-[10px]", LABEL_TONE[c.label])}>
-                        {c.label}
-                      </td>
-                      <td className="px-3 font-mono text-[10px] text-muted-foreground">
-                        {c.selectedByLaneReservation
-                          ? "LANE QUOTA"
-                          : c.selectedByGlobalRanking
-                            ? "GLOBAL RANK"
-                            : c.rejectionReason
-                              ? "REJECTED"
-                              : "NEAR MISS"}
                       </td>
                     </tr>
                   ))}
@@ -439,8 +395,6 @@ function ScannerPage() {
             opportunity records elsewhere in Wingman remain simulated demo data.
           </p>
         </Section>
-
-        {diagnostics ? <DiagnosticsPanels diagnostics={diagnostics} /> : null}
 
         <ManualCheck />
       </div>

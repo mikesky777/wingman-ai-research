@@ -76,5 +76,11 @@ export function formatNum(value: number | null | undefined, digits = 2): string 
 }
 
 export function laneLabel(lane: string): string {
-  return lane.replace(/_/g, " ");
+  const labels: Record<string, string> = {
+    EARLY_MOMENTUM: "EARLY",
+    POST_BOND_BASE: "BASE",
+    DEVELOPING_THESIS: "DEVELOPING",
+    REACCELERATION: "REACCEL",
+  };
+  return labels[lane] ?? lane.replace(/_/g, " ");
 }
