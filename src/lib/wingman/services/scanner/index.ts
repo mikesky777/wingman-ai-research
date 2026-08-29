@@ -13,6 +13,8 @@ export {
   EXTENSION_PENALTY,
   LANE_ACTIVITY_REQUIREMENTS,
   LANE_CONFIG,
+  LANE_RESERVATION_ORDER,
+  LANE_SURVIVOR_RESERVATIONS,
   LANE_PERSISTENCE_REQUIREMENTS,
   PRIORITY_WEIGHTS,
   runConfig,
@@ -32,6 +34,7 @@ export {
 export {
   activityState,
   attentionPriceDivergence,
+  extensionAssessment,
   extensionRisk,
   persistenceSignal,
   reaccelerationSignal,
@@ -40,10 +43,14 @@ export { applyHardFilters } from "./hard-filters";
 export { evaluateLanes, type LaneEvaluation } from "./lanes";
 export { quantitativePriority } from "./priority";
 export {
+  assignRanks,
   dedupeDiscovered,
   evaluateCandidate,
   rankCandidates,
   selectSurvivors,
+  selectSurvivorsWithReservations,
   type EvaluateOptions,
+  type SurvivorSelection,
 } from "./evaluate";
+export { bucketDiagnostics, laneDiagnostics, marketCapBucket } from "./diagnostics";
 export { TelemetryRecorder } from "./telemetry";

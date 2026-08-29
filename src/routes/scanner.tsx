@@ -8,21 +8,38 @@ import { Section } from "@/components/wingman/Section";
 import { EmptyState } from "@/components/wingman/EmptyState";
 import { Button } from "@/components/ui/button";
 import { PIPELINE_STAGES } from "@/lib/wingman/config";
-import { useLatestFunnel, useRankedCandidates } from "@/lib/wingman/hooks";
+import {
+  useLatestFunnel,
+  useRunDiagnostics,
+  useWorkbenchCandidates,
+} from "@/lib/wingman/hooks";
 import { runScan } from "@/lib/wingman/scanner.functions";
 import { formatNumber, formatUsd } from "@/lib/wingman/format";
+import { CandidateDrawer } from "@/components/wingman/scanner/CandidateDrawer";
+import { DiagnosticsPanels } from "@/components/wingman/scanner/DiagnosticsPanels";
+import { ManualCheck } from "@/components/wingman/scanner/ManualCheck";
+import {
+  EXTENSION_TONE,
+  LANES,
+  LANE_TONE,
+  SIGNAL_TONE,
+  formatAge,
+  formatRatioPct,
+  laneLabel,
+} from "@/components/wingman/scanner/shared";
+import type { WorkbenchCandidate } from "@/lib/wingman/services/scanner-service";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/scanner")({
   head: () => ({
     meta: [
-      { title: "Scanner pipeline — Wingman AI" },
+      { title: "Scanner Workbench — Wingman AI" },
       {
         name: "description",
         content:
           "Live Solana discovery: lifecycle lanes, activity state, persistence, reacceleration and quantitative research priority.",
       },
-      { property: "og:title", content: "Scanner pipeline — Wingman AI" },
+      { property: "og:title", content: "Scanner Workbench — Wingman AI" },
       {
         property: "og:description",
         content:
@@ -35,55 +52,61 @@ export const Route = createFileRoute("/scanner")({
   component: ScannerPage,
 });
 
-const LANE_TONE: Record<string, string> = {
-  EARLY_MOMENTUM: "border-primary/40 bg-primary/10 text-primary",
-  POST_BOND_BASE: "border-positive/40 bg-positive/10 text-positive",
-  DEVELOPING_THESIS: "border-border-strong text-muted-foreground",
-  REACCELERATION: "border-border-strong text-foreground",
+
+type Filter = "SURVIVORS" | "ALL" | "NEAR_MISS" | (typeof LANES)[number];
+
+const FILTERS: { key: Filter; label: string }[] = [
+  { key: "SURVIVORS", label: "Survivors" },
+  { key: "ALL", label: "All candidates" },
+  { key: "NEAR_MISS", label: "Near misses" },
+  ...LANES.map((lane) => ({ key: lane as Filter, label: laneLabel(lane) })),
+];
+
+const LABEL_TONE: Record<string, string> = {
+  INTERESTING: "text-primary",
+  RESEARCH: "text-positive",
+  JUNK: "text-destructive",
+  UNREVIEWED: "text-muted-foreground",
 };
 
-const SIGNAL_TONE: Record<string, string> = {
-  ACCELERATING: "text-positive",
-  EXTREME: "text-destructive",
-  ACTIVE: "text-foreground",
-  LOW: "text-muted-foreground",
-  DORMANT: "text-muted-foreground",
-  HIGH: "text-positive",
-  MODERATE: "text-foreground",
-  CONFIRMED: "text-positive",
-  EARLY: "text-primary",
-  NONE: "text-muted-foreground",
-  UNKNOWN: "text-muted-foreground",
-  POSITIVE: "text-positive",
-  NEGATIVE: "text-destructive",
-  NEUTRAL: "text-muted-foreground",
-};
+type Row = WorkbenchCandidate & { passedNearMiss: boolean };
 
-const EXTENSION_TONE: Record<string, string> = {
-  LOW: "text-positive",
-  MODERATE: "text-foreground",
-  HIGH: "text-destructive",
-  EXTREME: "text-destructive",
-  UNKNOWN: "text-muted-foreground",
-};
-
-function formatAge(minutes: number | null): string {
-  if (minutes === null) return "unknown";
-  if (minutes < 90) return `${Math.round(minutes)}m`;
-  if (minutes < 60 * 48) return `${Math.round(minutes / 60)}h`;
-  return `${Math.round(minutes / 1440)}d`;
-}
-
-function formatPct(value: number | null): string {
-  return value === null ? "—" : `${(value * 100).toFixed(0)}%`;
+function applyFilter(candidates: Row[], filter: Filter): Row[] {
+  switch (filter) {
+    case "ALL":
+      return candidates;
+    case "SURVIVORS":
+      return candidates.filter((c) => c.enriched || c.selectedByLaneReservation || c.selectedByGlobalRanking);
+    case "NEAR_MISS":
+      // Passed the mechanical filters but was never enriched.
+      return candidates.filter(
+        (c) => c.passedNearMiss,
+      );
+    default:
+      return candidates
+        .filter((c) => c.lanes.includes(filter))
+        .sort((a, b) => (a.laneRanks[filter] ?? 1e9) - (b.laneRanks[filter] ?? 1e9));
+  }
 }
 
 function ScannerPage() {
   const queryClient = useQueryClient();
   const { data: funnel } = useLatestFunnel();
-  const { data: candidates = [] } = useRankedCandidates(funnel?.runId);
+  const { data: rawCandidates = [] } = useWorkbenchCandidates(funnel?.runId);
+  const { data: diagnostics } = useRunDiagnostics(funnel?.runId);
   const [message, setMessage] = useState<string | null>(null);
+  const [filter, setFilter] = useState<Filter>("SURVIVORS");
+  const [selected, setSelected] = useState<string | null>(null);
   const scan = useServerFn(runScan);
+
+  const candidates: Row[] = rawCandidates.map((c) => ({
+    ...c,
+    passedNearMiss:
+      c.rejectionReason === null &&
+      !c.enriched &&
+      !c.selectedByLaneReservation &&
+      !c.selectedByGlobalRanking,
+  }));
 
   const mutation = useMutation({
     mutationFn: () => scan({ data: {} }),
@@ -107,11 +130,17 @@ function ScannerPage() {
     deep: null,
   };
   const maxCount = Math.max(funnel?.discovered ?? 1, 1);
+  const rows = applyFilter(candidates, filter);
+  const active = candidates.find((c) => c.id === selected) ?? null;
+
+  const runState = mutation.isPending
+    ? "RUNNING"
+    : (diagnostics?.status ?? funnel?.status ?? "IDLE").toUpperCase();
 
   return (
     <AppShell
-      title="Scanner"
-      subtitle="Live Solana discovery, lifecycle classification and research prioritisation."
+      title="Scanner Workbench"
+      subtitle="Inspect, explain and calibrate every live scan. No thesis scores, no recommendations."
       actions={
         <div className="flex items-center gap-3">
           <span className="text-[11px] text-muted-foreground">
@@ -136,6 +165,39 @@ function ScannerPage() {
             {message}
           </p>
         ) : null}
+
+        <Section
+          title="Run Status"
+          description="Reproducibility metadata for the most recent scan."
+        >
+          <div className="grid gap-3 text-xs sm:grid-cols-3 xl:grid-cols-6">
+            {[
+              ["State", runState],
+              [
+                "Started",
+                diagnostics?.startedAt ? new Date(diagnostics.startedAt).toLocaleString() : "—",
+              ],
+              [
+                "Duration",
+                diagnostics?.durationMs ? `${Math.round(diagnostics.durationMs / 1000)}s` : "—",
+              ],
+              ["Survivor limit", diagnostics?.survivorLimit ?? "—"],
+              ["Scanner version", diagnostics?.scannerVersion ?? funnel?.scannerVersion ?? "—"],
+              [
+                "Discovery config",
+                diagnostics?.discoveryConfigVersion ?? funnel?.discoveryConfigVersion ?? "—",
+              ],
+            ].map(([label, value]) => (
+              <div key={String(label)} className="rounded-md border border-border bg-surface/60 p-3">
+                <p className="label-xs">{label}</p>
+                <p className="tabular mt-1 text-sm">{String(value)}</p>
+              </div>
+            ))}
+          </div>
+          {diagnostics?.errorMessage ? (
+            <p className="mt-3 text-xs text-destructive">{diagnostics.errorMessage}</p>
+          ) : null}
+        </Section>
 
         <Section
           title="Pipeline"
@@ -198,35 +260,68 @@ function ScannerPage() {
         </Section>
 
         <Section
-          title="Ranked Candidates"
-          description="Live scanner data. Quantitative priority ranks research effort — it is not a thesis score."
+          title="Candidates"
+          description="Every column is labelled and read from the stored scan. Quantitative priority ranks research effort — it is not a thesis score."
+          actions={
+            <div className="flex flex-wrap gap-1">
+              {FILTERS.map((f) => (
+                <button
+                  key={f.key}
+                  onClick={() => setFilter(f.key)}
+                  className={cn(
+                    "rounded border px-2 py-1 font-mono text-[10px] tracking-wide transition-colors",
+                    filter === f.key
+                      ? "border-primary/50 bg-primary/10 text-primary"
+                      : "border-border-strong text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          }
         >
-          {candidates.length === 0 ? (
+          {rows.length === 0 ? (
             <EmptyState
-              title="No ranked candidates"
-              description="Candidates appear once a scan completes and tokens match a lifecycle lane."
+              title="No candidates in this view"
+              description="Change the filter, or run a scan to populate live candidates."
             />
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1180px] text-left">
+              <table className="w-full min-w-[1320px] text-left">
                 <thead>
-                  <tr className="[&>th]:label-xs [&>th]:pb-2.5 [&>th]:font-medium">
+                  <tr className="[&>th]:label-xs [&>th]:pb-2.5 [&>th]:font-medium [&>th]:whitespace-nowrap">
+                    <th className="w-10">#</th>
                     <th>Token</th>
                     <th className="text-right">Market cap</th>
+                    <th className="text-right">Liquidity</th>
                     <th className="text-right">Age</th>
                     <th>Lane(s)</th>
                     <th className="text-right">24h volume</th>
-                    <th className="text-right">Turnover</th>
+                    <th className="text-right">Turnover (vol/MC)</th>
                     <th>Activity</th>
-                    <th>Persist.</th>
+                    <th>Persistence</th>
                     <th>Reaccel.</th>
                     <th>Extension</th>
+                    <th>Safety</th>
                     <th className="text-right">Priority</th>
+                    <th className="text-right">Δ vs last</th>
+                    <th>Label</th>
+                    <th>Selection</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {candidates.map((c) => (
-                    <tr key={c.id} className="[&>td]:border-t [&>td]:border-border [&>td]:py-3">
+                  {rows.map((c) => (
+                    <tr
+                      key={c.id}
+                      onClick={() => setSelected(c.id)}
+                      className="cursor-pointer transition-colors hover:bg-secondary/50 [&>td]:border-t [&>td]:border-border [&>td]:py-3"
+                    >
+                      <td className="tabular text-xs text-muted-foreground">
+                        {filter !== "ALL" && filter !== "SURVIVORS" && filter !== "NEAR_MISS"
+                          ? (c.laneRanks[filter] ?? "—")
+                          : (c.globalRank ?? "—")}
+                      </td>
                       <td className="pr-3">
                         <span className="text-sm font-medium">{c.name}</span>
                         <span className="tabular block text-[11px] text-muted-foreground">
@@ -235,6 +330,9 @@ function ScannerPage() {
                       </td>
                       <td className="tabular text-right text-sm">
                         {c.marketCap === null ? "—" : formatUsd(c.marketCap)}
+                      </td>
+                      <td className="tabular text-right text-sm">
+                        {c.liquidityUsd === null ? "—" : formatUsd(c.liquidityUsd)}
                       </td>
                       <td className="tabular text-right text-sm text-muted-foreground">
                         {formatAge(c.ageMinutes)}
@@ -252,7 +350,7 @@ function ScannerPage() {
                                   LANE_TONE[lane] ?? "border-border-strong",
                                 )}
                               >
-                                {lane.replace(/_/g, " ")}
+                                {laneLabel(lane)}
                               </span>
                             ))
                           )}
@@ -261,7 +359,9 @@ function ScannerPage() {
                       <td className="tabular text-right text-sm">
                         {c.volume24h === null ? "—" : formatUsd(c.volume24h)}
                       </td>
-                      <td className="tabular text-right text-sm">{formatPct(c.turnover24h)}</td>
+                      <td className="tabular text-right text-sm">
+                        {formatRatioPct(c.turnover24h)}
+                      </td>
                       <td
                         className={cn(
                           "px-3 font-mono text-[10px]",
@@ -294,8 +394,39 @@ function ScannerPage() {
                       >
                         {c.extensionRisk ?? "—"}
                       </td>
+                      <td className="px-3 font-mono text-[10px] text-muted-foreground">
+                        {c.structuralSafety}
+                      </td>
                       <td className="tabular text-right text-sm font-semibold">
                         {c.quantitativePriority ?? "—"}
+                      </td>
+                      <td
+                        className={cn(
+                          "tabular text-right text-xs",
+                          c.priorityChange === null
+                            ? "text-muted-foreground"
+                            : c.priorityChange > 0
+                              ? "text-positive"
+                              : c.priorityChange < 0
+                                ? "text-destructive"
+                                : "text-muted-foreground",
+                        )}
+                      >
+                        {c.priorityChange === null
+                          ? "new"
+                          : `${c.priorityChange >= 0 ? "+" : ""}${c.priorityChange.toFixed(1)}`}
+                      </td>
+                      <td className={cn("px-3 font-mono text-[10px]", LABEL_TONE[c.label])}>
+                        {c.label}
+                      </td>
+                      <td className="px-3 font-mono text-[10px] text-muted-foreground">
+                        {c.selectedByLaneReservation
+                          ? "LANE QUOTA"
+                          : c.selectedByGlobalRanking
+                            ? "GLOBAL RANK"
+                            : c.rejectionReason
+                              ? "REJECTED"
+                              : "NEAR MISS"}
                       </td>
                     </tr>
                   ))}
@@ -308,7 +439,17 @@ function ScannerPage() {
             opportunity records elsewhere in Wingman remain simulated demo data.
           </p>
         </Section>
+
+        {diagnostics ? <DiagnosticsPanels diagnostics={diagnostics} /> : null}
+
+        <ManualCheck />
       </div>
+
+      <CandidateDrawer
+        candidate={active}
+        scanRunId={funnel?.runId ?? null}
+        onClose={() => setSelected(null)}
+      />
     </AppShell>
   );
 }

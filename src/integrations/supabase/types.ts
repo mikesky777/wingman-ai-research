@@ -396,6 +396,7 @@ export type Database = {
           activity_state: string | null
           age_basis: string | null
           attention_price_divergence: string | null
+          buys_24h: number | null
           chain: string
           contract_address: string | null
           created_at: string
@@ -404,12 +405,24 @@ export type Database = {
           discovery_ranks: Json | null
           discovery_sources: string[]
           enriched: boolean
+          extension_reasons: Json | null
           extension_risk: string | null
+          global_rank: number | null
+          history_snapshot_count: number
+          holder_count: number | null
           id: string
+          lane_ranks: Json | null
           liquidity_usd: number | null
           market_cap: number | null
+          market_cap_bucket: string | null
+          metrics_detail: Json | null
           minutes_since_last_trade: number | null
           persistence_signal: string | null
+          price_change_1h: number | null
+          price_change_24h: number | null
+          price_change_6h: number | null
+          price_usd: number | null
+          priority_breakdown: Json | null
           priority_components: Json | null
           promoted_reason: string | null
           quantitative_priority: number | null
@@ -419,11 +432,21 @@ export type Database = {
           rejection_reason: string | null
           scan_run_id: string
           scanner_version: string | null
+          selected_by_global_ranking: boolean
+          selected_by_lane_reservation: boolean
+          sells_24h: number | null
           stage_reached: string
+          structural_safety: string
           token_age_minutes: number | null
           token_id: string
+          token_security: string
+          trades_1h: number | null
+          trades_24h: number | null
+          trades_5m: number | null
           volume_1h: number | null
           volume_24h: number | null
+          volume_5m: number | null
+          volume_6h: number | null
           volume_to_liquidity_24h: number | null
           volume_to_market_cap_24h: number | null
         }
@@ -431,6 +454,7 @@ export type Database = {
           activity_state?: string | null
           age_basis?: string | null
           attention_price_divergence?: string | null
+          buys_24h?: number | null
           chain?: string
           contract_address?: string | null
           created_at?: string
@@ -439,12 +463,24 @@ export type Database = {
           discovery_ranks?: Json | null
           discovery_sources?: string[]
           enriched?: boolean
+          extension_reasons?: Json | null
           extension_risk?: string | null
+          global_rank?: number | null
+          history_snapshot_count?: number
+          holder_count?: number | null
           id?: string
+          lane_ranks?: Json | null
           liquidity_usd?: number | null
           market_cap?: number | null
+          market_cap_bucket?: string | null
+          metrics_detail?: Json | null
           minutes_since_last_trade?: number | null
           persistence_signal?: string | null
+          price_change_1h?: number | null
+          price_change_24h?: number | null
+          price_change_6h?: number | null
+          price_usd?: number | null
+          priority_breakdown?: Json | null
           priority_components?: Json | null
           promoted_reason?: string | null
           quantitative_priority?: number | null
@@ -454,11 +490,21 @@ export type Database = {
           rejection_reason?: string | null
           scan_run_id: string
           scanner_version?: string | null
+          selected_by_global_ranking?: boolean
+          selected_by_lane_reservation?: boolean
+          sells_24h?: number | null
           stage_reached: string
+          structural_safety?: string
           token_age_minutes?: number | null
           token_id: string
+          token_security?: string
+          trades_1h?: number | null
+          trades_24h?: number | null
+          trades_5m?: number | null
           volume_1h?: number | null
           volume_24h?: number | null
+          volume_5m?: number | null
+          volume_6h?: number | null
           volume_to_liquidity_24h?: number | null
           volume_to_market_cap_24h?: number | null
         }
@@ -466,6 +512,7 @@ export type Database = {
           activity_state?: string | null
           age_basis?: string | null
           attention_price_divergence?: string | null
+          buys_24h?: number | null
           chain?: string
           contract_address?: string | null
           created_at?: string
@@ -474,12 +521,24 @@ export type Database = {
           discovery_ranks?: Json | null
           discovery_sources?: string[]
           enriched?: boolean
+          extension_reasons?: Json | null
           extension_risk?: string | null
+          global_rank?: number | null
+          history_snapshot_count?: number
+          holder_count?: number | null
           id?: string
+          lane_ranks?: Json | null
           liquidity_usd?: number | null
           market_cap?: number | null
+          market_cap_bucket?: string | null
+          metrics_detail?: Json | null
           minutes_since_last_trade?: number | null
           persistence_signal?: string | null
+          price_change_1h?: number | null
+          price_change_24h?: number | null
+          price_change_6h?: number | null
+          price_usd?: number | null
+          priority_breakdown?: Json | null
           priority_components?: Json | null
           promoted_reason?: string | null
           quantitative_priority?: number | null
@@ -489,11 +548,21 @@ export type Database = {
           rejection_reason?: string | null
           scan_run_id?: string
           scanner_version?: string | null
+          selected_by_global_ranking?: boolean
+          selected_by_lane_reservation?: boolean
+          sells_24h?: number | null
           stage_reached?: string
+          structural_safety?: string
           token_age_minutes?: number | null
           token_id?: string
+          token_security?: string
+          trades_1h?: number | null
+          trades_24h?: number | null
+          trades_5m?: number | null
           volume_1h?: number | null
           volume_24h?: number | null
+          volume_5m?: number | null
+          volume_6h?: number | null
           volume_to_liquidity_24h?: number | null
           volume_to_market_cap_24h?: number | null
         }
@@ -517,14 +586,17 @@ export type Database = {
       scan_runs: {
         Row: {
           actionable_count: number
+          bucket_diagnostics: Json | null
           calibration_mode: boolean
           completed_at: string | null
           created_at: string
           deep_researched: number
           discovery_config_version: string | null
+          duration_ms: number | null
           enriched_count: number
           error_message: string | null
           id: string
+          lane_diagnostics: Json | null
           market_regime: string
           notes: string | null
           passed_ai_triage: number
@@ -535,19 +607,23 @@ export type Database = {
           scanner_version: string | null
           started_at: string
           status: string
+          survivor_limit: number | null
           tokens_discovered: number
           tokens_scanned: number
         }
         Insert: {
           actionable_count?: number
+          bucket_diagnostics?: Json | null
           calibration_mode?: boolean
           completed_at?: string | null
           created_at?: string
           deep_researched?: number
           discovery_config_version?: string | null
+          duration_ms?: number | null
           enriched_count?: number
           error_message?: string | null
           id?: string
+          lane_diagnostics?: Json | null
           market_regime?: string
           notes?: string | null
           passed_ai_triage?: number
@@ -558,19 +634,23 @@ export type Database = {
           scanner_version?: string | null
           started_at?: string
           status?: string
+          survivor_limit?: number | null
           tokens_discovered?: number
           tokens_scanned?: number
         }
         Update: {
           actionable_count?: number
+          bucket_diagnostics?: Json | null
           calibration_mode?: boolean
           completed_at?: string | null
           created_at?: string
           deep_researched?: number
           discovery_config_version?: string | null
+          duration_ms?: number | null
           enriched_count?: number
           error_message?: string | null
           id?: string
+          lane_diagnostics?: Json | null
           market_regime?: string
           notes?: string | null
           passed_ai_triage?: number
@@ -581,10 +661,56 @@ export type Database = {
           scanner_version?: string | null
           started_at?: string
           status?: string
+          survivor_limit?: number | null
           tokens_discovered?: number
           tokens_scanned?: number
         }
         Relationships: []
+      }
+      scanner_labels: {
+        Row: {
+          created_at: string
+          id: string
+          label: string
+          note: string | null
+          scan_run_id: string | null
+          token_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          label?: string
+          note?: string | null
+          scan_run_id?: string | null
+          token_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          label?: string
+          note?: string | null
+          scan_run_id?: string | null
+          token_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scanner_labels_scan_run_id_fkey"
+            columns: ["scan_run_id"]
+            isOneToOne: false
+            referencedRelation: "scan_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scanner_labels_token_id_fkey"
+            columns: ["token_id"]
+            isOneToOne: false
+            referencedRelation: "tokens"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       token_snapshots: {
         Row: {

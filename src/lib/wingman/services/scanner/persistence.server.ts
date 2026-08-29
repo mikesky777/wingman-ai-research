@@ -11,6 +11,7 @@
  */
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { SCANNER_VERSION } from "./config";
+import { marketCapBucket } from "./diagnostics";
 import type {
   DiscoveredToken,
   EvaluatedCandidate,
@@ -61,6 +62,10 @@ export interface CompleteRunInput {
   enriched: number;
   telemetry: ProviderCallTelemetry[];
   notes?: string | null;
+  bucketDiagnostics?: unknown;
+  laneDiagnostics?: unknown;
+  durationMs?: number | null;
+  survivorLimit?: number | null;
 }
 
 export async function completeScanRun(input: CompleteRunInput): Promise<void> {
@@ -80,6 +85,10 @@ export async function completeScanRun(input: CompleteRunInput): Promise<void> {
       passed_ai_triage: 0,
       actionable_count: 0,
       provider_telemetry: input.telemetry as never,
+      bucket_diagnostics: (input.bucketDiagnostics ?? null) as never,
+      lane_diagnostics: (input.laneDiagnostics ?? null) as never,
+      duration_ms: input.durationMs ?? null,
+      survivor_limit: input.survivorLimit ?? null,
       notes: input.notes ?? null,
     } as never)
     .eq("id", input.runId);
@@ -242,6 +251,29 @@ export async function persistCandidates(
         attention_price_divergence: c.signals.attentionPriceDivergence,
         quantitative_priority: c.quantitativePriority,
         priority_components: c.priority?.components ?? null,
+        priority_breakdown: c.priority ?? null,
+        extension_reasons: c.extensionReasons,
+        global_rank: c.globalRank,
+        lane_ranks: c.laneRanks,
+        selected_by_lane_reservation: c.selectedByLaneReservation,
+        selected_by_global_ranking: c.selectedByGlobalRanking,
+        structural_safety: c.structuralSafety,
+        token_security: c.tokenSecurity,
+        history_snapshot_count: c.historySnapshotCount,
+        market_cap_bucket: marketCapBucket(c.token.marketCap),
+        price_usd: c.token.priceUsd,
+        price_change_1h: c.token.priceChange1h,
+        price_change_6h: c.token.priceChange6h,
+        price_change_24h: c.token.priceChange24h,
+        volume_5m: c.token.volume5m,
+        volume_6h: c.token.volume6h,
+        trades_5m: c.token.trades5m,
+        trades_1h: c.token.trades1h,
+        trades_24h: c.token.trades24h,
+        buys_24h: c.token.buys24h,
+        sells_24h: c.token.sells24h,
+        holder_count: c.token.holderCount ?? c.token.uniqueWallets24h,
+        metrics_detail: c.metrics,
         rejection_reason: c.rejection?.reason ?? null,
         rejection_details: c.rejection
           ? { detail: c.rejection.detail, values: c.rejection.values, lanes: c.laneRejections }

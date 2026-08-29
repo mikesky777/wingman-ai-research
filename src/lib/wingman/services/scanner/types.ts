@@ -189,11 +189,61 @@ export type CandidateStage =
   | "quantitative"
   | "enriched";
 
+/**
+ * Structural safety is deliberately separate from research priority. It is
+ * NEVER inferred from price/volume behaviour and starts as UNKNOWN.
+ */
+export type StructuralSafety = "UNKNOWN" | "PASS" | "CONCERN" | "FAIL";
+
+/** Dedicated token-security capability does not exist yet. */
+export type TokenSecurityStatus = "NOT_CHECKED" | "PASS" | "CONCERN" | "FAIL";
+
+export interface ExtensionAssessment {
+  risk: ExtensionRisk;
+  /** Human-readable reasons for the classification. Never fabricated. */
+  reasons: string[];
+}
+
+export const MARKET_CAP_BUCKETS = [
+  "<$50K",
+  "$50K-$100K",
+  "$100K-$250K",
+  "$250K-$500K",
+  "$500K-$1M",
+  "$1M-$3M",
+  "$3M+",
+  "unknown",
+] as const;
+
+export type MarketCapBucket = (typeof MARKET_CAP_BUCKETS)[number];
+
+export interface BucketDiagnosticRow {
+  bucket: MarketCapBucket;
+  discovered: number;
+  passedHardFilters: number;
+  laneQualified: number;
+  quantitativelyRanked: number;
+  enriched: number;
+}
+
+export interface LaneDiagnosticRow {
+  lane: DiscoveryLane;
+  discovered: number;
+  qualified: number;
+  enriched: number;
+  below100k: number;
+  between100kAnd250k: number;
+  medianAgeMinutes: number | null;
+  medianTurnover24h: number | null;
+  withHistory: number;
+}
+
 /** One deduplicated candidate, fully evaluated. Never a thesis score. */
 export interface EvaluatedCandidate {
   token: DiscoveredToken;
   metrics: ScannerMetrics;
   signals: ScannerSignals;
+  extensionReasons: string[];
   lanes: DiscoveryLane[];
   /** Why each lane was refused — kept for calibration, never hidden. */
   laneRejections: Record<string, string>;
@@ -203,7 +253,18 @@ export interface EvaluatedCandidate {
   priority: PriorityBreakdown | null;
   stageReached: CandidateStage;
   enriched: boolean;
+  /** Rank across every ranked candidate in the run (1-based). */
+  globalRank: number | null;
+  /** Rank inside each lane the candidate qualified for (1-based). */
+  laneRanks: Partial<Record<DiscoveryLane, number>>;
+  selectedByLaneReservation: boolean;
+  selectedByGlobalRanking: boolean;
+  /** UNKNOWN until dedicated holder/security enrichment has actually run. */
+  structuralSafety: StructuralSafety;
+  tokenSecurity: TokenSecurityStatus;
+  historySnapshotCount: number;
 }
+
 
 /** Prior snapshots for the same token, oldest → newest. History is optional. */
 export interface HistoricalPoint {
