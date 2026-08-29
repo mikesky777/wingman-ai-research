@@ -60,12 +60,13 @@ export function InspectToken() {
   });
 
   const result = mutation.data;
-  const evidence = result?.ok ? snapshotToEvidence(result.snapshot, result.pair) : [];
-  const resolvedByKey = new Map(
-    resolveEvidence(evidence, result?.ok ? { now: result.snapshot.capturedAt } : {}).map(
-      (r) => [r.key, r] as const,
-    ),
-  );
+  // Combined multi-provider observations come back from the server; the
+  // resolver is deterministic so it can run here without re-fetching.
+  const evidence = result?.ok ? result.evidence : [];
+  const bundle = buildEvidenceBundle(evidence, result?.ok ? { now: result.snapshot.capturedAt } : {});
+  const resolved = bundle.resolved;
+  const holderTop10 = resolved.find((r) => r.key === "holders.top10_wallet_pct_of_total_supply");
+  const holderCount = resolved.find((r) => r.key === "holders.wallet_holder_count");
 
 
 
