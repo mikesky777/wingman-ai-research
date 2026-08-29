@@ -4,7 +4,9 @@ import { OutcomeService, ResearchService, ScannerService } from "./services";
 /** Query keys for every backend-read surface. */
 export const wingmanKeys = {
   latestScan: ["wingman", "latest-scan"] as const,
+  latestFunnel: ["wingman", "latest-funnel"] as const,
   candidates: (runId: string) => ["wingman", "candidates", runId] as const,
+  rankedCandidates: (runId: string) => ["wingman", "ranked-candidates", runId] as const,
   opportunities: ["wingman", "opportunities"] as const,
   opportunity: (id: string) => ["wingman", "opportunity", id] as const,
   outcomes: ["wingman", "outcomes"] as const,
@@ -18,6 +20,22 @@ export function useLatestScan() {
   });
 }
 
+/** Scanner v1 funnel counts for the most recent completed run. */
+export function useLatestFunnel() {
+  return useQuery({
+    queryKey: wingmanKeys.latestFunnel,
+    queryFn: () => ScannerService.latestFunnel(),
+  });
+}
+
+export function useRankedCandidates(runId: string | undefined) {
+  return useQuery({
+    queryKey: wingmanKeys.rankedCandidates(runId ?? "none"),
+    queryFn: () => ScannerService.rankedCandidates(runId!),
+    enabled: Boolean(runId),
+  });
+}
+
 export function useScanCandidates(runId: string | undefined) {
   return useQuery({
     queryKey: wingmanKeys.candidates(runId ?? "none"),
@@ -25,6 +43,7 @@ export function useScanCandidates(runId: string | undefined) {
     enabled: Boolean(runId),
   });
 }
+
 
 export function useOpportunities() {
   return useQuery({

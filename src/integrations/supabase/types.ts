@@ -393,34 +393,109 @@ export type Database = {
       }
       scan_candidates: {
         Row: {
+          activity_state: string | null
+          age_basis: string | null
+          attention_price_divergence: string | null
+          chain: string
+          contract_address: string | null
           created_at: string
+          discovery_lanes: string[]
+          discovery_queries: string[]
+          discovery_ranks: Json | null
+          discovery_sources: string[]
+          enriched: boolean
+          extension_risk: string | null
           id: string
+          liquidity_usd: number | null
+          market_cap: number | null
+          minutes_since_last_trade: number | null
+          persistence_signal: string | null
+          priority_components: Json | null
           promoted_reason: string | null
+          quantitative_priority: number | null
           quantitative_score: number | null
+          reacceleration_signal: string | null
+          rejection_details: Json | null
           rejection_reason: string | null
           scan_run_id: string
+          scanner_version: string | null
           stage_reached: string
+          token_age_minutes: number | null
           token_id: string
+          volume_1h: number | null
+          volume_24h: number | null
+          volume_to_liquidity_24h: number | null
+          volume_to_market_cap_24h: number | null
         }
         Insert: {
+          activity_state?: string | null
+          age_basis?: string | null
+          attention_price_divergence?: string | null
+          chain?: string
+          contract_address?: string | null
           created_at?: string
+          discovery_lanes?: string[]
+          discovery_queries?: string[]
+          discovery_ranks?: Json | null
+          discovery_sources?: string[]
+          enriched?: boolean
+          extension_risk?: string | null
           id?: string
+          liquidity_usd?: number | null
+          market_cap?: number | null
+          minutes_since_last_trade?: number | null
+          persistence_signal?: string | null
+          priority_components?: Json | null
           promoted_reason?: string | null
+          quantitative_priority?: number | null
           quantitative_score?: number | null
+          reacceleration_signal?: string | null
+          rejection_details?: Json | null
           rejection_reason?: string | null
           scan_run_id: string
+          scanner_version?: string | null
           stage_reached: string
+          token_age_minutes?: number | null
           token_id: string
+          volume_1h?: number | null
+          volume_24h?: number | null
+          volume_to_liquidity_24h?: number | null
+          volume_to_market_cap_24h?: number | null
         }
         Update: {
+          activity_state?: string | null
+          age_basis?: string | null
+          attention_price_divergence?: string | null
+          chain?: string
+          contract_address?: string | null
           created_at?: string
+          discovery_lanes?: string[]
+          discovery_queries?: string[]
+          discovery_ranks?: Json | null
+          discovery_sources?: string[]
+          enriched?: boolean
+          extension_risk?: string | null
           id?: string
+          liquidity_usd?: number | null
+          market_cap?: number | null
+          minutes_since_last_trade?: number | null
+          persistence_signal?: string | null
+          priority_components?: Json | null
           promoted_reason?: string | null
+          quantitative_priority?: number | null
           quantitative_score?: number | null
+          reacceleration_signal?: string | null
+          rejection_details?: Json | null
           rejection_reason?: string | null
           scan_run_id?: string
+          scanner_version?: string | null
           stage_reached?: string
+          token_age_minutes?: number | null
           token_id?: string
+          volume_1h?: number | null
+          volume_24h?: number | null
+          volume_to_liquidity_24h?: number | null
+          volume_to_market_cap_24h?: number | null
         }
         Relationships: [
           {
@@ -442,50 +517,71 @@ export type Database = {
       scan_runs: {
         Row: {
           actionable_count: number
+          calibration_mode: boolean
           completed_at: string | null
           created_at: string
           deep_researched: number
+          discovery_config_version: string | null
+          enriched_count: number
+          error_message: string | null
           id: string
           market_regime: string
           notes: string | null
           passed_ai_triage: number
           passed_hard_filters: number
           passed_quantitative_ranking: number
+          provider_telemetry: Json | null
+          quantitatively_ranked: number
           scanner_version: string | null
           started_at: string
           status: string
+          tokens_discovered: number
           tokens_scanned: number
         }
         Insert: {
           actionable_count?: number
+          calibration_mode?: boolean
           completed_at?: string | null
           created_at?: string
           deep_researched?: number
+          discovery_config_version?: string | null
+          enriched_count?: number
+          error_message?: string | null
           id?: string
           market_regime?: string
           notes?: string | null
           passed_ai_triage?: number
           passed_hard_filters?: number
           passed_quantitative_ranking?: number
+          provider_telemetry?: Json | null
+          quantitatively_ranked?: number
           scanner_version?: string | null
           started_at?: string
           status?: string
+          tokens_discovered?: number
           tokens_scanned?: number
         }
         Update: {
           actionable_count?: number
+          calibration_mode?: boolean
           completed_at?: string | null
           created_at?: string
           deep_researched?: number
+          discovery_config_version?: string | null
+          enriched_count?: number
+          error_message?: string | null
           id?: string
           market_regime?: string
           notes?: string | null
           passed_ai_triage?: number
           passed_hard_filters?: number
           passed_quantitative_ranking?: number
+          provider_telemetry?: Json | null
+          quantitatively_ranked?: number
           scanner_version?: string | null
           started_at?: string
           status?: string
+          tokens_discovered?: number
           tokens_scanned?: number
         }
         Relationships: []

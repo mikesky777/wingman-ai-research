@@ -134,38 +134,50 @@ export const STAGE_LABELS: Record<OpportunityStage, string> = {
   LATE: "LATE",
 };
 
+/**
+ * Scanner v1 funnel. Wingman does not scan every Solana token — it runs
+ * complementary discovery rankings, so the first stage is DISCOVERED.
+ * The last two stages are not implemented yet and are labelled as such.
+ */
 export const PIPELINE_STAGES = [
   {
-    key: "universe",
-    label: "Token Universe",
-    description: "All Solana tokens observed across data sources during the scan window.",
+    key: "discovered",
+    label: "Tokens Discovered",
+    description: "Unique Solana tokens surfaced across all discovery rankings, deduplicated.",
+    active: true,
   },
   {
     key: "hard_filters",
-    label: "Hard Filters",
-    description: "Liquidity floors, honeypot checks, dev blacklists, age and structure gates.",
+    label: "Passed Hard Filters",
+    description: "Survived chain, contract, liquidity, recency and age-aware activity floors.",
+    active: true,
   },
   {
     key: "quant",
-    label: "Quantitative Ranking",
-    description: "Holder structure, liquidity depth, volume quality and momentum ranking.",
+    label: "Quantitatively Ranked",
+    description: "Matched a lifecycle lane and received a quantitative research priority.",
+    active: true,
+  },
+  {
+    key: "enriched",
+    label: "Enriched",
+    description: "Survivors given a fresh DexScreener pull, immutable snapshot and evidence.",
+    active: true,
   },
   {
     key: "triage",
     label: "AI Triage",
-    description: "Cheap model pass over narrative, meme quality and obvious disqualifiers.",
+    description: "Not active in this iteration.",
+    active: false,
   },
   {
     key: "deep",
     label: "Deep Research",
-    description: "Full multi-source research pass producing a scored thesis report.",
-  },
-  {
-    key: "shortlist",
-    label: "Wingman Shortlist",
-    description: "Only opportunities clearing the thesis and evidence threshold.",
+    description: "Not active in this iteration.",
+    active: false,
   },
 ] as const;
+
 
 export const INITIAL_DEPLOYMENT_PCT = "60–70% of intended maximum";
 export const RESEARCH_DISCLAIMER =

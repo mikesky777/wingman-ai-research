@@ -1,13 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Loader2 } from "lucide-react";
+import { useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/wingman/AppShell";
 import { Section } from "@/components/wingman/Section";
 import { EmptyState } from "@/components/wingman/EmptyState";
-import { PIPELINE_STAGES, MOCK_DATA_NOTICE } from "@/lib/wingman/config";
-import { useLatestScan, useScanCandidates } from "@/lib/wingman/hooks";
+import { Button } from "@/components/ui/button";
+import { PIPELINE_STAGES } from "@/lib/wingman/config";
+import { useLatestFunnel, useRankedCandidates } from "@/lib/wingman/hooks";
+import { runScan } from "@/lib/wingman/scanner.functions";
 import { formatNumber, formatUsd } from "@/lib/wingman/format";
 import { cn } from "@/lib/utils";
-
 
 export const Route = createFileRoute("/scanner")({
   head: () => ({
@@ -16,139 +20,293 @@ export const Route = createFileRoute("/scanner")({
       {
         name: "description",
         content:
-          "See how Wingman narrows thousands of Solana tokens down to a handful of researched theses, stage by stage.",
+          "Live Solana discovery: lifecycle lanes, activity state, persistence, reacceleration and quantitative research priority.",
       },
       { property: "og:title", content: "Scanner pipeline — Wingman AI" },
       {
         property: "og:description",
-        content: "Token universe, hard filters, quantitative ranking, AI triage, deep research.",
+        content:
+          "Tokens discovered, hard filters, quantitative ranking and enrichment — Wingman Scanner v1.",
       },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
   component: ScannerPage,
 });
 
-const STAGE_TONE: Record<string, string> = {
-  SHORTLIST: "border-positive/40 bg-positive/10 text-positive",
-  DEEP_RESEARCH: "border-primary/40 bg-primary/10 text-primary",
-  AI_TRIAGE: "border-border-strong text-muted-foreground",
-  QUANT_RANKING: "border-border-strong text-muted-foreground",
-  HARD_FILTERS: "border-destructive/40 bg-destructive/10 text-destructive",
+const LANE_TONE: Record<string, string> = {
+  EARLY_MOMENTUM: "border-primary/40 bg-primary/10 text-primary",
+  POST_BOND_BASE: "border-positive/40 bg-positive/10 text-positive",
+  DEVELOPING_THESIS: "border-border-strong text-muted-foreground",
+  REACCELERATION: "border-border-strong text-foreground",
 };
 
+const SIGNAL_TONE: Record<string, string> = {
+  ACCELERATING: "text-positive",
+  EXTREME: "text-destructive",
+  ACTIVE: "text-foreground",
+  LOW: "text-muted-foreground",
+  DORMANT: "text-muted-foreground",
+  HIGH: "text-positive",
+  MODERATE: "text-foreground",
+  CONFIRMED: "text-positive",
+  EARLY: "text-primary",
+  NONE: "text-muted-foreground",
+  UNKNOWN: "text-muted-foreground",
+  POSITIVE: "text-positive",
+  NEGATIVE: "text-destructive",
+  NEUTRAL: "text-muted-foreground",
+};
+
+const EXTENSION_TONE: Record<string, string> = {
+  LOW: "text-positive",
+  MODERATE: "text-foreground",
+  HIGH: "text-destructive",
+  EXTREME: "text-destructive",
+  UNKNOWN: "text-muted-foreground",
+};
+
+function formatAge(minutes: number | null): string {
+  if (minutes === null) return "unknown";
+  if (minutes < 90) return `${Math.round(minutes)}m`;
+  if (minutes < 60 * 48) return `${Math.round(minutes / 60)}h`;
+  return `${Math.round(minutes / 1440)}d`;
+}
+
+function formatPct(value: number | null): string {
+  return value === null ? "—" : `${(value * 100).toFixed(0)}%`;
+}
+
 function ScannerPage() {
-  const { data: latestScan } = useLatestScan();
-  const { data: candidates = [] } = useScanCandidates(latestScan?.runId);
-  const summary = latestScan?.summary;
-  const counts: Record<string, number> = {
-    universe: summary?.tokensScanned ?? 0,
-    hard_filters: summary?.passedFilters ?? 0,
-    quant: summary?.quantRanked ?? 0,
-    triage: summary?.deepResearched ?? 0,
-    deep: summary?.deepResearched ?? 0,
-    shortlist: summary?.actionable ?? 0,
+  const queryClient = useQueryClient();
+  const { data: funnel } = useLatestFunnel();
+  const { data: candidates = [] } = useRankedCandidates(funnel?.runId);
+  const [message, setMessage] = useState<string | null>(null);
+  const scan = useServerFn(runScan);
+
+  const mutation = useMutation({
+    mutationFn: () => scan({ data: {} }),
+    onSuccess: (result) => {
+      setMessage(
+        result.ok
+          ? `Scan complete — ${result.summary?.tokensDiscovered ?? 0} tokens discovered, ${result.summary?.enriched ?? 0} enriched.`
+          : (result.message ?? "Scan failed."),
+      );
+      void queryClient.invalidateQueries({ queryKey: ["wingman"] });
+    },
+    onError: (error: Error) => setMessage(error.message),
+  });
+
+  const counts: Record<string, number | null> = {
+    discovered: funnel?.discovered ?? 0,
+    hard_filters: funnel?.passedHardFilters ?? 0,
+    quant: funnel?.quantitativelyRanked ?? 0,
+    enriched: funnel?.enriched ?? 0,
+    triage: null,
+    deep: null,
   };
+  const maxCount = Math.max(funnel?.discovered ?? 1, 1);
 
   return (
     <AppShell
       title="Scanner"
-      subtitle="The funnel from token universe to Wingman shortlist."
-      actions={<span className="text-[11px] text-muted-foreground">{MOCK_DATA_NOTICE}</span>}
+      subtitle="Live Solana discovery, lifecycle classification and research prioritisation."
+      actions={
+        <div className="flex items-center gap-3">
+          <span className="text-[11px] text-muted-foreground">
+            {funnel?.scannerVersion ?? "scanner/v1"}
+            {funnel?.calibrationMode ? " · calibration" : ""}
+          </span>
+          <Button size="sm" onClick={() => mutation.mutate()} disabled={mutation.isPending}>
+            {mutation.isPending ? (
+              <>
+                <Loader2 className="size-3.5 animate-spin" /> Scanning
+              </>
+            ) : (
+              "Run scan"
+            )}
+          </Button>
+        </div>
+      }
     >
       <div className="space-y-6">
-        <Section title="Pipeline" description="Counts from the most recent completed scan.">
-          {!summary ? (
+        {message ? (
+          <p className="rounded-md border border-border bg-surface/60 px-3 py-2 text-xs text-muted-foreground">
+            {message}
+          </p>
+        ) : null}
+
+        <Section
+          title="Pipeline"
+          description="Counts from the most recent completed scan. Wingman discovers through several ranked queries — it does not scan every Solana token."
+        >
+          {!funnel ? (
             <EmptyState
               title="No completed scan yet"
-              description="Pipeline counts appear after Wingman finishes its first scan cycle."
+              description="Run a scan to populate the funnel with live discovery counts."
             />
           ) : (
-          <div className="mx-auto max-w-3xl">
-            {PIPELINE_STAGES.map((stage, i) => {
-              const count = counts[stage.key] ?? 0;
-              const pct = (count / Math.max(summary.tokensScanned, 1)) * 100;
+            <div className="mx-auto max-w-3xl">
+              {PIPELINE_STAGES.map((stage, i) => {
+                const count = counts[stage.key] ?? null;
+                const pct = count === null ? 0 : (count / maxCount) * 100;
 
-              return (
-                <div key={stage.key}>
-                  <div className="relative overflow-hidden rounded-md border border-border bg-surface/60 px-4 py-3.5">
+                return (
+                  <div key={stage.key}>
                     <div
-                      className="absolute inset-y-0 left-0 bg-primary/10 transition-all duration-700"
-                      style={{ width: `${Math.max(pct, 4)}%` }}
-                    />
-                    <div className="relative flex items-center justify-between gap-4">
-                      <div>
-                        <p className="font-mono text-xs tracking-wide">
-                          {stage.label.toUpperCase()}
-                        </p>
-                        <p className="mt-0.5 text-xs text-muted-foreground">{stage.description}</p>
+                      className={cn(
+                        "relative overflow-hidden rounded-md border border-border bg-surface/60 px-4 py-3.5",
+                        !stage.active && "opacity-55",
+                      )}
+                    >
+                      <div
+                        className="absolute inset-y-0 left-0 bg-primary/10 transition-all duration-700"
+                        style={{ width: `${Math.max(pct, stage.active ? 4 : 0)}%` }}
+                      />
+                      <div className="relative flex items-center justify-between gap-4">
+                        <div>
+                          <p className="font-mono text-xs tracking-wide">
+                            {stage.label.toUpperCase()}
+                            {!stage.active ? " — NOT ACTIVE" : ""}
+                          </p>
+                          <p className="mt-0.5 text-xs text-muted-foreground">
+                            {stage.description}
+                          </p>
+                        </div>
+                        <span
+                          className={cn(
+                            "tabular text-xl font-semibold",
+                            stage.key === "enriched" && "text-primary",
+                            count === null && "text-muted-foreground",
+                          )}
+                        >
+                          {count === null ? "—" : formatNumber(count)}
+                        </span>
                       </div>
-                      <span
-                        className={cn(
-                          "tabular text-xl font-semibold",
-                          stage.key === "shortlist" && "text-primary",
-                        )}
-                      >
-                        {formatNumber(count)}
-                      </span>
                     </div>
+                    {i < PIPELINE_STAGES.length - 1 ? (
+                      <div className="flex justify-center py-1.5">
+                        <ChevronDown className="size-4 text-muted-foreground" />
+                      </div>
+                    ) : null}
                   </div>
-                  {i < PIPELINE_STAGES.length - 1 ? (
-                    <div className="flex justify-center py-1.5">
-                      <ChevronDown className="size-4 text-muted-foreground" />
-                    </div>
-                  ) : null}
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
           )}
         </Section>
 
-
         <Section
-          title="Recently Scanned Candidates"
-          description="Every candidate that reached at least the hard-filter stage."
+          title="Ranked Candidates"
+          description="Live scanner data. Quantitative priority ranks research effort — it is not a thesis score."
         >
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[820px] text-left">
-              <thead>
-                <tr className="[&>th]:label-xs [&>th]:pb-2.5 [&>th]:font-medium">
-                  <th>Token</th>
-                  <th className="text-right">Market cap</th>
-                  <th className="text-right">Liquidity</th>
-                  <th className="text-right">Quant score</th>
-                  <th>Stage reached</th>
-                  <th>Outcome</th>
-                </tr>
-              </thead>
-              <tbody>
-                {candidates.map((c) => (
-                  <tr key={c.id} className="[&>td]:border-t [&>td]:border-border [&>td]:py-3">
-                    <td>
-                      <span className="text-sm font-medium">{c.name}</span>
-                      <span className="tabular block text-[11px] text-muted-foreground">
-                        {c.ticker}
-                      </span>
-                    </td>
-                    <td className="tabular text-right text-sm">{formatUsd(c.marketCapUsd)}</td>
-                    <td className="tabular text-right text-sm">{formatUsd(c.liquidityUsd)}</td>
-                    <td className="tabular text-right text-sm">{c.quantScore}</td>
-                    <td className="px-3">
-                      <span
+          {candidates.length === 0 ? (
+            <EmptyState
+              title="No ranked candidates"
+              description="Candidates appear once a scan completes and tokens match a lifecycle lane."
+            />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1180px] text-left">
+                <thead>
+                  <tr className="[&>th]:label-xs [&>th]:pb-2.5 [&>th]:font-medium">
+                    <th>Token</th>
+                    <th className="text-right">Market cap</th>
+                    <th className="text-right">Age</th>
+                    <th>Lane(s)</th>
+                    <th className="text-right">24h volume</th>
+                    <th className="text-right">Turnover</th>
+                    <th>Activity</th>
+                    <th>Persist.</th>
+                    <th>Reaccel.</th>
+                    <th>Extension</th>
+                    <th className="text-right">Priority</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {candidates.map((c) => (
+                    <tr key={c.id} className="[&>td]:border-t [&>td]:border-border [&>td]:py-3">
+                      <td className="pr-3">
+                        <span className="text-sm font-medium">{c.name}</span>
+                        <span className="tabular block text-[11px] text-muted-foreground">
+                          {c.symbol}
+                        </span>
+                      </td>
+                      <td className="tabular text-right text-sm">
+                        {c.marketCap === null ? "—" : formatUsd(c.marketCap)}
+                      </td>
+                      <td className="tabular text-right text-sm text-muted-foreground">
+                        {formatAge(c.ageMinutes)}
+                      </td>
+                      <td className="px-3">
+                        <div className="flex flex-wrap gap-1">
+                          {c.lanes.length === 0 ? (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          ) : (
+                            c.lanes.map((lane) => (
+                              <span
+                                key={lane}
+                                className={cn(
+                                  "rounded border px-1.5 py-0.5 font-mono text-[10px] tracking-wide",
+                                  LANE_TONE[lane] ?? "border-border-strong",
+                                )}
+                              >
+                                {lane.replace(/_/g, " ")}
+                              </span>
+                            ))
+                          )}
+                        </div>
+                      </td>
+                      <td className="tabular text-right text-sm">
+                        {c.volume24h === null ? "—" : formatUsd(c.volume24h)}
+                      </td>
+                      <td className="tabular text-right text-sm">{formatPct(c.turnover24h)}</td>
+                      <td
                         className={cn(
-                          "rounded border px-1.5 py-0.5 font-mono text-[10px] tracking-wide",
-                          STAGE_TONE[c.stageReached],
+                          "px-3 font-mono text-[10px]",
+                          SIGNAL_TONE[c.activityState ?? "UNKNOWN"],
                         )}
                       >
-                        {c.stageReached.replace("_", " ")}
-                      </span>
-                    </td>
-                    <td className="text-xs text-muted-foreground">{c.outcome}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                        {c.activityState ?? "—"}
+                      </td>
+                      <td
+                        className={cn(
+                          "px-3 font-mono text-[10px]",
+                          SIGNAL_TONE[c.persistenceSignal ?? "UNKNOWN"],
+                        )}
+                      >
+                        {c.persistenceSignal ?? "—"}
+                      </td>
+                      <td
+                        className={cn(
+                          "px-3 font-mono text-[10px]",
+                          SIGNAL_TONE[c.reaccelerationSignal ?? "UNKNOWN"],
+                        )}
+                      >
+                        {c.reaccelerationSignal ?? "—"}
+                      </td>
+                      <td
+                        className={cn(
+                          "px-3 font-mono text-[10px]",
+                          EXTENSION_TONE[c.extensionRisk ?? "UNKNOWN"],
+                        )}
+                      >
+                        {c.extensionRisk ?? "—"}
+                      </td>
+                      <td className="tabular text-right text-sm font-semibold">
+                        {c.quantitativePriority ?? "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <p className="mt-3 text-[11px] text-muted-foreground">
+            Scanner v1 produces no thesis scores and creates no opportunities. Research reports and
+            opportunity records elsewhere in Wingman remain simulated demo data.
+          </p>
         </Section>
       </div>
     </AppShell>
