@@ -149,7 +149,7 @@ function ScannerPage() {
           ) : (
             <div className="mx-auto max-w-3xl">
               {PIPELINE_STAGES.map((stage, i) => {
-                const count = counts[stage.key];
+                const count = counts[stage.key] ?? null;
                 const pct = count === null ? 0 : (count / maxCount) * 100;
 
                 return (
