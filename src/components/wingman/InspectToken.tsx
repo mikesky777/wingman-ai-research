@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ingestTokenByAddress } from "@/lib/wingman/ingest.functions";
 import type { IngestTokenResult } from "@/lib/wingman/ingest-types";
-import { snapshotToEvidence } from "@/lib/wingman/services/evidence";
+import { snapshotToEvidence, resolveEvidence } from "@/lib/wingman/services/evidence";
 import { formatUsd, formatNumber, shortenAddress, formatTime, tokenAge } from "@/lib/wingman/format";
 import { cn } from "@/lib/utils";
 
@@ -60,8 +60,14 @@ export function InspectToken() {
   });
 
   const result = mutation.data;
-  const evidence =
-    result?.ok ? snapshotToEvidence(result.snapshot, result.pair) : [];
+  const evidence = result?.ok ? snapshotToEvidence(result.snapshot, result.pair) : [];
+  const resolvedByKey = new Map(
+    resolveEvidence(evidence, { now: result?.ok ? result.snapshot.capturedAt : undefined }).map(
+      (r) => [r.key, r] as const,
+    ),
+  );
+
+
 
 
   return (
