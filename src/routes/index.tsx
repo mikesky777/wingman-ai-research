@@ -41,21 +41,27 @@ const REGIME_LABEL = {
 };
 
 function Dashboard() {
-  const summary = getScanSummary();
-  const opportunities = getOpportunities();
+  const { data: latestScan, isLoading: scanLoading } = useLatestScan();
+  const { data: opportunities = [], isLoading: oppsLoading } = useOpportunities();
+  const summary = latestScan?.summary;
   const [scanning, setScanning] = useState(false);
-  const [lastScanAt, setLastScanAt] = useState(summary.lastScanAt);
+  const [lastScanAt, setLastScanAt] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (summary) setLastScanAt(summary.lastScanAt);
+  }, [summary]);
 
   const runScan = () => {
     if (scanning) return;
     setScanning(true);
     window.setTimeout(() => {
-      setLastScanAt(new Date().toISOString());
       setScanning(false);
     }, 1800);
   };
 
-  const regime = REGIME_LABEL[summary.regime];
+  const regime = REGIME_LABEL[summary?.regime ?? "NEUTRAL"];
+  const pending = scanLoading || oppsLoading;
+  const dash = (value: number | undefined) => (value == null ? "—" : formatNumber(value));
 
   return (
     <AppShell
@@ -72,33 +78,33 @@ function Dashboard() {
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
           <StatTile
             label="Market Regime"
-            value={regime.text}
+            value={summary ? regime.text : "—"}
             tone={regime.tone}
             detail="Aggregate risk appetite across Solana majors"
           />
           <StatTile
             label="Last Scan"
-            value={scanning ? "Running…" : formatTime(lastScanAt)}
+            value={scanning ? "Running…" : lastScanAt ? formatTime(lastScanAt) : "—"}
             detail={scanning ? "Refreshing pipeline" : "Automatic hourly cadence"}
           />
           <StatTile
             label="Tokens Scanned"
-            value={formatNumber(summary.tokensScanned)}
+            value={dash(summary?.tokensScanned)}
             detail="Full observed universe"
           />
           <StatTile
             label="Passed Filters"
-            value={formatNumber(summary.passedFilters)}
+            value={dash(summary?.passedFilters)}
             detail="Cleared hard filters"
           />
           <StatTile
             label="Deep Researched"
-            value={formatNumber(summary.deepResearched)}
+            value={dash(summary?.deepResearched)}
             detail="Full research pass run"
           />
           <StatTile
             label="Actionable"
-            value={formatNumber(opportunities.length)}
+            value={summary ? formatNumber(opportunities.length) : "—"}
             tone="primary"
             detail="Cleared the shortlist threshold"
           />
@@ -114,7 +120,15 @@ function Dashboard() {
             </span>
           }
         >
-          {opportunities.length === 0 ? (
+          {pending ? (
+            <p className="text-xs text-muted-foreground">Loading latest scan…</p>
+          ) : !latestScan ? (
+            <EmptyState
+              icon={<Activity className="size-4" />}
+              title="Wingman has not completed a scan yet."
+              description="Once a scan cycle completes, its shortlist and pipeline counts appear here."
+            />
+          ) : opportunities.length === 0 ? (
             <EmptyState
               icon={<Activity className="size-4" />}
               title="No high-quality setups currently meet our threshold."
@@ -124,6 +138,7 @@ function Dashboard() {
             <OpportunityTable opportunities={opportunities} />
           )}
         </Section>
+
 
         <div className="grid gap-6 xl:grid-cols-[1fr_1.1fr]">
           <Section
