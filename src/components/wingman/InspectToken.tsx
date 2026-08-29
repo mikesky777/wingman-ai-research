@@ -59,6 +59,9 @@ export function InspectToken() {
   });
 
   const result = mutation.data;
+  const evidence =
+    result?.ok ? snapshotToEvidence(result.snapshot, result.pair) : [];
+
 
   return (
     <div className="space-y-4">
