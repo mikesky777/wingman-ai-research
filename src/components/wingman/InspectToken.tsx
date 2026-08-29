@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ingestTokenByAddress } from "@/lib/wingman/ingest.functions";
 import type { IngestTokenResult } from "@/lib/wingman/ingest-types";
+import { snapshotToEvidence } from "@/lib/wingman/services/evidence";
 import { formatUsd, formatNumber, shortenAddress, formatTime, tokenAge } from "@/lib/wingman/format";
 import { cn } from "@/lib/utils";
 
