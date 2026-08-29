@@ -9,7 +9,7 @@ import type { DsPair } from "./types";
 const ADDRESS = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 const OTHER = "So11111111111111111111111111111111111111112";
 
-function pair(overrides: Partial<DsPair> = {}): DsPair {
+function pair(overrides: Record<string, unknown> = {}): DsPair {
   return {
     chainId: "solana",
     dexId: "raydium",
@@ -31,7 +31,7 @@ function pair(overrides: Partial<DsPair> = {}): DsPair {
     },
     boosts: { active: 3 },
     ...overrides,
-  };
+  } as DsPair;
 }
 
 function mockFetch(payload: unknown, init: { status?: number; reject?: unknown } = {}) {
