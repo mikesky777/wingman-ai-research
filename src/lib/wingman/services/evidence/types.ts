@@ -36,8 +36,33 @@ export type EvidenceUnit = "usd" | "percent" | "count" | "timestamp";
  */
 export type EvidenceStatus = "observed" | "unavailable";
 
-/** Identifier of the system that produced the fact. */
-export type EvidenceSource = "dexscreener";
+/**
+ * Sources we already know about. Adding a provider here must never require
+ * touching resolver or scoring code: resolution works off observation
+ * metadata and configuration, not off the source label. A source label alone
+ * never makes a claim true.
+ */
+export type KnownEvidenceSource =
+  | "dexscreener"
+  | "birdeye"
+  | "helius"
+  | "bubblemaps"
+  | "pumpportal"
+  | "jupiter"
+  | "x"
+  | "wingman";
+
+/** Open union: unknown providers stay valid without code changes. */
+export type EvidenceSource = KnownEvidenceSource | (string & {});
+
+/**
+ * How `observedAt` was determined.
+ *   provider_time — the provider supplied a per-fact timestamp.
+ *   capture_time  — no provider timestamp; observedAt is our capture time.
+ *   derived       — computed from other observations.
+ */
+export type ObservedAtBasis = "provider_time" | "capture_time" | "derived";
+
 
 export interface EvidenceObservation {
   /** Subject area, e.g. "market". */
