@@ -315,7 +315,7 @@ function ScannerPage() {
             <div className="overflow-x-auto">
               <table className="w-full min-w-[900px] text-left">
                 <thead>
-                  <tr className="[&>th]:label-xs [&>th]:pb-2.5 [&>th]:font-medium [&>th]:whitespace-nowrap">
+                  <tr className="[&>th]:label-xs [&>th]:pb-2.5 [&>th]:pr-4 [&>th]:font-medium [&>th]:whitespace-nowrap [&>th:last-child]:pr-0">
                     <th className="w-10">Rank</th>
                     <th>Token</th>
                     <th className="text-right">Market cap</th>
@@ -332,7 +332,7 @@ function ScannerPage() {
                     <tr
                       key={c.id}
                       onClick={() => setSelected(c.id)}
-                      className="cursor-pointer transition-colors hover:bg-secondary/50 [&>td]:border-t [&>td]:border-border [&>td]:py-3"
+                      className="cursor-pointer transition-colors hover:bg-secondary/50 [&>td]:border-t [&>td]:border-border [&>td]:py-3 [&>td]:pr-4 [&>td:last-child]:pr-0"
                     >
                       <td className="tabular text-xs text-muted-foreground">
                         {filter !== "ALL" && filter !== "SURVIVORS" && filter !== "NEAR_MISS"
