@@ -35,7 +35,7 @@ export function OpportunityTable({ opportunities }: { opportunities: Opportunity
     <div className="overflow-x-auto">
       <table className="w-full min-w-[1080px] border-separate border-spacing-0 text-left">
         <thead>
-          <tr className="[&>th]:label-xs [&>th]:pb-2.5 [&>th]:font-medium">
+          <tr className="[&>th]:label-xs [&>th]:px-2 [&>th]:pb-2.5 [&>th]:font-medium [&>th]:whitespace-nowrap">
             <th className="w-10">#</th>
             <th>Token</th>
             <th className="text-right">Market cap</th>
