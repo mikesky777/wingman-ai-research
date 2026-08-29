@@ -165,6 +165,30 @@ export const DIVERGENCE_ADJUSTMENT: Record<string, number> = {
   UNKNOWN: 0,
 };
 
+/**
+ * Lane-aware survivor reservations.
+ *
+ * A single global top-N enrichment selection systematically crowds out quieter
+ * archetypes (a consolidating post-bond base can never out-score a vertical
+ * momentum token). These are CALIBRATION values, not permanent strategy rules.
+ * Unused lane capacity always flows back to the global pool, and a token that
+ * belongs to several lanes still costs exactly one survivor slot.
+ */
+export const LANE_SURVIVOR_RESERVATIONS: Record<DiscoveryLane, number> = {
+  EARLY_MOMENTUM: 12,
+  POST_BOND_BASE: 15,
+  DEVELOPING_THESIS: 12,
+  REACCELERATION: 6,
+};
+
+/** Deterministic order in which lane reservations are filled. */
+export const LANE_RESERVATION_ORDER: DiscoveryLane[] = [
+  "POST_BOND_BASE",
+  "EARLY_MOMENTUM",
+  "DEVELOPING_THESIS",
+  "REACCELERATION",
+];
+
 export interface ScannerRunConfig {
   chain: string;
   calibrationMode: boolean;
@@ -174,7 +198,10 @@ export interface ScannerRunConfig {
   discoveryPageSize: number;
   /** Rejected candidates persisted for calibration. */
   maxPersistedRejections: number;
+  /** Per-lane reserved enrichment slots, filled before the global pool. */
+  laneReservations: Record<DiscoveryLane, number>;
 }
+
 
 export const DEFAULT_RUN_CONFIG: ScannerRunConfig = {
   chain: "solana",
@@ -182,7 +209,9 @@ export const DEFAULT_RUN_CONFIG: ScannerRunConfig = {
   survivorEnrichmentLimit: 30,
   discoveryPageSize: 50,
   maxPersistedRejections: 400,
+  laneReservations: LANE_SURVIVOR_RESERVATIONS,
 };
+
 
 export function runConfig(overrides: Partial<ScannerRunConfig> = {}): ScannerRunConfig {
   const merged = { ...DEFAULT_RUN_CONFIG, ...overrides };

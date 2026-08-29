@@ -7,6 +7,8 @@ export const wingmanKeys = {
   latestFunnel: ["wingman", "latest-funnel"] as const,
   candidates: (runId: string) => ["wingman", "candidates", runId] as const,
   rankedCandidates: (runId: string) => ["wingman", "ranked-candidates", runId] as const,
+  workbenchCandidates: (runId: string) => ["wingman", "workbench-candidates", runId] as const,
+  runDiagnostics: (runId: string) => ["wingman", "run-diagnostics", runId] as const,
   opportunities: ["wingman", "opportunities"] as const,
   opportunity: (id: string) => ["wingman", "opportunity", id] as const,
   outcomes: ["wingman", "outcomes"] as const,
@@ -32,6 +34,24 @@ export function useRankedCandidates(runId: string | undefined) {
   return useQuery({
     queryKey: wingmanKeys.rankedCandidates(runId ?? "none"),
     queryFn: () => ScannerService.rankedCandidates(runId!),
+    enabled: Boolean(runId),
+  });
+}
+
+/** Full workbench candidate set: survivors plus near misses. */
+export function useWorkbenchCandidates(runId: string | undefined) {
+  return useQuery({
+    queryKey: wingmanKeys.workbenchCandidates(runId ?? "none"),
+    queryFn: () => ScannerService.workbenchCandidates(runId!),
+    enabled: Boolean(runId),
+  });
+}
+
+/** Bucket + lane calibration diagnostics for one run. */
+export function useRunDiagnostics(runId: string | undefined) {
+  return useQuery({
+    queryKey: wingmanKeys.runDiagnostics(runId ?? "none"),
+    queryFn: () => ScannerService.runDiagnostics(runId!),
     enabled: Boolean(runId),
   });
 }

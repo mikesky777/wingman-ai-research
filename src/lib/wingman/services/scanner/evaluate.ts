@@ -5,6 +5,7 @@
  * is what makes the archetype fixtures (GTAmemes-like, Buddy-like, dead old
  * token, vertical chase) meaningful as regression tests.
  */
+import { LANE_RESERVATION_ORDER, LANE_SURVIVOR_RESERVATIONS } from "./config";
 import { applyHardFilters } from "./hard-filters";
 import { evaluateLanes } from "./lanes";
 import { computeMetrics, type AgeFallbacks } from "./metrics";
@@ -12,15 +13,17 @@ import { quantitativePriority } from "./priority";
 import {
   activityState,
   attentionPriceDivergence,
-  extensionRisk,
+  extensionAssessment,
   persistenceSignal,
   reaccelerationSignal,
 } from "./signals";
-import type {
-  DiscoveredToken,
-  EvaluatedCandidate,
-  HistoricalPoint,
-  ScannerSignals,
+import {
+  DISCOVERY_LANES,
+  type DiscoveredToken,
+  type DiscoveryLane,
+  type EvaluatedCandidate,
+  type HistoricalPoint,
+  type ScannerSignals,
 } from "./types";
 
 /**
@@ -66,20 +69,35 @@ export function evaluateCandidate(
   const history = options.history ?? [];
   const metrics = computeMetrics(token, nowIso, options.ageFallbacks ?? {});
 
+  const extension = extensionAssessment(token, metrics, history);
   const signals: ScannerSignals = {
     activityState: activityState(token, metrics),
     persistenceSignal: persistenceSignal(token, metrics, history),
     reaccelerationSignal: reaccelerationSignal(metrics, history),
-    extensionRisk: extensionRisk(token, metrics, history),
+    extensionRisk: extension.risk,
     attentionPriceDivergence: attentionPriceDivergence(token, metrics),
+  };
+
+  // Structural safety and token security are NEVER inferred from market
+  // behaviour. They stay unknown/unchecked until a dedicated capability runs.
+  const base = {
+    token,
+    metrics,
+    signals,
+    extensionReasons: extension.reasons,
+    globalRank: null,
+    laneRanks: {},
+    selectedByLaneReservation: false,
+    selectedByGlobalRanking: false,
+    structuralSafety: "UNKNOWN" as const,
+    tokenSecurity: "NOT_CHECKED" as const,
+    historySnapshotCount: history.length,
   };
 
   const rejection = applyHardFilters(token, metrics);
   if (rejection) {
     return {
-      token,
-      metrics,
-      signals,
+      ...base,
       lanes: [],
       laneRejections: {},
       passedHardFilters: false,
@@ -95,9 +113,7 @@ export function evaluateCandidate(
   const priority = quantitativePriority(token, metrics, signals, lanes);
 
   return {
-    token,
-    metrics,
-    signals,
+    ...base,
     lanes,
     laneRejections: rejections,
     passedHardFilters: true,
@@ -132,6 +148,89 @@ export function rankCandidates(candidates: EvaluatedCandidate[]): EvaluatedCandi
   });
 }
 
+/**
+ * Assign a 1-based global rank across ranked candidates and a 1-based rank
+ * inside every lane the candidate qualified for. Mutates in place because the
+ * ranks belong to the candidate record that is persisted.
+ */
+export function assignRanks(ranked: EvaluatedCandidate[]): EvaluatedCandidate[] {
+  const eligible = ranked.filter((c) => c.passedHardFilters && c.quantitativePriority !== null);
+  eligible.forEach((c, i) => {
+    c.globalRank = i + 1;
+    c.laneRanks = {};
+  });
+  for (const lane of DISCOVERY_LANES) {
+    let rank = 0;
+    for (const c of eligible) {
+      if (!c.lanes.includes(lane)) continue;
+      rank += 1;
+      c.laneRanks[lane] = rank;
+    }
+  }
+  return ranked;
+}
+
+export interface SurvivorSelection {
+  survivors: EvaluatedCandidate[];
+  /** Slots actually consumed per lane reservation. */
+  laneUsage: Record<string, number>;
+  reservedCount: number;
+  globalCount: number;
+}
+
+/**
+ * Lane-aware survivor selection.
+ *
+ * Deterministic: lanes are filled in a fixed order from the globally ranked
+ * list, a multi-lane token is only ever charged once, and every unused lane
+ * slot returns to the global pool which is then filled strictly by priority.
+ */
+export function selectSurvivorsWithReservations(
+  ranked: EvaluatedCandidate[],
+  limit: number,
+  reservations: Record<DiscoveryLane, number> = LANE_SURVIVOR_RESERVATIONS,
+): SurvivorSelection {
+  const eligible = ranked.filter((c) => c.passedHardFilters && c.lanes.length > 0);
+  const chosen: EvaluatedCandidate[] = [];
+  const seen = new Set<string>();
+  const laneUsage: Record<string, number> = {};
+
+  for (const lane of LANE_RESERVATION_ORDER) {
+    const quota = reservations[lane] ?? 0;
+    let used = 0;
+    for (const candidate of eligible) {
+      if (chosen.length >= limit || used >= quota) break;
+      if (!candidate.lanes.includes(lane)) continue;
+      if (seen.has(candidate.token.contractAddress)) continue;
+      seen.add(candidate.token.contractAddress);
+      candidate.selectedByLaneReservation = true;
+      candidate.selectedByGlobalRanking = false;
+      chosen.push(candidate);
+      used += 1;
+    }
+    laneUsage[lane] = used;
+  }
+
+  const reservedCount = chosen.length;
+
+  // Unused reservation capacity flows straight back to the global pool.
+  for (const candidate of eligible) {
+    if (chosen.length >= limit) break;
+    if (seen.has(candidate.token.contractAddress)) continue;
+    seen.add(candidate.token.contractAddress);
+    candidate.selectedByLaneReservation = false;
+    candidate.selectedByGlobalRanking = true;
+    chosen.push(candidate);
+  }
+
+  return {
+    survivors: chosen,
+    laneUsage,
+    reservedCount,
+    globalCount: chosen.length - reservedCount,
+  };
+}
+
 /** Survivors chosen for expensive enrichment. Everything else stops here. */
 export function selectSurvivors(
   ranked: EvaluatedCandidate[],
@@ -139,3 +238,4 @@ export function selectSurvivors(
 ): EvaluatedCandidate[] {
   return ranked.filter((c) => c.passedHardFilters && c.lanes.length > 0).slice(0, limit);
 }
+

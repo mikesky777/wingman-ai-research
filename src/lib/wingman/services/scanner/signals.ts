@@ -11,6 +11,7 @@ import type {
   ActivityState,
   AttentionPriceDivergence,
   DiscoveredToken,
+  ExtensionAssessment,
   ExtensionRisk,
   HistoricalPoint,
   PersistenceSignal,
@@ -145,15 +146,17 @@ export function reaccelerationSignal(
  * never a rejection: high priority + HIGH extension means "worth researching,
  * poor entry right now".
  */
-export function extensionRisk(
+export function extensionAssessment(
   token: DiscoveredToken,
   m: ScannerMetrics,
   history: HistoricalPoint[] = [],
-): ExtensionRisk {
+): ExtensionAssessment {
   const pc1h = token.priceChange1h;
   const pc5m = token.priceChange5m;
   const pc24h = token.priceChange24h;
-  if (!isNum(pc1h) && !isNum(pc24h)) return "UNKNOWN";
+  if (!isNum(pc1h) && !isNum(pc24h)) {
+    return { risk: "UNKNOWN", reasons: ["No price-change evidence available."] };
+  }
 
   // Expansion versus the lowest price we have on record for this token.
   const lows = history.map((h) => h.priceUsd).filter(isNum);
@@ -161,20 +164,50 @@ export function extensionRisk(
   const expansion = ratio(token.priceUsd, baseLow);
 
   const accel = m.baselineAcceleration;
+  const pct = (v: number) => `${v >= 0 ? "+" : ""}${v.toFixed(0)}%`;
 
-  if ((isNum(pc1h) && pc1h >= 200) || (isNum(pc24h) && pc24h >= 1000)) return "EXTREME";
-  if (isNum(expansion) && expansion >= 8) return "EXTREME";
-  if (
-    (isNum(pc1h) && pc1h >= 75) ||
-    (isNum(pc24h) && pc24h >= 300) ||
-    (isNum(pc5m) && pc5m >= 25 && isNum(accel) && accel >= 5) ||
-    (isNum(expansion) && expansion >= 3)
-  ) {
-    return "HIGH";
+  const extreme: string[] = [];
+  if (isNum(pc1h) && pc1h >= 200) extreme.push(`${pct(pc1h)} price change over 1h.`);
+  if (isNum(pc24h) && pc24h >= 1000) extreme.push(`${pct(pc24h)} price change over 24h.`);
+  if (isNum(expansion) && expansion >= 8) {
+    extreme.push(`Price is ${expansion.toFixed(1)}× the lowest price in Wingman history.`);
   }
-  if ((isNum(pc1h) && pc1h >= 25) || (isNum(pc24h) && pc24h >= 100)) return "MODERATE";
-  return "LOW";
+  if (extreme.length) return { risk: "EXTREME", reasons: extreme };
+
+  const high: string[] = [];
+  if (isNum(pc1h) && pc1h >= 75) high.push(`${pct(pc1h)} price change over 1h.`);
+  if (isNum(pc24h) && pc24h >= 300) high.push(`${pct(pc24h)} price change over 24h.`);
+  if (isNum(pc5m) && pc5m >= 25 && isNum(accel) && accel >= 5) {
+    high.push(
+      `Short-window activity concentrated during vertical price expansion (${pct(pc5m)} in 5m at ${accel.toFixed(1)}× baseline volume pace).`,
+    );
+  }
+  if (isNum(expansion) && expansion >= 3) {
+    high.push(`Price is ${expansion.toFixed(1)}× the lowest price in Wingman history.`);
+  }
+  if (high.length) return { risk: "HIGH", reasons: high };
+
+  const moderate: string[] = [];
+  if (isNum(pc1h) && pc1h >= 25) moderate.push(`${pct(pc1h)} price change over 1h.`);
+  if (isNum(pc24h) && pc24h >= 100) moderate.push(`${pct(pc24h)} price change over 24h.`);
+  if (moderate.length) return { risk: "MODERATE", reasons: moderate };
+
+  return {
+    risk: "LOW",
+    reasons: [
+      `Price expansion within normal bounds${isNum(pc24h) ? ` (${pct(pc24h)} over 24h)` : ""}.`,
+    ],
+  };
 }
+
+export function extensionRisk(
+  token: DiscoveredToken,
+  m: ScannerMetrics,
+  history: HistoricalPoint[] = [],
+): ExtensionRisk {
+  return extensionAssessment(token, m, history).risk;
+}
+
 
 /**
  * ATTENTION vs PRICE — experimental. POSITIVE means participation is growing

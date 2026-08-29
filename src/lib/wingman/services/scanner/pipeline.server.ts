@@ -21,7 +21,14 @@ import { insertSnapshot, upsertTokenIdentity } from "../ingestion.server";
 import { snapshotToEvidence } from "../evidence/market-evidence";
 import { appendEvidenceObservations } from "../evidence-persistence.server";
 import { DISCOVERY_CONFIG_VERSION, runConfig, type ScannerRunConfig } from "./config";
-import { dedupeDiscovered, evaluateCandidate, rankCandidates, selectSurvivors } from "./evaluate";
+import {
+  assignRanks,
+  dedupeDiscovered,
+  evaluateCandidate,
+  rankCandidates,
+  selectSurvivorsWithReservations,
+} from "./evaluate";
+import { bucketDiagnostics, laneDiagnostics } from "./diagnostics";
 import {
   ConcurrentScanError,
   completeScanRun,
@@ -32,7 +39,13 @@ import {
   startScanRun,
 } from "./persistence.server";
 import { TelemetryRecorder } from "./telemetry";
-import { SCANNER_VERSION, type EvaluatedCandidate, type ProviderCallTelemetry } from "./types";
+import {
+  SCANNER_VERSION,
+  type BucketDiagnosticRow,
+  type EvaluatedCandidate,
+  type LaneDiagnosticRow,
+  type ProviderCallTelemetry,
+} from "./types";
 
 export interface ScanRunSummary {
   runId: string;
@@ -47,6 +60,14 @@ export interface ScanRunSummary {
   discoveryOutcomes: { queryId: string; ok: boolean; count: number; message: string | null }[];
   telemetry: ProviderCallTelemetry[];
   totalProviderRequests: number;
+  startedAt: string;
+  completedAt: string;
+  durationMs: number;
+  buckets: BucketDiagnosticRow[];
+  lanes: LaneDiagnosticRow[];
+  laneReservationUsage: Record<string, number>;
+  selectedByReservation: number;
+  selectedByGlobalRanking: number;
 }
 
 export interface RunScanResult {
@@ -112,6 +133,7 @@ export async function runScannerPipeline(
 ): Promise<RunScanResult> {
   const config = runConfig(overrides);
   const telemetry = new TelemetryRecorder();
+  const startedAt = new Date().toISOString();
 
   let runId: string;
   try {
@@ -155,8 +177,13 @@ export async function runScannerPipeline(
       });
     });
 
-    const ranked = rankCandidates(evaluated);
-    const survivors = selectSurvivors(ranked, config.survivorEnrichmentLimit);
+    const ranked = assignRanks(rankCandidates(evaluated));
+    const selection = selectSurvivorsWithReservations(
+      ranked,
+      config.survivorEnrichmentLimit,
+      config.laneReservations,
+    );
+    const survivors = selection.survivors;
 
     await mapWithLimit(survivors, 4, async (candidate) => {
       const ok = await enrichSurvivor(candidate, runId, telemetry);
@@ -177,6 +204,9 @@ export async function runScannerPipeline(
       (c) => c.passedHardFilters && c.lanes.length > 0,
     ).length;
     const enriched = survivors.filter((s) => s.enriched).length;
+    const completedAt = new Date().toISOString();
+    const buckets = bucketDiagnostics(evaluated);
+    const lanes = laneDiagnostics(evaluated);
 
     const summary: ScanRunSummary = {
       runId,
@@ -191,6 +221,14 @@ export async function runScannerPipeline(
       discoveryOutcomes: discovery.outcomes,
       telemetry: telemetry.snapshot(),
       totalProviderRequests: telemetry.totalRequests(),
+      startedAt,
+      completedAt,
+      durationMs: Date.parse(completedAt) - Date.parse(startedAt),
+      buckets,
+      lanes,
+      laneReservationUsage: selection.laneUsage,
+      selectedByReservation: selection.reservedCount,
+      selectedByGlobalRanking: selection.globalCount,
     };
 
     await completeScanRun({
@@ -200,6 +238,10 @@ export async function runScannerPipeline(
       quantitativelyRanked,
       enriched,
       telemetry: summary.telemetry,
+      bucketDiagnostics: buckets,
+      laneDiagnostics: lanes,
+      durationMs: summary.durationMs,
+      survivorLimit: config.survivorEnrichmentLimit,
       notes: `${SCANNER_VERSION} · ${DISCOVERY_CONFIG_VERSION}`,
     });
 
