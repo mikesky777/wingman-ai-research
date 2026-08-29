@@ -6,11 +6,15 @@
  * No scoring, no research, no opportunity creation. Failures never insert
  * fake or zero-filled snapshots.
  */
-import type { IngestTokenResult } from "../ingest-types";
+import type { IngestTokenResult, ProviderOutcome, SelectedPairMeta } from "../ingest-types";
 import { DexScreenerAdapter, isValidSolanaAddress } from "./external/dexscreener";
 import { ExternalDataError, toFailure } from "./external/dexscreener/errors";
 import { normalizeIdentity, normalizeSnapshot } from "./external/dexscreener/normalizer";
 import { insertSnapshot, upsertTokenIdentity } from "./ingestion.server";
+import { snapshotToEvidence } from "./evidence/market-evidence";
+import { appendEvidenceObservations } from "./evidence-persistence.server";
+import { enrichTokenHolders } from "./holder-enrichment.server";
+import { DEFAULT_CHAIN } from "./external/chains";
 
 export async function runIngestTokenByAddress(contractAddress: string): Promise<IngestTokenResult> {
   try {
