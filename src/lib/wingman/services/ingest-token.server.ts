@@ -84,19 +84,9 @@ export async function runIngestTokenByAddress(contractAddress: string): Promise<
         twitterUrl: token.twitterUrl,
         telegramUrl: token.telegramUrl,
       },
-      snapshot: { ...snapshot, capturedAt: inserted.capturedAt },
+      snapshot: persistedSnapshot,
       snapshotId: inserted.id,
-      pair: {
-        pairAddress: identity.dexPairAddress,
-        dexId: identity.primaryDexId,
-        quoteTokenSymbol: identity.primaryQuoteTokenSymbol,
-        quoteTokenAddress: identity.primaryQuoteTokenAddress,
-        pairCreatedAt: identity.pairCreatedAt,
-        eligiblePairCount: selection.eligible.length,
-        rejectedPairCount: selection.rejectedCount,
-        ambiguous: selection.ambiguous,
-        selectionVersion: selection.version,
-      },
+      pair,
     };
   } catch (error) {
     if (!(error instanceof ExternalDataError)) console.error("ingestTokenByAddress failed", error);
