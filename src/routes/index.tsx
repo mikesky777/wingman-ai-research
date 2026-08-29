@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Activity, RefreshCw, ShieldCheck } from "lucide-react";
 import { AppShell } from "@/components/wingman/AppShell";
 import { Section } from "@/components/wingman/Section";
@@ -9,9 +9,10 @@ import { EmptyState } from "@/components/wingman/EmptyState";
 import { EntryStateMachine } from "@/components/wingman/EntryStateMachine";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { getOpportunities, getScanSummary } from "@/lib/wingman/mock-data";
+import { useLatestScan, useOpportunities } from "@/lib/wingman/hooks";
 import { formatNumber, formatTime } from "@/lib/wingman/format";
 import { MOCK_DATA_NOTICE } from "@/lib/wingman/config";
+
 
 export const Route = createFileRoute("/")({
   head: () => ({
