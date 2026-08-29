@@ -42,7 +42,7 @@ export function dedupeDiscovered(tokens: DiscoveredToken[]): DiscoveredToken[] {
     for (const field of Object.keys(token) as (keyof DiscoveredToken)[]) {
       if (field === "discovery") continue;
       if (merged[field] === null || merged[field] === undefined) {
-        (merged as Record<string, unknown>)[field] = token[field];
+        (merged as unknown as Record<string, unknown>)[field] = token[field];
       }
     }
     merged.discovery = [...existing.discovery, ...token.discovery];
