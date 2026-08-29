@@ -156,7 +156,7 @@ function WatchlistPage() {
                       </td>
                       <td>
                         <button
-                          onClick={() => toggleAlert(opp.id)}
+                          onClick={() => toggleAlert(opp.token.id)}
                           className={cn(
                             "inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] transition-colors",
                             entry.alert === "ON"
@@ -174,7 +174,7 @@ function WatchlistPage() {
                       </td>
                       <td className="text-right">
                         <button
-                          onClick={() => remove(opp.id)}
+                          onClick={() => remove(opp.token.id)}
                           aria-label={`Remove ${opp.token.name} from watchlist`}
                           className="text-muted-foreground transition-colors hover:text-destructive"
                         >
@@ -197,7 +197,7 @@ function WatchlistPage() {
           ) : (
             <div className="flex flex-wrap gap-2">
               {addable.map((o) => (
-                <Button key={o.id} variant="outline" size="sm" onClick={() => add(o.id)}>
+                <Button key={o.id} variant="outline" size="sm" onClick={() => add(o.token.id)}>
                   <Plus className="size-3.5" />
                   {o.token.name} · {o.token.ticker}
                 </Button>
