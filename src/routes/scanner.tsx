@@ -60,13 +60,6 @@ const FILTERS: { key: Filter; label: string }[] = [
   ...LANES.map((lane) => ({ key: lane as Filter, label: laneLabel(lane) })),
 ];
 
-const LABEL_TONE: Record<string, string> = {
-  INTERESTING: "text-primary",
-  RESEARCH: "text-positive",
-  JUNK: "text-destructive",
-  UNREVIEWED: "text-muted-foreground",
-};
-
 type Row = WorkbenchCandidate & { passedNearMiss: boolean };
 
 function applyFilter(candidates: Row[], filter: Filter): Row[] {
@@ -375,10 +368,10 @@ function ScannerPage() {
                             <span
                               className={cn(
                                 "rounded border px-1.5 py-0.5 font-mono text-[10px] tracking-wide",
-                                LANE_TONE[c.lanes[0]] ?? "border-border-strong",
+                                LANE_TONE[c.lanes[0] ?? "UNKNOWN"] ?? "border-border-strong",
                               )}
                             >
-                              {laneLabel(c.lanes[0])}
+                              {laneLabel(c.lanes[0] ?? "UNKNOWN")}
                             </span>
                             {c.lanes.length > 1 ? (
                               <span className="font-mono text-[10px] text-muted-foreground">
