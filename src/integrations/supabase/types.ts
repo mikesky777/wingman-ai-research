@@ -412,6 +412,7 @@ export type Database = {
           holder_count: number | null
           id: string
           lane_ranks: Json | null
+          lane_rejections: Json | null
           liquidity_usd: number | null
           market_cap: number | null
           market_cap_bucket: string | null
@@ -470,6 +471,7 @@ export type Database = {
           holder_count?: number | null
           id?: string
           lane_ranks?: Json | null
+          lane_rejections?: Json | null
           liquidity_usd?: number | null
           market_cap?: number | null
           market_cap_bucket?: string | null
@@ -528,6 +530,7 @@ export type Database = {
           holder_count?: number | null
           id?: string
           lane_ranks?: Json | null
+          lane_rejections?: Json | null
           liquidity_usd?: number | null
           market_cap?: number | null
           market_cap_bucket?: string | null

@@ -1,0 +1,1 @@
+ALTER TABLE public.scan_candidates ADD COLUMN IF NOT EXISTS lane_rejections jsonb;

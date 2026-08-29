@@ -64,7 +64,7 @@ function token(overrides: Partial<DiscoveredToken> = {}): DiscoveredToken {
   };
 }
 
-const evaluate = (t: DiscoveredToken) => evaluateCandidate(t, { now: NOW });
+const evaluate = (t: DiscoveredToken) => evaluateCandidate(t, { nowIso: NOW });
 
 describe("market cap buckets", () => {
   it("places tokens in exactly one bucket and keeps unknown separate from zero", () => {
@@ -112,10 +112,11 @@ describe("lane diagnostics", () => {
 });
 
 describe("ranking and lane reservations", () => {
+  const base58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
   const many = Array.from({ length: 12 }, (_, i) =>
     evaluate(
       token({
-        contractAddress: `addr-${i}`,
+        contractAddress: `So1111111111111111111111111111111111111111${base58[i]}`,
         volume1h: 60_000 - i * 2_000,
         volume24h: 500_000 - i * 10_000,
       }),

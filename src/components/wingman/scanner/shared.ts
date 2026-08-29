@@ -60,7 +60,10 @@ export function formatAge(minutes: number | null): string {
 
 /** Ratio → percent. `null` stays visibly unavailable, never 0%. */
 export function formatRatioPct(value: number | null | undefined): string {
-  return value === null || value === undefined ? "—" : `${(value * 100).toFixed(0)}%`;
+  if (value === null || value === undefined) return "—";
+  const pct = value * 100;
+  // Keep small-but-real turnover visible instead of collapsing it to 0%.
+  return `${pct > 0 && pct < 1 ? pct.toFixed(2) : pct.toFixed(0)}%`;
 }
 
 export function formatPctChange(value: number | null | undefined): string {
