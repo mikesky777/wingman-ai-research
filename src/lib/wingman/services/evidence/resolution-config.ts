@@ -99,8 +99,8 @@ export const DEFAULT_PROVIDER_PREFERENCE: ProviderPreferenceConfig = {
   },
   byDomain: {
     market: ["dexscreener", "birdeye", "jupiter"],
-    holders: ["bubblemaps", "helius"],
-    creator: ["helius"],
+    holders: ["birdeye", "bubblemaps", "helius"],
+    creator: ["birdeye", "helius"],
     provenance: ["dexscreener", "helius"],
     social: ["x"],
   },

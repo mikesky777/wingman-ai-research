@@ -18,6 +18,12 @@ import type {
 export const RESOLVED_EVIDENCE_SCHEMA_VERSION = "resolved-evidence/v1";
 
 /**
+ * Behaviour version of the resolver itself. Research reports will record this
+ * so a past conclusion can be replayed against the rules that produced it.
+ */
+export const EVIDENCE_RESOLVER_VERSION = "evidence-resolver/v1";
+
+/**
  *  confirmed     — 2+ independent sources agree within tolerance.
  *  single_source — exactly one source supplied the fact.
  *  conflicting   — sources materially disagree; the disagreement is evidence.
