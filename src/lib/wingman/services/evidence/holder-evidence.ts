@@ -199,10 +199,14 @@ function cohortEvidence(
 export function holderProfileToEvidence(profile: NormalizedHolderProfile): EvidenceObservation[] {
   const base = { capturedAt: profile.capturedAt, sourceReference: profile.sourceReference };
   const observations: EvidenceObservation[] = [
-    // Market metrics whose semantics genuinely match the DexScreener keys.
+    // Market cap semantics genuinely match DexScreener's, so it shares the key
+    // and can be confirmed/conflicted by the resolver.
     make({ ...base, domain: "market", key: "market.market_cap_usd", value: profile.marketCapUsd, unit: "usd" }),
-    make({ ...base, domain: "market", key: "market.liquidity_usd", value: profile.liquidityUsd, unit: "usd" }),
-    make({ ...base, domain: "market", key: "market.volume_1h_usd", value: profile.volume1hUsd, unit: "usd" }),
+    // Liquidity and volume are TOKEN-WIDE at Birdeye but PAIR-scoped at
+    // DexScreener. Different facts keep different keys — agreement is never
+    // manufactured by collapsing semantics.
+    make({ ...base, domain: "market", key: "market.token_liquidity_usd", value: profile.liquidityUsd, unit: "usd" }),
+    make({ ...base, domain: "market", key: "market.token_volume_1h_usd", value: profile.volume1hUsd, unit: "usd" }),
 
     make({
       ...base,
