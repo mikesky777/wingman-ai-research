@@ -11,7 +11,9 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as HistoryRouteImport } from './routes/history'
+import { Route as ResearchRouteImport } from './routes/research'
 import { Route as ScannerRouteImport } from './routes/scanner'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as WatchlistRouteImport } from './routes/watchlist'
 import { Route as TokenTokenIdRouteImport } from './routes/token.$tokenId'
 
@@ -25,9 +27,19 @@ const HistoryRoute = HistoryRouteImport.update({
   path: '/history',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ResearchRoute = ResearchRouteImport.update({
+  id: '/research',
+  path: '/research',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ScannerRoute = ScannerRouteImport.update({
   id: '/scanner',
   path: '/scanner',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
 const WatchlistRoute = WatchlistRouteImport.update({
@@ -44,14 +56,18 @@ const TokenTokenIdRoute = TokenTokenIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/history': typeof HistoryRoute
+  '/research': typeof ResearchRoute
   '/scanner': typeof ScannerRoute
+  '/settings': typeof SettingsRoute
   '/watchlist': typeof WatchlistRoute
   '/token/$tokenId': typeof TokenTokenIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/history': typeof HistoryRoute
+  '/research': typeof ResearchRoute
   '/scanner': typeof ScannerRoute
+  '/settings': typeof SettingsRoute
   '/watchlist': typeof WatchlistRoute
   '/token/$tokenId': typeof TokenTokenIdRoute
 }
@@ -59,20 +75,38 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/history': typeof HistoryRoute
+  '/research': typeof ResearchRoute
   '/scanner': typeof ScannerRoute
+  '/settings': typeof SettingsRoute
   '/watchlist': typeof WatchlistRoute
   '/token/$tokenId': typeof TokenTokenIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/history' | '/scanner' | '/watchlist' | '/token/$tokenId'
+  fullPaths:
+    | '/'
+    | '/history'
+    | '/research'
+    | '/scanner'
+    | '/settings'
+    | '/watchlist'
+    | '/token/$tokenId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/history' | '/scanner' | '/watchlist' | '/token/$tokenId'
+  to:
+    | '/'
+    | '/history'
+    | '/research'
+    | '/scanner'
+    | '/settings'
+    | '/watchlist'
+    | '/token/$tokenId'
   id:
     | '__root__'
     | '/'
     | '/history'
+    | '/research'
     | '/scanner'
+    | '/settings'
     | '/watchlist'
     | '/token/$tokenId'
   fileRoutesById: FileRoutesById
@@ -80,7 +114,9 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   HistoryRoute: typeof HistoryRoute
+  ResearchRoute: typeof ResearchRoute
   ScannerRoute: typeof ScannerRoute
+  SettingsRoute: typeof SettingsRoute
   WatchlistRoute: typeof WatchlistRoute
   TokenTokenIdRoute: typeof TokenTokenIdRoute
 }
@@ -101,11 +137,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HistoryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/research': {
+      id: '/research'
+      path: '/research'
+      fullPath: '/research'
+      preLoaderRoute: typeof ResearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/scanner': {
       id: '/scanner'
       path: '/scanner'
       fullPath: '/scanner'
       preLoaderRoute: typeof ScannerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/watchlist': {
@@ -128,7 +178,9 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   HistoryRoute: HistoryRoute,
+  ResearchRoute: ResearchRoute,
   ScannerRoute: ScannerRoute,
+  SettingsRoute: SettingsRoute,
   WatchlistRoute: WatchlistRoute,
   TokenTokenIdRoute: TokenTokenIdRoute,
 }
