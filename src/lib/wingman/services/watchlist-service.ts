@@ -1,3 +1,9 @@
+/**
+ * TODO(auth): watchlist rows are currently global and browser-writable —
+ * prototype behaviour for the single-user demo. Before any public
+ * multi-user release this must become user-scoped (user_id + RLS on
+ * auth.uid()) or move behind authenticated server functions.
+ */
 import { supabase } from "../data/supabase";
 import type { WatchlistEntry } from "../types";
 

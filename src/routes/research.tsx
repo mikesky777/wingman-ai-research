@@ -4,6 +4,8 @@ import { AppShell } from "@/components/wingman/AppShell";
 import { Section } from "@/components/wingman/Section";
 import { EmptyState } from "@/components/wingman/EmptyState";
 import { Button } from "@/components/ui/button";
+import { InspectToken } from "@/components/wingman/InspectToken";
+
 import { useOpportunities } from "@/lib/wingman/hooks";
 import { relativeTime } from "@/lib/wingman/format";
 
@@ -77,14 +79,12 @@ function ResearchPage() {
         </Section>
 
         <Section
-          title="Requested Research"
-          description="Queue your own tokens for a deep-research pass."
+          title="Inspect Token"
+          description="Paste a Solana contract address to fetch and persist live DexScreener market data. Verification only — no AI research or scoring."
         >
-          <EmptyState
-            title="Manual research requests are not enabled in v0"
-            description="Wingman currently researches only what the scanner promotes. Manual submissions will land here once live data sources are connected."
-          />
+          <InspectToken />
         </Section>
+
       </div>
     </AppShell>
   );

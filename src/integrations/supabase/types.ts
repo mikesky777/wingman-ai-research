@@ -410,14 +410,18 @@ export type Database = {
       }
       token_snapshots: {
         Row: {
+          active_boost_count: number | null
           buys_1h: number | null
           buys_5m: number | null
           captured_at: string
           created_at: string
           data_source: string
           fdv: number | null
+          has_active_boost: boolean | null
+          has_paid_profile: boolean | null
           holder_count: number | null
           id: string
+          ingestion_version: string | null
           liquidity_usd: number | null
           market_cap: number | null
           paid_boost_count: number | null
@@ -428,9 +432,13 @@ export type Database = {
           price_usd: number | null
           sells_1h: number | null
           sells_5m: number | null
+          source_dex_id: string | null
+          source_pair_address: string | null
+          source_pair_created_at: string | null
           token_id: string
           top_10_holder_pct: number | null
           top_20_holder_pct: number | null
+          total_boost_amount: number | null
           unique_buyers_1h: number | null
           unique_sellers_1h: number | null
           volume_1h: number | null
@@ -439,14 +447,18 @@ export type Database = {
           volume_6h: number | null
         }
         Insert: {
+          active_boost_count?: number | null
           buys_1h?: number | null
           buys_5m?: number | null
           captured_at?: string
           created_at?: string
           data_source?: string
           fdv?: number | null
+          has_active_boost?: boolean | null
+          has_paid_profile?: boolean | null
           holder_count?: number | null
           id?: string
+          ingestion_version?: string | null
           liquidity_usd?: number | null
           market_cap?: number | null
           paid_boost_count?: number | null
@@ -457,9 +469,13 @@ export type Database = {
           price_usd?: number | null
           sells_1h?: number | null
           sells_5m?: number | null
+          source_dex_id?: string | null
+          source_pair_address?: string | null
+          source_pair_created_at?: string | null
           token_id: string
           top_10_holder_pct?: number | null
           top_20_holder_pct?: number | null
+          total_boost_amount?: number | null
           unique_buyers_1h?: number | null
           unique_sellers_1h?: number | null
           volume_1h?: number | null
@@ -468,14 +484,18 @@ export type Database = {
           volume_6h?: number | null
         }
         Update: {
+          active_boost_count?: number | null
           buys_1h?: number | null
           buys_5m?: number | null
           captured_at?: string
           created_at?: string
           data_source?: string
           fdv?: number | null
+          has_active_boost?: boolean | null
+          has_paid_profile?: boolean | null
           holder_count?: number | null
           id?: string
+          ingestion_version?: string | null
           liquidity_usd?: number | null
           market_cap?: number | null
           paid_boost_count?: number | null
@@ -486,9 +506,13 @@ export type Database = {
           price_usd?: number | null
           sells_1h?: number | null
           sells_5m?: number | null
+          source_dex_id?: string | null
+          source_pair_address?: string | null
+          source_pair_created_at?: string | null
           token_id?: string
           top_10_holder_pct?: number | null
           top_20_holder_pct?: number | null
+          total_boost_amount?: number | null
           unique_buyers_1h?: number | null
           unique_sellers_1h?: number | null
           volume_1h?: number | null
@@ -518,8 +542,14 @@ export type Database = {
           image_url: string | null
           inserted_at: string
           is_active: boolean
+          last_ingested_at: string | null
+          metadata_source: string | null
           migration_at: string | null
           name: string
+          pair_created_at: string | null
+          primary_dex_id: string | null
+          primary_quote_token_address: string | null
+          primary_quote_token_symbol: string | null
           symbol: string
           telegram_url: string | null
           token_created_at: string | null
@@ -538,8 +568,14 @@ export type Database = {
           image_url?: string | null
           inserted_at?: string
           is_active?: boolean
+          last_ingested_at?: string | null
+          metadata_source?: string | null
           migration_at?: string | null
           name: string
+          pair_created_at?: string | null
+          primary_dex_id?: string | null
+          primary_quote_token_address?: string | null
+          primary_quote_token_symbol?: string | null
           symbol: string
           telegram_url?: string | null
           token_created_at?: string | null
@@ -558,8 +594,14 @@ export type Database = {
           image_url?: string | null
           inserted_at?: string
           is_active?: boolean
+          last_ingested_at?: string | null
+          metadata_source?: string | null
           migration_at?: string | null
           name?: string
+          pair_created_at?: string | null
+          primary_dex_id?: string | null
+          primary_quote_token_address?: string | null
+          primary_quote_token_symbol?: string | null
           symbol?: string
           telegram_url?: string | null
           token_created_at?: string | null
