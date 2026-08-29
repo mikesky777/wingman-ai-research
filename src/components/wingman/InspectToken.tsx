@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ingestTokenByAddress } from "@/lib/wingman/ingest.functions";
 import type { IngestTokenResult } from "@/lib/wingman/ingest-types";
+import { snapshotToEvidence } from "@/lib/wingman/services/evidence";
 import { formatUsd, formatNumber, shortenAddress, formatTime, tokenAge } from "@/lib/wingman/format";
 import { cn } from "@/lib/utils";
 
@@ -59,6 +60,9 @@ export function InspectToken() {
   });
 
   const result = mutation.data;
+  const evidence =
+    result?.ok ? snapshotToEvidence(result.snapshot, result.pair) : [];
+
 
   return (
     <div className="space-y-4">
@@ -181,6 +185,41 @@ export function InspectToken() {
             <Field label="Top-10 holders" value={null} />
           </div>
 
+          <details className="rounded-md border border-border bg-surface/60 p-3">
+            <summary className="label-xs cursor-pointer text-muted-foreground select-none">
+              Normalized Evidence ({evidence.length} observations)
+            </summary>
+            <div className="mt-3 overflow-x-auto">
+              <table className="w-full text-left text-[11px]">
+                <thead className="text-muted-foreground">
+                  <tr>
+                    <th className="py-1 pr-3 font-medium">Key</th>
+                    <th className="py-1 pr-3 font-medium">Value</th>
+                    <th className="py-1 pr-3 font-medium">Unit</th>
+                    <th className="py-1 font-medium">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="tabular">
+                  {evidence.map((o) => (
+                    <tr key={o.key} className="border-t border-border/60">
+                      <td className="py-1 pr-3 font-mono">{o.key}</td>
+                      <td
+                        className={cn(
+                          "py-1 pr-3",
+                          o.value === null && "text-muted-foreground/60 italic",
+                        )}
+                      >
+                        {o.value === null ? UNAVAILABLE : String(o.value)}
+                      </td>
+                      <td className="py-1 pr-3 text-muted-foreground">{o.unit ?? "—"}</td>
+                      <td className="py-1 text-muted-foreground">{o.status}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </details>
+
           <p className="text-[11px] leading-relaxed text-muted-foreground">
             Primary pair chosen by highest USD liquidity ({result.pair.selectionVersion});{" "}
             {result.pair.eligiblePairCount} eligible Solana pool
@@ -189,6 +228,7 @@ export function InspectToken() {
             stored as unavailable, not zero. Paid boosts are descriptive metadata only and are never
             treated as positive evidence.
           </p>
+
         </div>
       )}
     </div>
