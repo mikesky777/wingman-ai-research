@@ -2,10 +2,12 @@ import { createFileRoute } from "@tanstack/react-router";
 import { ChevronDown } from "lucide-react";
 import { AppShell } from "@/components/wingman/AppShell";
 import { Section } from "@/components/wingman/Section";
+import { EmptyState } from "@/components/wingman/EmptyState";
 import { PIPELINE_STAGES, MOCK_DATA_NOTICE } from "@/lib/wingman/config";
-import { getScanSummary, getScannedCandidates } from "@/lib/wingman/mock-data";
+import { useLatestScan, useScanCandidates } from "@/lib/wingman/hooks";
 import { formatNumber, formatUsd } from "@/lib/wingman/format";
 import { cn } from "@/lib/utils";
+
 
 export const Route = createFileRoute("/scanner")({
   head: () => ({
