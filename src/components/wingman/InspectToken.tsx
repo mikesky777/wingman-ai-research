@@ -243,25 +243,37 @@ export function InspectToken() {
                   </tr>
                 </thead>
                 <tbody className="tabular">
-                  {evidence.map((o) => (
-                    <tr key={o.key} className="border-t border-border/60">
-                      <td className="py-1 pr-3 font-mono">{o.key}</td>
+                  {resolved.map((r) => (
+                    <tr key={`${r.domain}:${r.key}`} className="border-t border-border/60 align-top">
+                      <td className="py-1 pr-3 font-mono">{r.key}</td>
                       <td
                         className={cn(
                           "py-1 pr-3",
-                          o.value === null && "text-muted-foreground/60 italic",
+                          r.value === null && "text-muted-foreground/60 italic",
                         )}
                       >
-                        {o.value === null ? UNAVAILABLE : String(o.value)}
+                        {r.value === null ? UNAVAILABLE : String(r.value)}
                       </td>
-                      <td className="py-1 pr-3 text-muted-foreground">{o.unit ?? "—"}</td>
-                      <td className="py-1 pr-3 text-muted-foreground">{o.status}</td>
+                      <td className="py-1 pr-3 text-muted-foreground">{r.unit ?? "—"}</td>
+                      <td className="py-1 pr-3 text-muted-foreground">{r.status}</td>
                       <td className="py-1">
-                        <span className="label-xs rounded border border-border px-1.5 py-0.5 text-muted-foreground">
-                          {(resolvedByKey.get(o.key)?.resolutionStatus ?? "unavailable")
-                            .replace("_", " ")
-                            .toUpperCase()}
+                        <span
+                          className={cn(
+                            "label-xs rounded border px-1.5 py-0.5",
+                            r.resolutionStatus === "conflicting"
+                              ? "border-destructive/50 text-destructive"
+                              : "border-border text-muted-foreground",
+                          )}
+                        >
+                          {r.resolutionStatus.replace("_", " ").toUpperCase()}
                         </span>
+                        {r.observations.length > 1 && (
+                          <span className="mt-1 block text-[10px] text-muted-foreground">
+                            {r.observations
+                              .map((o) => `${o.source}: ${o.value === null ? UNAVAILABLE : o.value}`)
+                              .join(" · ")}
+                          </span>
+                        )}
                       </td>
                     </tr>
                   ))}
