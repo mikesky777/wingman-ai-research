@@ -6,6 +6,18 @@
  */
 import type { ExternalDataErrorCode } from "./services/external/dexscreener/errors";
 import type { NormalizedSnapshot } from "./services/external/dexscreener/normalizer";
+import type { EvidenceObservation } from "./services/evidence/types";
+
+/**
+ * Per-provider outcome. Providers fail independently: Birdeye being down
+ * leaves holder evidence unavailable while market evidence still renders.
+ * Unavailable is uncertainty, never negative evidence.
+ */
+export interface ProviderOutcome {
+  source: string;
+  ok: boolean;
+  message: string | null;
+}
 
 export interface SelectedPairMeta {
   pairAddress: string | null;
@@ -38,6 +50,11 @@ export interface IngestTokenSuccess {
   snapshot: NormalizedSnapshot;
   snapshotId: string;
   pair: SelectedPairMeta;
+  /** Combined, provider-independent observations from every provider that answered. */
+  evidence: EvidenceObservation[];
+  providers: ProviderOutcome[];
+  /** Whether the append-only evidence history accepted the observations. */
+  evidencePersisted: boolean;
 }
 
 export interface IngestTokenFailure {
