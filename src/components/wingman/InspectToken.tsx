@@ -229,7 +229,8 @@ export function InspectToken() {
 
           <details className="rounded-md border border-border bg-surface/60 p-3">
             <summary className="label-xs cursor-pointer text-muted-foreground select-none">
-              Normalized Evidence ({evidence.length} observations)
+              Normalized Evidence ({evidence.length} observations · {resolved.length} resolved facts
+              {result.evidencePersisted ? " · persisted" : " · not persisted"})
             </summary>
             <div className="mt-3 overflow-x-auto">
               <table className="w-full text-left text-[11px]">
@@ -287,9 +288,11 @@ export function InspectToken() {
             Primary pair chosen by highest USD liquidity ({result.pair.selectionVersion});{" "}
             {result.pair.eligiblePairCount} eligible Solana pool
             {result.pair.eligiblePairCount === 1 ? "" : "s"}, {result.pair.rejectedPairCount}{" "}
-            rejected. Holder and unique-wallet metrics are not provided by DexScreener and are
-            stored as unavailable, not zero. Paid boosts are descriptive metadata only and are never
-            treated as positive evidence.
+            rejected. Holder evidence comes from Birdeye and is raw wallet-level concentration — no
+            LP, burn, treasury, program or exchange wallets have been excluded, and bundler / sniper
+            / insider / dev cohorts may overlap, so they are never summed. Missing evidence is
+            unavailable, not zero, and never counts as negative evidence. Paid boosts are
+            descriptive metadata only.
           </p>
 
         </div>
