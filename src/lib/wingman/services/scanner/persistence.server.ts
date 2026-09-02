@@ -10,7 +10,7 @@
  *   - Snapshots stay append-only; nothing here updates history.
  */
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { SCANNER_VERSION } from "./config";
+import { SCANNER_VERSION, type StrategySettings } from "./config";
 import { marketCapBucket } from "./diagnostics";
 import type {
   DiscoveredToken,
