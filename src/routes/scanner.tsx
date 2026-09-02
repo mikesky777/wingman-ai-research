@@ -108,6 +108,12 @@ function ScannerPage() {
   const [filter, setFilter] = useState<Filter>("SURVIVORS");
   const [selected, setSelected] = useState<string | null>(null);
   const scan = useServerFn(runScan);
+  const loadStrategy = useServerFn(getStrategySettings);
+  const { data: strategyResult } = useQuery({
+    queryKey: ["wingman", "strategy-settings"],
+    queryFn: () => loadStrategy(),
+  });
+  const strategy: StrategyShape = strategyResult?.settings ?? null;
 
   const candidates: Row[] = rawCandidates.map((c) => ({
     ...c,
