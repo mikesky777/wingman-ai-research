@@ -312,7 +312,7 @@ describe("survivor selection", () => {
 describe("setup taxonomy v2", () => {
   /** Old token with genuinely renewed interest versus its own baseline. */
   const RENEWED = token({
-    contractAddress: "Reaccel3333333333333333333333333333333333",
+    contractAddress: "ReAcce33333333333333333333333333333333333",
     symbol: "OLD",
     marketCap: 1_400_000,
     volume5m: 22_000,
