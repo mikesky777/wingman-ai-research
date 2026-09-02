@@ -28,6 +28,7 @@ import {
   rankCandidates,
   selectSurvivorsWithReservations,
 } from "./evaluate";
+import { resolveMarkets } from "./market-eligibility.server";
 import { bucketDiagnostics, laneDiagnostics } from "./diagnostics";
 import {
   ConcurrentScanError,
@@ -168,17 +169,41 @@ export async function runScannerPipeline(
     // Age fallbacks + prior snapshots for tokens Wingman already knows.
     const context = await loadTokenContext(deduped.map((t) => t.contractAddress));
 
-    const evaluated = deduped.map((token) => {
+    const evaluateWith = (
+      token: (typeof deduped)[number],
+      market: Awaited<ReturnType<typeof resolveMarkets>> extends Map<string, infer V>
+        ? V | null
+        : never,
+      requireMarket: boolean,
+    ) => {
       const ctx = context.get(token.contractAddress);
       return evaluateCandidate(token, {
         nowIso,
         history: ctx?.history ?? [],
         strategy: config.strategy,
+        requireMarket,
+        market,
         ageFallbacks: {
           pairCreatedAt: ctx?.pairCreatedAt ?? null,
           tokenCreatedAt: ctx?.tokenCreatedAt ?? null,
         },
       });
+    };
+
+    // Pass 1: cheap mechanical filters, no provider calls.
+    const firstPass = deduped.map((token) => evaluateWith(token, null, false));
+
+    // Pass 2: universal live-market gate over the mechanical survivors only.
+    const marketCandidates = firstPass.filter((c) => c.passedHardFilters);
+    const markets = await resolveMarkets(
+      marketCandidates.map((c) => c.token.contractAddress),
+      { track: (provider, capability, fn) => telemetry.track(provider, capability, fn) },
+    );
+
+    const evaluated = firstPass.map((candidate) => {
+      if (!candidate.passedHardFilters) return candidate;
+      const address = candidate.token.contractAddress;
+      return evaluateWith(candidate.token, markets.get(address) ?? null, true);
     });
 
     const ranked = assignRanks(rankCandidates(evaluated));
@@ -186,6 +211,7 @@ export async function runScannerPipeline(
       ranked,
       config.survivorEnrichmentLimit,
       config.strategy.reservations,
+      config.strategy,
     );
     const survivors = selection.survivors;
 
