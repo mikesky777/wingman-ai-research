@@ -33,12 +33,9 @@ function isNum(value: unknown): value is number {
 
 function pairPriceUsd(pair: DsPair): number | null {
   const raw = pair.priceUsd;
-  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
-  if (typeof raw === "string" && raw.trim() !== "") {
-    const parsed = Number(raw);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-  return null;
+  if (typeof raw !== "string" || raw.trim() === "") return null;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 /** Does the resolved pair carry usable market/trading evidence? */
