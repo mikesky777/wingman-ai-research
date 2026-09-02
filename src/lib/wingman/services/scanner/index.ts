@@ -40,6 +40,12 @@ export {
   reaccelerationSignal,
 } from "./signals";
 export { applyHardFilters } from "./hard-filters";
+export {
+  NO_VALID_DEX_MARKET,
+  assessMarket,
+  marketRejection,
+  type MarketResolution,
+} from "./market-eligibility";
 export { evaluateLanes, evaluateSetups, type LaneEvaluation, type SetupEvaluation } from "./lanes";
 export { quantitativePriority } from "./priority";
 export {

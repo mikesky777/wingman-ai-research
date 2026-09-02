@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { ChevronDown, Loader2 } from "lucide-react";
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/wingman/AppShell";
 import { Section } from "@/components/wingman/Section";
@@ -14,6 +14,7 @@ import {
   useWorkbenchCandidates,
 } from "@/lib/wingman/hooks";
 import { runScan } from "@/lib/wingman/scanner.functions";
+import { getStrategySettings } from "@/lib/wingman/strategy.functions";
 import { formatNumber, formatUsd } from "@/lib/wingman/format";
 import { CandidateDrawer } from "@/components/wingman/scanner/CandidateDrawer";
 import { DiagnosticsPanels } from "@/components/wingman/scanner/DiagnosticsPanels";
@@ -22,6 +23,8 @@ import { StrategySettingsPanel } from "@/components/wingman/scanner/StrategySett
 import {
   LANES,
   LANE_TONE,
+  disabledSetups,
+  enabledSetups,
   formatAge,
   formatRatioPct,
   laneLabel,
@@ -54,17 +57,27 @@ export const Route = createFileRoute("/scanner")({
 
 type Filter = "SURVIVORS" | "ALL" | "NEAR_MISS" | (typeof LANES)[number];
 
-/** Normal Scanner filters: one status view plus the observable setups. */
-const FILTERS: { key: Filter; label: string }[] = [
-  { key: "SURVIVORS", label: "Survivors" },
-  ...LANES.map((lane) => ({ key: lane as Filter, label: laneLabel(lane) })),
-];
+type StrategyShape = { setups: Record<string, { enabled: boolean }> } | null;
 
-/** Dataset/debug views. Kept inside Calibration, never removed. */
-const CALIBRATION_FILTERS: { key: Filter; label: string }[] = [
-  { key: "ALL", label: "All candidates" },
-  { key: "NEAR_MISS", label: "Near misses" },
-];
+/** Normal Scanner filters: one status view plus the ENABLED setups. */
+function normalFilters(strategy: StrategyShape): { key: Filter; label: string }[] {
+  return [
+    { key: "SURVIVORS" as Filter, label: "Survivors" },
+    ...enabledSetups(strategy).map((lane) => ({ key: lane as Filter, label: laneLabel(lane) })),
+  ];
+}
+
+/** Dataset/debug views plus disabled setups. Kept inside Calibration, never removed. */
+function calibrationFilters(strategy: StrategyShape): { key: Filter; label: string }[] {
+  return [
+    { key: "ALL" as Filter, label: "All candidates" },
+    { key: "NEAR_MISS" as Filter, label: "Near misses" },
+    ...disabledSetups(strategy).map((lane) => ({
+      key: lane as Filter,
+      label: `${laneLabel(lane)} (disabled)`,
+    })),
+  ];
+}
 
 type Row = WorkbenchCandidate & { passedNearMiss: boolean };
 
@@ -95,6 +108,12 @@ function ScannerPage() {
   const [filter, setFilter] = useState<Filter>("SURVIVORS");
   const [selected, setSelected] = useState<string | null>(null);
   const scan = useServerFn(runScan);
+  const loadStrategy = useServerFn(getStrategySettings);
+  const { data: strategyResult } = useQuery({
+    queryKey: ["wingman", "strategy-settings"],
+    queryFn: () => loadStrategy(),
+  });
+  const strategy: StrategyShape = strategyResult?.settings ?? null;
 
   const candidates: Row[] = rawCandidates.map((c) => ({
     ...c,
@@ -292,7 +311,7 @@ function ScannerPage() {
                 Debug views over the same stored scan. They never affect ranking or selection.
               </p>
               <div className="flex flex-wrap gap-1">
-                {CALIBRATION_FILTERS.map((f) => (
+                {calibrationFilters(strategy).map((f) => (
                   <button
                     key={f.key}
                     onClick={() => setFilter(f.key)}
@@ -320,7 +339,7 @@ function ScannerPage() {
           description="Every column is labelled and read from the stored scan. Quantitative priority ranks research effort — it is not a thesis score."
           actions={
             <div className="flex flex-wrap gap-1">
-              {FILTERS.map((f) => (
+              {normalFilters(strategy).map((f) => (
                 <button
                   key={f.key}
                   onClick={() => setFilter(f.key)}

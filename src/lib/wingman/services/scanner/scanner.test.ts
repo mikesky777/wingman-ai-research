@@ -16,6 +16,8 @@ import {
   rankCandidates,
   assignRanks,
   normalizeStrategySettings,
+  assessMarket,
+  NO_VALID_DEX_MARKET,
   selectSurvivors,
   selectSurvivorsWithReservations,
   WINGMAN_DEFAULT_SETTINGS,
@@ -132,9 +134,19 @@ const BUDDY = token({
   lastTradeAt: minutesAgo(3),
 });
 
+/** MOMENTUM is disabled in Wingman Default v1; fixtures opt back in explicitly. */
+const MOMENTUM_ON = normalizeStrategySettings({
+  ...WINGMAN_DEFAULT_SETTINGS,
+  setups: {
+    ...WINGMAN_DEFAULT_SETTINGS.setups,
+    MOMENTUM: { ...WINGMAN_DEFAULT_SETTINGS.setups.MOMENTUM, enabled: true },
+  },
+  reservations: { ...WINGMAN_DEFAULT_SETTINGS.reservations, MOMENTUM: 10 },
+});
+
 describe("scanner fixtures", () => {
-  it("GTAMEMES passes hard filters and lands in MOMENTUM", () => {
-    const c = evaluateCandidate(GTAMEMES, { nowIso: NOW });
+  it("GTAMEMES passes hard filters and lands in MOMENTUM when the setup is enabled", () => {
+    const c = evaluateCandidate(GTAMEMES, { nowIso: NOW, strategy: MOMENTUM_ON });
     expect(c.passedHardFilters).toBe(true);
     expect(c.rejection).toBeNull();
     expect(c.lanes).toContain("MOMENTUM");
@@ -328,14 +340,14 @@ describe("setup taxonomy v2", () => {
   });
 
   it("classifies a renewed old token as REACCEL, never MOMENTUM", () => {
-    const c = evaluateCandidate(RENEWED, { nowIso: NOW });
+    const c = evaluateCandidate(RENEWED, { nowIso: NOW, strategy: MOMENTUM_ON });
     expect(c.lanes).not.toContain("MOMENTUM");
     expect(c.lanes).toContain("REACCEL");
   });
 
   it("never emits the legacy v1 setup names for a new scan", () => {
     for (const fixture of [GTAMEMES, BUDDY, RENEWED]) {
-      const c = evaluateCandidate(fixture, { nowIso: NOW });
+      const c = evaluateCandidate(fixture, { nowIso: NOW, strategy: MOMENTUM_ON });
       for (const setup of c.lanes) {
         expect(["MOMENTUM", "BASE", "REACCEL"]).toContain(setup);
       }
@@ -370,7 +382,11 @@ describe("setup taxonomy v2", () => {
 
   it("charges a multi-setup token exactly one survivor slot", () => {
     const candidates = assignRanks(
-      rankCandidates([GTAMEMES, BUDDY, RENEWED].map((t) => evaluateCandidate(t, { nowIso: NOW }))),
+      rankCandidates(
+        [GTAMEMES, BUDDY, RENEWED].map((t) =>
+          evaluateCandidate(t, { nowIso: NOW, strategy: MOMENTUM_ON }),
+        ),
+      ),
     );
     const selection = selectSurvivorsWithReservations(candidates, 10);
     const addresses = selection.survivors.map((s) => s.token.contractAddress);
@@ -382,7 +398,11 @@ describe("setup taxonomy v2", () => {
       ...WINGMAN_DEFAULT_SETTINGS,
       setups: {
         ...WINGMAN_DEFAULT_SETTINGS.setups,
-        MOMENTUM: { ...WINGMAN_DEFAULT_SETTINGS.setups.MOMENTUM, marketCapMax: 50_000 },
+        MOMENTUM: {
+          ...WINGMAN_DEFAULT_SETTINGS.setups.MOMENTUM,
+          enabled: true,
+          marketCapMax: 50_000,
+        },
       },
     });
     const c = evaluateCandidate(GTAMEMES, { nowIso: NOW, strategy: strict });
@@ -396,7 +416,7 @@ describe("setup taxonomy v2", () => {
       WINGMAN_DEFAULT_SETTINGS.setups.BASE.marketCapMin,
     );
     expect(settings.configVersion).toBe(WINGMAN_DEFAULT_SETTINGS.configVersion);
-    expect(settings.reservations).toEqual({ BASE: 10, MOMENTUM: 10, REACCEL: 8 });
+    expect(settings.reservations).toEqual({ BASE: 10, MOMENTUM: 0, REACCEL: 8 });
   });
 
   it("keeps a saved strategy snapshot immutable against later edits", () => {

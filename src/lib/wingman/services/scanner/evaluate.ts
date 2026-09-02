@@ -12,6 +12,7 @@ import {
 } from "./config";
 import { applyHardFilters } from "./hard-filters";
 import { evaluateSetups } from "./lanes";
+import { marketRejection, type MarketResolution } from "./market-eligibility";
 import { computeMetrics, type AgeFallbacks } from "./metrics";
 import { quantitativePriority } from "./priority";
 import {
@@ -66,6 +67,13 @@ export interface EvaluateOptions {
   ageFallbacks?: AgeFallbacks;
   /** Editable setup filters this run evaluates with. */
   strategy?: StrategySettings;
+  /**
+   * Universal live-market gate. When `requireMarket` is true the candidate
+   * must have a resolved, usable Solana DEX market before any setup
+   * classification happens. Missing data is a rejection, never a zero.
+   */
+  requireMarket?: boolean;
+  market?: MarketResolution | null;
 }
 
 
@@ -110,6 +118,20 @@ export function evaluateCandidate(
       laneRejections: {},
       passedHardFilters: false,
       rejection,
+      quantitativePriority: null,
+      priority: null,
+      stageReached: "hard_filters",
+      enriched: false,
+    };
+  }
+
+  if (options.requireMarket && !options.market?.ok) {
+    return {
+      ...base,
+      lanes: [],
+      laneRejections: {},
+      passedHardFilters: false,
+      rejection: marketRejection(token.contractAddress, options.market ?? null),
       quantitativePriority: null,
       priority: null,
       stageReached: "hard_filters",
@@ -190,6 +212,7 @@ export function selectSurvivorsWithReservations(
   ranked: EvaluatedCandidate[],
   limit: number,
   reservations: Record<SetupType, number> = WINGMAN_DEFAULT_SETTINGS.reservations,
+  strategy: StrategySettings = WINGMAN_DEFAULT_SETTINGS,
 ): SurvivorSelection {
   const eligible = ranked.filter((c) => c.passedHardFilters && c.quantitativePriority !== null);
   const chosen: EvaluatedCandidate[] = [];
@@ -197,7 +220,9 @@ export function selectSurvivorsWithReservations(
   const laneUsage: Record<string, number> = {};
 
   for (const setup of SETUP_RESERVATION_ORDER) {
-    const quota = reservations[setup] ?? 0;
+    // A disabled setup never holds reserved capacity.
+    const enabled = strategy.setups[setup]?.enabled !== false;
+    const quota = enabled ? (reservations[setup] ?? 0) : 0;
     let used = 0;
     for (const candidate of eligible) {
       if (chosen.length >= limit || used >= quota) break;

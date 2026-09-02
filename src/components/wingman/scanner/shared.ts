@@ -36,8 +36,27 @@ export const EXTENSION_TONE: Record<string, string> = {
   UNKNOWN: "text-muted-foreground",
 };
 
-/** Observable setups shown as normal Scanner filters. */
+/** Observable setups, in display order. */
 export const LANES = ["BASE", "MOMENTUM", "REACCEL"] as const;
+
+/**
+ * Normal Scanner tabs only show ENABLED setups. A disabled setup keeps its
+ * enum, classifier and settings — it simply moves out of the normal tabs and
+ * stays inspectable under Calibration.
+ */
+export function enabledSetups(
+  strategy: { setups: Record<string, { enabled: boolean }> } | null | undefined,
+): (typeof LANES)[number][] {
+  if (!strategy) return LANES.filter((lane) => lane !== "MOMENTUM");
+  return LANES.filter((lane) => strategy.setups[lane]?.enabled !== false);
+}
+
+export function disabledSetups(
+  strategy: { setups: Record<string, { enabled: boolean }> } | null | undefined,
+): (typeof LANES)[number][] {
+  const enabled = new Set(enabledSetups(strategy));
+  return LANES.filter((lane) => !enabled.has(lane));
+}
 
 export const COMPONENT_LABELS: Record<string, string> = {
   activityQuality: "Activity quality",
