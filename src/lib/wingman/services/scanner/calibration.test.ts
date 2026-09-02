@@ -193,9 +193,9 @@ describe("universal live-market eligibility", () => {
   });
 
   it("rejects a resolved pair with no market or trading evidence", () => {
-    const result = assessMarket(ADDRESS, [
-      pair({ priceUsd: undefined, volume: {}, txns: {} }),
-    ]);
+    const bare = pair({ volume: {}, txns: {} });
+    delete bare.priceUsd;
+    const result = assessMarket(ADDRESS, [bare]);
     expect(result.ok).toBe(false);
     expect(result.reasonDetail).toMatch(/trading evidence/i);
   });
