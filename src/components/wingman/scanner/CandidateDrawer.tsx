@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Loader2, ShieldQuestion } from "lucide-react";
+import { Check, Copy, ExternalLink, Loader2, ShieldQuestion } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -60,6 +60,7 @@ export function CandidateDrawer({
   const holderCheck = useServerFn(checkTokenHolders);
   const labelFn = useServerFn(setCandidateLabel);
   const [note, setNote] = useState("");
+  const [copied, setCopied] = useState(false);
 
   const holders = useMutation({
     mutationFn: () =>
