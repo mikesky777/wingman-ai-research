@@ -81,12 +81,15 @@ function freshnessScore(m: ScannerMetrics): number {
 }
 
 function lifecycleFit(lanes: DiscoveryLane[], marketCap: number | null): number {
+  // NONE (no recognized setup) earns no setup credit, but is not penalised
+  // anywhere else. Weights and the formula itself are unchanged from v1.
   if (lanes.length === 0) return 0;
-  const early = lanes.includes("EARLY_MOMENTUM") || lanes.includes("POST_BOND_BASE");
+  const early = lanes.includes("MOMENTUM") || lanes.includes("BASE");
   const inSweetSpot = isNum(marketCap) && marketCap >= 40_000 && marketCap <= 500_000;
   if (early && inSweetSpot) return 1;
   return 0.7;
 }
+
 
 function momentumScore(token: DiscoveredToken): number {
   const pc = token.priceChange1h;

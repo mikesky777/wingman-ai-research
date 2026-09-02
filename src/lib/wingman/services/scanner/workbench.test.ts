@@ -27,7 +27,7 @@ const HIT: DiscoveryHit = {
   queryId: "volume_1h_lowcap",
   family: "volume",
   rank: 0,
-  laneHints: ["EARLY_MOMENTUM"],
+  laneHints: ["MOMENTUM"],
 };
 
 function token(overrides: Partial<DiscoveredToken> = {}): DiscoveredToken {
@@ -103,7 +103,7 @@ describe("bucket diagnostics", () => {
 describe("lane diagnostics", () => {
   it("reports one row per lane with qualified counts bounded by attempts", () => {
     const rows = laneDiagnostics([evaluate(token()), evaluate(token({ marketCap: 80_000 }))]);
-    expect(rows).toHaveLength(4);
+    expect(rows).toHaveLength(3);
     for (const r of rows) {
       expect(r.qualified).toBeLessThanOrEqual(r.discovered);
       expect(r.enriched).toBeLessThanOrEqual(r.qualified);
@@ -137,10 +137,9 @@ describe("ranking and lane reservations", () => {
   it("never selects more survivors than the limit and marks how each was chosen", () => {
     const ranked = assignRanks(rankCandidates(many));
     const selection = selectSurvivorsWithReservations(ranked, 5, {
-      EARLY_MOMENTUM: 2,
-      POST_BOND_BASE: 2,
-      DEVELOPING_THESIS: 1,
-      REACCELERATION: 1,
+      MOMENTUM: 2,
+      BASE: 2,
+      REACCEL: 1,
     });
     expect(selection.survivors.length).toBeLessThanOrEqual(5);
     expect(new Set(selection.survivors.map((s) => s.token.contractAddress)).size).toBe(

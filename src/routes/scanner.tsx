@@ -18,6 +18,7 @@ import { formatNumber, formatUsd } from "@/lib/wingman/format";
 import { CandidateDrawer } from "@/components/wingman/scanner/CandidateDrawer";
 import { DiagnosticsPanels } from "@/components/wingman/scanner/DiagnosticsPanels";
 import { ManualCheck } from "@/components/wingman/scanner/ManualCheck";
+import { StrategySettingsPanel } from "@/components/wingman/scanner/StrategySettings";
 import {
   LANES,
   LANE_TONE,
@@ -35,13 +36,13 @@ export const Route = createFileRoute("/scanner")({
       {
         name: "description",
         content:
-          "Live Solana discovery: lifecycle lanes, activity state, persistence, reacceleration and quantitative research priority.",
+          "Live Solana discovery: observable setups, activity state, persistence, reacceleration and quantitative research priority.",
       },
       { property: "og:title", content: "Scanner Workbench — Wingman AI" },
       {
         property: "og:description",
         content:
-          "Tokens discovered, hard filters, quantitative ranking and enrichment — Wingman Scanner v1.",
+          "Tokens discovered, hard filters, quantitative ranking and enrichment — Wingman Scanner.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -53,11 +54,16 @@ export const Route = createFileRoute("/scanner")({
 
 type Filter = "SURVIVORS" | "ALL" | "NEAR_MISS" | (typeof LANES)[number];
 
+/** Normal Scanner filters: one status view plus the observable setups. */
 const FILTERS: { key: Filter; label: string }[] = [
   { key: "SURVIVORS", label: "Survivors" },
+  ...LANES.map((lane) => ({ key: lane as Filter, label: laneLabel(lane) })),
+];
+
+/** Dataset/debug views. Kept inside Calibration, never removed. */
+const CALIBRATION_FILTERS: { key: Filter; label: string }[] = [
   { key: "ALL", label: "All candidates" },
   { key: "NEAR_MISS", label: "Near misses" },
-  ...LANES.map((lane) => ({ key: lane as Filter, label: laneLabel(lane) })),
 ];
 
 type Row = WorkbenchCandidate & { passedNearMiss: boolean };
@@ -280,6 +286,31 @@ function ScannerPage() {
               )}
             </section>
 
+            <section>
+              <h3 className="label-xs">Dataset views</h3>
+              <p className="mb-2 mt-0.5 text-xs text-muted-foreground">
+                Debug views over the same stored scan. They never affect ranking or selection.
+              </p>
+              <div className="flex flex-wrap gap-1">
+                {CALIBRATION_FILTERS.map((f) => (
+                  <button
+                    key={f.key}
+                    onClick={() => setFilter(f.key)}
+                    className={cn(
+                      "rounded border px-2 py-1 font-mono text-[10px] tracking-wide transition-colors",
+                      filter === f.key
+                        ? "border-primary/50 bg-primary/10 text-primary"
+                        : "border-border-strong text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <StrategySettingsPanel />
+
             {diagnostics ? <DiagnosticsPanels diagnostics={diagnostics} /> : null}
           </div>
         </details>
@@ -362,7 +393,15 @@ function ScannerPage() {
                       </td>
                       <td className="px-3">
                         {c.lanes.length === 0 ? (
-                          <span className="text-xs text-muted-foreground">—</span>
+                          <span
+                            className={cn(
+                              "rounded border px-1.5 py-0.5 font-mono text-[10px] tracking-wide",
+                              LANE_TONE["NONE"],
+                            )}
+                            title="Passed hard filters, matched no recognized setup. Not a rejection."
+                          >
+                            NONE
+                          </span>
                         ) : (
                           <div className="flex items-center gap-1.5">
                             <span
@@ -391,7 +430,7 @@ function ScannerPage() {
             </div>
           )}
           <p className="mt-3 text-[11px] text-muted-foreground">
-            Scanner v1 produces no thesis scores and creates no opportunities. Research reports and
+            Setup labels describe observable market behaviour only. The scanner produces no thesis scores and creates no opportunities. Research reports and
             opportunity records elsewhere in Wingman remain simulated demo data.
           </p>
         </Section>

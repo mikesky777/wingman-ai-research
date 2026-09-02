@@ -1,5 +1,10 @@
 /** Shared presentation helpers for the Scanner Workbench. Display only. */
 export const LANE_TONE: Record<string, string> = {
+  MOMENTUM: "border-primary/40 bg-primary/10 text-primary",
+  BASE: "border-positive/40 bg-positive/10 text-positive",
+  REACCEL: "border-border-strong text-foreground",
+  NONE: "border-border-strong text-muted-foreground",
+  // Legacy scanner/v1 setups, display only.
   EARLY_MOMENTUM: "border-primary/40 bg-primary/10 text-primary",
   POST_BOND_BASE: "border-positive/40 bg-positive/10 text-positive",
   DEVELOPING_THESIS: "border-border-strong text-muted-foreground",
@@ -31,12 +36,8 @@ export const EXTENSION_TONE: Record<string, string> = {
   UNKNOWN: "text-muted-foreground",
 };
 
-export const LANES = [
-  "EARLY_MOMENTUM",
-  "POST_BOND_BASE",
-  "DEVELOPING_THESIS",
-  "REACCELERATION",
-] as const;
+/** Observable setups shown as normal Scanner filters. */
+export const LANES = ["BASE", "MOMENTUM", "REACCEL"] as const;
 
 export const COMPONENT_LABELS: Record<string, string> = {
   activityQuality: "Activity quality",
@@ -77,10 +78,15 @@ export function formatNum(value: number | null | undefined, digits = 2): string 
 
 export function laneLabel(lane: string): string {
   const labels: Record<string, string> = {
-    EARLY_MOMENTUM: "EARLY",
-    POST_BOND_BASE: "BASE",
-    DEVELOPING_THESIS: "DEVELOPING",
-    REACCELERATION: "REACCEL",
+    MOMENTUM: "MOMENTUM",
+    BASE: "BASE",
+    REACCEL: "REACCEL",
+    NONE: "NONE",
+    // scanner/v1 rows keep their historical setup names, marked as legacy.
+    EARLY_MOMENTUM: "EARLY (v1)",
+    POST_BOND_BASE: "BASE (v1)",
+    DEVELOPING_THESIS: "DEVELOPING (v1)",
+    REACCELERATION: "REACCEL (v1)",
   };
   return labels[lane] ?? lane.replace(/_/g, " ");
 }

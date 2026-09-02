@@ -14,7 +14,11 @@ import {
   evaluateCandidate,
   quantitativePriority,
   rankCandidates,
+  assignRanks,
+  normalizeStrategySettings,
   selectSurvivors,
+  selectSurvivorsWithReservations,
+  WINGMAN_DEFAULT_SETTINGS,
   type DiscoveredToken,
   type DiscoveryHit,
 } from "./index";
@@ -35,7 +39,7 @@ const HIT: DiscoveryHit = {
   queryId: "volume_1h_lowcap",
   family: "volume",
   rank: 0,
-  laneHints: ["EARLY_MOMENTUM"],
+  laneHints: ["MOMENTUM"],
 };
 
 function token(overrides: Partial<DiscoveredToken> = {}): DiscoveredToken {
@@ -72,7 +76,7 @@ function token(overrides: Partial<DiscoveredToken> = {}): DiscoveredToken {
   };
 }
 
-/** Very young, accelerating, small cap — the classic early-momentum setup. */
+/** Young, accelerating, small cap — the MOMENTUM setup. */
 const GTAMEMES = token({
   contractAddress: "GTAmemes1111111111111111111111111111111111",
   symbol: "GTAMEMES",
@@ -96,7 +100,7 @@ const GTAMEMES = token({
   priceChange24h: 35,
   holderCount: 420,
   uniqueWallets24h: 380,
-  listedAt: minutesAgo(50),
+  listedAt: minutesAgo(6 * 60),
   lastTradeAt: minutesAgo(1),
 });
 
@@ -129,20 +133,19 @@ const BUDDY = token({
 });
 
 describe("scanner fixtures", () => {
-  it("GTAMEMES passes hard filters and lands in EARLY_MOMENTUM", () => {
+  it("GTAMEMES passes hard filters and lands in MOMENTUM", () => {
     const c = evaluateCandidate(GTAMEMES, { nowIso: NOW });
     expect(c.passedHardFilters).toBe(true);
     expect(c.rejection).toBeNull();
-    expect(c.lanes).toContain("EARLY_MOMENTUM");
+    expect(c.lanes).toContain("MOMENTUM");
     expect(["ACTIVE", "ACCELERATING", "EXTREME"]).toContain(c.signals.activityState);
     expect(c.quantitativePriority).toBeGreaterThan(0);
   });
 
-  it("Buddy passes hard filters and lands in a persistence lane", () => {
+  it("Buddy passes hard filters and lands in BASE", () => {
     const c = evaluateCandidate(BUDDY, { nowIso: NOW });
     expect(c.passedHardFilters).toBe(true);
-    expect(c.lanes.length).toBeGreaterThan(0);
-    expect(c.lanes.some((l) => l === "POST_BOND_BASE" || l === "DEVELOPING_THESIS")).toBe(true);
+    expect(c.lanes).toContain("BASE");
     expect(c.metrics.volumeToMarketCap24h).toBeGreaterThan(0.12);
   });
 
@@ -158,7 +161,7 @@ describe("age handling", () => {
   it("uses the provider listing time when present", () => {
     const m = computeMetrics(GTAMEMES, NOW);
     expect(m.age.basis).toBe("provider_listing");
-    expect(Math.round(m.age.minutes!)).toBe(50);
+    expect(Math.round(m.age.minutes!)).toBe(360);
   });
 
   it("falls back to persisted pair creation when the provider has no listing", () => {
@@ -295,14 +298,115 @@ describe("deduplication", () => {
 });
 
 describe("survivor selection", () => {
-  it("only enriches lane-matched survivors, capped by the limit", () => {
+  it("only enriches hard-filter survivors, capped by the limit", () => {
     const candidates = [GTAMEMES, BUDDY, token({ trades24h: 0 })].map((t) =>
       evaluateCandidate(t, { nowIso: NOW }),
     );
     const survivors = selectSurvivors(rankCandidates(candidates), 1);
     expect(survivors).toHaveLength(1);
     expect(survivors[0]!.passedHardFilters).toBe(true);
-    expect(survivors[0]!.lanes.length).toBeGreaterThan(0);
+    expect(survivors[0]!.quantitativePriority).not.toBeNull();
+  });
+});
+
+describe("setup taxonomy v2", () => {
+  /** Old token with genuinely renewed interest versus its own baseline. */
+  const RENEWED = token({
+    contractAddress: "ReAcce33333333333333333333333333333333333",
+    symbol: "OLD",
+    marketCap: 1_400_000,
+    volume5m: 22_000,
+    volume1h: 180_000,
+    volume6h: 260_000,
+    volume24h: 400_000,
+    trades5m: 300,
+    trades1h: 2_400,
+    trades6h: 3_100,
+    trades24h: 5_000,
+    listedAt: minutesAgo(60 * 24 * 40),
+    lastTradeAt: minutesAgo(1),
+  });
+
+  it("classifies a renewed old token as REACCEL, never MOMENTUM", () => {
+    const c = evaluateCandidate(RENEWED, { nowIso: NOW });
+    expect(c.lanes).not.toContain("MOMENTUM");
+    expect(c.lanes).toContain("REACCEL");
+  });
+
+  it("never emits the legacy v1 setup names for a new scan", () => {
+    for (const fixture of [GTAMEMES, BUDDY, RENEWED]) {
+      const c = evaluateCandidate(fixture, { nowIso: NOW });
+      for (const setup of c.lanes) {
+        expect(["MOMENTUM", "BASE", "REACCEL"]).toContain(setup);
+      }
+    }
+  });
+
+  it("treats a healthy no-setup candidate as NONE, not a rejection", () => {
+    // Too young for MOMENTUM (3h) and BASE (12h), too new for REACCEL.
+    const fresh = token({
+      contractAddress: "None44444444444444444444444444444444444444",
+      listedAt: minutesAgo(45),
+      lastTradeAt: minutesAgo(1),
+    });
+    const c = evaluateCandidate(fresh, { nowIso: NOW });
+    expect(c.passedHardFilters).toBe(true);
+    expect(c.lanes).toHaveLength(0);
+    expect(c.rejection).toBeNull();
+    expect(c.quantitativePriority).not.toBeNull();
+  });
+
+  it("keeps NONE candidates rankable and eligible for the global pool", () => {
+    const none = evaluateCandidate(
+      token({ contractAddress: "None44444444444444444444444444444444444444", listedAt: minutesAgo(45) }),
+      { nowIso: NOW },
+    );
+    const ranked = assignRanks(rankCandidates([none]));
+    expect(ranked[0]!.globalRank).toBe(1);
+    const selection = selectSurvivorsWithReservations(ranked, 5);
+    expect(selection.survivors).toHaveLength(1);
+    expect(selection.survivors[0]!.selectedByGlobalRanking).toBe(true);
+  });
+
+  it("charges a multi-setup token exactly one survivor slot", () => {
+    const candidates = assignRanks(
+      rankCandidates([GTAMEMES, BUDDY, RENEWED].map((t) => evaluateCandidate(t, { nowIso: NOW }))),
+    );
+    const selection = selectSurvivorsWithReservations(candidates, 10);
+    const addresses = selection.survivors.map((s) => s.token.contractAddress);
+    expect(new Set(addresses).size).toBe(addresses.length);
+  });
+
+  it("respects edited setup thresholds instead of hardcoded ones", () => {
+    const strict = normalizeStrategySettings({
+      ...WINGMAN_DEFAULT_SETTINGS,
+      setups: {
+        ...WINGMAN_DEFAULT_SETTINGS.setups,
+        MOMENTUM: { ...WINGMAN_DEFAULT_SETTINGS.setups.MOMENTUM, marketCapMax: 50_000 },
+      },
+    });
+    const c = evaluateCandidate(GTAMEMES, { nowIso: NOW, strategy: strict });
+    expect(c.lanes).not.toContain("MOMENTUM");
+    expect(c.laneRejections["MOMENTUM"]).toMatch(/above setup ceiling/);
+  });
+
+  it("falls back to Wingman Default v1 for invalid stored settings", () => {
+    const settings = normalizeStrategySettings({ setups: { BASE: { marketCapMin: "nonsense" } } });
+    expect(settings.setups.BASE.marketCapMin).toBe(
+      WINGMAN_DEFAULT_SETTINGS.setups.BASE.marketCapMin,
+    );
+    expect(settings.configVersion).toBe(WINGMAN_DEFAULT_SETTINGS.configVersion);
+    expect(settings.reservations).toEqual({ BASE: 10, MOMENTUM: 10, REACCEL: 8 });
+  });
+
+  it("keeps a saved strategy snapshot immutable against later edits", () => {
+    const snapshot = normalizeStrategySettings(WINGMAN_DEFAULT_SETTINGS);
+    const edited = normalizeStrategySettings({
+      ...WINGMAN_DEFAULT_SETTINGS,
+      survivorLimit: 5,
+    });
+    expect(snapshot.survivorLimit).toBe(WINGMAN_DEFAULT_SETTINGS.survivorLimit);
+    expect(edited.survivorLimit).toBe(5);
   });
 });
 
@@ -364,7 +468,7 @@ describe("birdeye discovery normalization", () => {
         query: {
           id: "volume_1h_lowcap",
           family: "volume",
-          laneHints: ["EARLY_MOMENTUM"],
+          laneHints: ["MOMENTUM"],
           params: {},
           description: "test",
         },

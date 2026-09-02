@@ -10,7 +10,7 @@
  *   - Snapshots stay append-only; nothing here updates history.
  */
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { SCANNER_VERSION } from "./config";
+import { SCANNER_VERSION, type StrategySettings } from "./config";
 import { marketCapBucket } from "./diagnostics";
 import type {
   DiscoveredToken,
@@ -24,6 +24,8 @@ type Row = Record<string, unknown>;
 export interface StartRunInput {
   calibrationMode: boolean;
   discoveryConfigVersion: string;
+  /** Exact strategy this run evaluates with — snapshotted, never referenced. */
+  strategy: StrategySettings;
 }
 
 export class ConcurrentScanError extends Error {
@@ -42,6 +44,8 @@ export async function startScanRun(input: StartRunInput): Promise<string> {
       scanner_version: SCANNER_VERSION,
       discovery_config_version: input.discoveryConfigVersion,
       calibration_mode: input.calibrationMode,
+      config_version: input.strategy.configVersion,
+      config_snapshot: input.strategy as never,
     } as never)
     .select("id")
     .single();
@@ -53,6 +57,7 @@ export async function startScanRun(input: StartRunInput): Promise<string> {
   }
   return (data as Row)["id"] as string;
 }
+
 
 export interface CompleteRunInput {
   runId: string;

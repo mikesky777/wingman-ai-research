@@ -5,9 +5,13 @@
  * is what makes the archetype fixtures (GTAmemes-like, Buddy-like, dead old
  * token, vertical chase) meaningful as regression tests.
  */
-import { LANE_RESERVATION_ORDER, LANE_SURVIVOR_RESERVATIONS } from "./config";
+import {
+  SETUP_RESERVATION_ORDER,
+  WINGMAN_DEFAULT_SETTINGS,
+  type StrategySettings,
+} from "./config";
 import { applyHardFilters } from "./hard-filters";
-import { evaluateLanes } from "./lanes";
+import { evaluateSetups } from "./lanes";
 import { computeMetrics, type AgeFallbacks } from "./metrics";
 import { quantitativePriority } from "./priority";
 import {
@@ -18,13 +22,14 @@ import {
   reaccelerationSignal,
 } from "./signals";
 import {
-  DISCOVERY_LANES,
+  SETUP_TYPES,
   type DiscoveredToken,
-  type DiscoveryLane,
   type EvaluatedCandidate,
   type HistoricalPoint,
   type ScannerSignals,
+  type SetupType,
 } from "./types";
+
 
 /**
  * Deduplicate by chain + contract address while preserving every discovery
@@ -59,7 +64,10 @@ export interface EvaluateOptions {
   nowIso?: string;
   history?: HistoricalPoint[];
   ageFallbacks?: AgeFallbacks;
+  /** Editable setup filters this run evaluates with. */
+  strategy?: StrategySettings;
 }
+
 
 export function evaluateCandidate(
   token: DiscoveredToken,
@@ -109,26 +117,18 @@ export function evaluateCandidate(
     };
   }
 
-  const { lanes, rejections } = evaluateLanes(token.marketCap, metrics, signals);
+  const strategy = options.strategy ?? WINGMAN_DEFAULT_SETTINGS;
+  const { lanes, rejections } = evaluateSetups(token.marketCap, metrics, signals, strategy);
   const priority = quantitativePriority(token, metrics, signals, lanes);
 
+  // Matching no setup is NOT a rejection. The candidate is NONE: still ranked,
+  // still eligible for the global survivor pool.
   return {
     ...base,
     lanes,
     laneRejections: rejections,
     passedHardFilters: true,
-    rejection:
-      lanes.length === 0
-        ? {
-            reason: "NO_LANE_MATCH",
-            detail: "Passed hard filters but matched no lifecycle lane.",
-            values: {
-              marketCap: token.marketCap,
-              ageMinutes: metrics.age.minutes,
-              activityState: signals.activityState,
-            },
-          }
-        : null,
+    rejection: null,
     quantitativePriority: priority.total,
     priority,
     stageReached: "quantitative",
@@ -159,12 +159,12 @@ export function assignRanks(ranked: EvaluatedCandidate[]): EvaluatedCandidate[] 
     c.globalRank = i + 1;
     c.laneRanks = {};
   });
-  for (const lane of DISCOVERY_LANES) {
+  for (const setup of SETUP_TYPES) {
     let rank = 0;
     for (const c of eligible) {
-      if (!c.lanes.includes(lane)) continue;
+      if (!c.lanes.includes(setup)) continue;
       rank += 1;
-      c.laneRanks[lane] = rank;
+      c.laneRanks[setup] = rank;
     }
   }
   return ranked;
@@ -172,35 +172,36 @@ export function assignRanks(ranked: EvaluatedCandidate[]): EvaluatedCandidate[] 
 
 export interface SurvivorSelection {
   survivors: EvaluatedCandidate[];
-  /** Slots actually consumed per lane reservation. */
+  /** Slots actually consumed per setup reservation. */
   laneUsage: Record<string, number>;
   reservedCount: number;
   globalCount: number;
 }
 
 /**
- * Lane-aware survivor selection.
+ * Setup-aware survivor selection.
  *
- * Deterministic: lanes are filled in a fixed order from the globally ranked
- * list, a multi-lane token is only ever charged once, and every unused lane
+ * Deterministic: setups are filled in a fixed order from the globally ranked
+ * list, a multi-setup token is only ever charged once, and every unused setup
  * slot returns to the global pool which is then filled strictly by priority.
+ * NONE candidates are excluded from reservations but compete in that pool.
  */
 export function selectSurvivorsWithReservations(
   ranked: EvaluatedCandidate[],
   limit: number,
-  reservations: Record<DiscoveryLane, number> = LANE_SURVIVOR_RESERVATIONS,
+  reservations: Record<SetupType, number> = WINGMAN_DEFAULT_SETTINGS.reservations,
 ): SurvivorSelection {
-  const eligible = ranked.filter((c) => c.passedHardFilters && c.lanes.length > 0);
+  const eligible = ranked.filter((c) => c.passedHardFilters && c.quantitativePriority !== null);
   const chosen: EvaluatedCandidate[] = [];
   const seen = new Set<string>();
   const laneUsage: Record<string, number> = {};
 
-  for (const lane of LANE_RESERVATION_ORDER) {
-    const quota = reservations[lane] ?? 0;
+  for (const setup of SETUP_RESERVATION_ORDER) {
+    const quota = reservations[setup] ?? 0;
     let used = 0;
     for (const candidate of eligible) {
       if (chosen.length >= limit || used >= quota) break;
-      if (!candidate.lanes.includes(lane)) continue;
+      if (!candidate.lanes.includes(setup)) continue;
       if (seen.has(candidate.token.contractAddress)) continue;
       seen.add(candidate.token.contractAddress);
       candidate.selectedByLaneReservation = true;
@@ -208,12 +209,13 @@ export function selectSurvivorsWithReservations(
       chosen.push(candidate);
       used += 1;
     }
-    laneUsage[lane] = used;
+    laneUsage[setup] = used;
   }
 
   const reservedCount = chosen.length;
 
-  // Unused reservation capacity flows straight back to the global pool.
+  // Unused reservation capacity flows straight back to the global pool, which
+  // includes hard-filter-passing candidates with no recognized setup (NONE).
   for (const candidate of eligible) {
     if (chosen.length >= limit) break;
     if (seen.has(candidate.token.contractAddress)) continue;
@@ -236,6 +238,8 @@ export function selectSurvivors(
   ranked: EvaluatedCandidate[],
   limit: number,
 ): EvaluatedCandidate[] {
-  return ranked.filter((c) => c.passedHardFilters && c.lanes.length > 0).slice(0, limit);
+  return ranked
+    .filter((c) => c.passedHardFilters && c.quantitativePriority !== null)
+    .slice(0, limit);
 }
 

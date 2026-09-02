@@ -10,21 +10,33 @@
  */
 import type { ChainId } from "../external/chains";
 
-export const SCANNER_VERSION = "scanner/v1";
+export const SCANNER_VERSION = "scanner/v2";
 
-/** Lifecycle archetypes, not market-cap buckets. */
-export type DiscoveryLane =
-  | "EARLY_MOMENTUM"
-  | "POST_BOND_BASE"
-  | "DEVELOPING_THESIS"
-  | "REACCELERATION";
+/**
+ * Observable setup classifications. These describe market BEHAVIOUR only —
+ * never thesis, safety, entry quality or a recommendation.
+ *
+ * A candidate can match several setups at once, and a hard-filter-passing
+ * candidate that matches none is `NONE`: still ranked, never rejected.
+ */
+export type SetupType = "MOMENTUM" | "BASE" | "REACCEL";
 
-export const DISCOVERY_LANES: DiscoveryLane[] = [
-  "EARLY_MOMENTUM",
-  "POST_BOND_BASE",
-  "DEVELOPING_THESIS",
-  "REACCELERATION",
-];
+export const SETUP_TYPES: SetupType[] = ["MOMENTUM", "BASE", "REACCEL"];
+
+/** Legacy alias kept so older reads and stored rows stay type-compatible. */
+export type DiscoveryLane = SetupType;
+
+/** @deprecated use SETUP_TYPES */
+export const DISCOVERY_LANES: SetupType[] = SETUP_TYPES;
+
+/** Setup names produced by scanner/v1 runs. Historical display only. */
+export const LEGACY_SETUP_LABELS: Record<string, string> = {
+  EARLY_MOMENTUM: "EARLY (legacy)",
+  POST_BOND_BASE: "BASE (legacy)",
+  DEVELOPING_THESIS: "DEVELOPING (legacy)",
+  REACCELERATION: "REACCEL (legacy)",
+};
+
 
 export type ActivityState =
   | "DORMANT"
