@@ -4,6 +4,11 @@
  * A token may match several setups at once. Matching none is NOT a rejection:
  * the candidate is simply `NONE` and still competes in the global ranking.
  * Age is a first-class gate and unknown age never counts as young.
+ *
+ * Classification is computed for EVERY setup regardless of `enabled`. The
+ * `enabled` flag only governs survivor reservations and normal-tab
+ * visibility: a disabled setup still contributes its descriptive tag (e.g.
+ * BASE + MOMENTUM) but never holds reserved survivor slots.
  */
 import { WINGMAN_DEFAULT_SETTINGS, type SetupFilterConfig, type StrategySettings } from "./config";
 import { isNum } from "./metrics";

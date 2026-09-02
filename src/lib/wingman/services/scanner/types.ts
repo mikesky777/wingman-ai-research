@@ -21,7 +21,11 @@ export const SCANNER_VERSION = "scanner/v2";
  */
 export type SetupType = "MOMENTUM" | "BASE" | "REACCEL";
 
-export const SETUP_TYPES: SetupType[] = ["MOMENTUM", "BASE", "REACCEL"];
+/**
+ * Display/evaluation order. BASE first so a BASE + MOMENTUM candidate shows
+ * BASE as its primary lane; matches SETUP_RESERVATION_ORDER.
+ */
+export const SETUP_TYPES: SetupType[] = ["BASE", "MOMENTUM", "REACCEL"];
 
 /** Legacy alias kept so older reads and stored rows stay type-compatible. */
 export type DiscoveryLane = SetupType;
