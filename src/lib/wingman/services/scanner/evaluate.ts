@@ -64,7 +64,10 @@ export interface EvaluateOptions {
   nowIso?: string;
   history?: HistoricalPoint[];
   ageFallbacks?: AgeFallbacks;
+  /** Editable setup filters this run evaluates with. */
+  strategy?: StrategySettings;
 }
+
 
 export function evaluateCandidate(
   token: DiscoveredToken,
