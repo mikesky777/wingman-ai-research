@@ -27,8 +27,6 @@ function setupRejection(
   m: ScannerMetrics,
   signals: ScannerSignals,
 ): string | null {
-  if (!cfg.enabled) return "Setup disabled in strategy settings.";
-
   if (cfg.marketCapMin !== null || cfg.marketCapMax !== null) {
     if (!isNum(marketCap)) return "Market cap unavailable.";
     if (cfg.marketCapMin !== null && marketCap < cfg.marketCapMin) {
