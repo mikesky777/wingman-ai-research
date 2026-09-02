@@ -592,6 +592,8 @@ export type Database = {
           bucket_diagnostics: Json | null
           calibration_mode: boolean
           completed_at: string | null
+          config_snapshot: Json | null
+          config_version: string | null
           created_at: string
           deep_researched: number
           discovery_config_version: string | null
@@ -619,6 +621,8 @@ export type Database = {
           bucket_diagnostics?: Json | null
           calibration_mode?: boolean
           completed_at?: string | null
+          config_snapshot?: Json | null
+          config_version?: string | null
           created_at?: string
           deep_researched?: number
           discovery_config_version?: string | null
@@ -646,6 +650,8 @@ export type Database = {
           bucket_diagnostics?: Json | null
           calibration_mode?: boolean
           completed_at?: string | null
+          config_snapshot?: Json | null
+          config_version?: string | null
           created_at?: string
           deep_researched?: number
           discovery_config_version?: string | null
@@ -714,6 +720,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      scanner_strategy_settings: {
+        Row: {
+          config: Json
+          config_version: string
+          created_at: string
+          id: string
+          is_active: boolean
+          is_default: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          config: Json
+          config_version: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          config?: Json
+          config_version?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       token_snapshots: {
         Row: {
