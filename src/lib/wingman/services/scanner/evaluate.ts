@@ -117,26 +117,18 @@ export function evaluateCandidate(
     };
   }
 
-  const { lanes, rejections } = evaluateLanes(token.marketCap, metrics, signals);
+  const strategy = options.strategy ?? WINGMAN_DEFAULT_SETTINGS;
+  const { lanes, rejections } = evaluateSetups(token.marketCap, metrics, signals, strategy);
   const priority = quantitativePriority(token, metrics, signals, lanes);
 
+  // Matching no setup is NOT a rejection. The candidate is NONE: still ranked,
+  // still eligible for the global survivor pool.
   return {
     ...base,
     lanes,
     laneRejections: rejections,
     passedHardFilters: true,
-    rejection:
-      lanes.length === 0
-        ? {
-            reason: "NO_LANE_MATCH",
-            detail: "Passed hard filters but matched no lifecycle lane.",
-            values: {
-              marketCap: token.marketCap,
-              ageMinutes: metrics.age.minutes,
-              activityState: signals.activityState,
-            },
-          }
-        : null,
+    rejection: null,
     quantitativePriority: priority.total,
     priority,
     stageReached: "quantitative",
