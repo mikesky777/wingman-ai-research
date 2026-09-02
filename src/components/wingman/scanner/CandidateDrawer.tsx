@@ -102,6 +102,34 @@ export function CandidateDrawer({
         </SheetHeader>
 
         <div className="space-y-3 px-4 pb-8">
+          {c.contractAddress ? (
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 gap-1.5 text-xs"
+                onClick={() => {
+                  navigator.clipboard.writeText(c.contractAddress!);
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 1500);
+                }}
+              >
+                {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+                {copied ? "Copied" : "Copy CA"}
+              </Button>
+              <Button asChild variant="outline" size="sm" className="h-7 gap-1.5 text-xs">
+                <a
+                  href={`https://dexscreener.com/solana/${c.contractAddress}`}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                >
+                  DexScreener
+                  <ExternalLink className="size-3.5" />
+                </a>
+              </Button>
+            </div>
+          ) : null}
+
           <div className="flex flex-wrap gap-1">
             {c.lanes.length === 0 ? (
               <span className="text-xs text-muted-foreground">No lane qualified</span>
