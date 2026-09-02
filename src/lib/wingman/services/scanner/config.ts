@@ -1,118 +1,230 @@
 /**
- * Scanner v1 configuration — the single source of truth for every threshold.
+ * Scanner configuration — the single source of truth for every threshold.
  *
- * These are EXPERIMENTAL v1 values chosen to avoid false negatives. Nothing
- * here is tuned against live results yet; do not overfit. All values are
- * deliberately configurable so calibration can move them without touching the
- * deterministic logic that reads them.
+ * Setup filters describe observable market BEHAVIOUR only. They are not thesis
+ * scores, safety ratings or buy signals. Every threshold here is editable
+ * calibration state: the deterministic logic reads configuration, it never
+ * hardcodes a number.
  */
-import type { DiscoveryLane } from "./types";
+import type {
+  ActivityState,
+  PersistenceSignal,
+  ReaccelerationSignal,
+  SetupType,
+} from "./types";
+import { SETUP_TYPES } from "./types";
 
-export const SCANNER_VERSION = "scanner/v1";
+export const SCANNER_VERSION = "scanner/v2";
 export const DISCOVERY_CONFIG_VERSION = "discovery/v1";
+export const STRATEGY_CONFIG_VERSION = "setup-taxonomy/v2";
 
-export interface LaneConfig {
-  lane: DiscoveryLane;
-  /** Emphasis, not a universal law. Bounds are generous on purpose. */
+/** Editable eligibility filter for one observable setup. */
+export interface SetupFilterConfig {
+  setup: SetupType;
+  enabled: boolean;
+  /** `null` = no limit. */
   marketCapMin: number | null;
   marketCapMax: number | null;
-  /** Emphasis band reported in the UI / tests. */
+  /** Descriptive core range shown in the UI. Never affects scoring. */
   marketCapEmphasis: [number, number] | null;
   ageMinMinutes: number | null;
   ageMaxMinutes: number | null;
-  /** Meaningful trading must have happened within this many minutes. */
+  /** Setups with an age window require a KNOWN age. */
+  requiresKnownAge: boolean;
   maxMinutesSinceLastTrade: number;
-  /** Minimum 24h volume / market cap turnover, when turnover is computable. */
   minTurnover24h: number | null;
+  activityStates: ActivityState[];
+  minBaselineAcceleration: number | null;
+  requiresReacceleration: ReaccelerationSignal[];
+  persistenceStates: PersistenceSignal[] | null;
   description: string;
+}
+
+/** Complete editable scanner strategy. Snapshotted on every run. */
+export interface StrategySettings {
+  name: string;
+  configVersion: string;
+  setups: Record<SetupType, SetupFilterConfig>;
+  /** Reserved enrichment slots per setup, filled before the global pool. */
+  reservations: Record<SetupType, number>;
+  survivorLimit: number;
 }
 
 const MIN = 1;
 const HOUR = 60;
 const DAY = 24 * HOUR;
 
-export const LANE_CONFIG: Record<DiscoveryLane, LaneConfig> = {
-  EARLY_MOMENTUM: {
-    lane: "EARLY_MOMENTUM",
-    marketCapMin: 30_000,
-    marketCapMax: 750_000,
-    marketCapEmphasis: [40_000, 500_000],
-    ageMinMinutes: 10 * MIN,
-    ageMaxMinutes: 72 * HOUR,
-    maxMinutesSinceLastTrade: 15,
-    minTurnover24h: null,
-    description: "Early ignition: participation accelerating before the move is obvious.",
+/** Wingman Default v1 — the built-in starting point for calibration. */
+export const WINGMAN_DEFAULT_SETTINGS: StrategySettings = {
+  name: "Wingman Default v1",
+  configVersion: STRATEGY_CONFIG_VERSION,
+  setups: {
+    MOMENTUM: {
+      setup: "MOMENTUM",
+      enabled: true,
+      marketCapMin: 30_000,
+      marketCapMax: 500_000,
+      marketCapEmphasis: null,
+      ageMinMinutes: 3 * HOUR,
+      ageMaxMinutes: 72 * HOUR,
+      requiresKnownAge: true,
+      maxMinutesSinceLastTrade: 15,
+      minTurnover24h: null,
+      activityStates: ["ACTIVE", "ACCELERATING", "EXTREME"],
+      minBaselineAcceleration: 1.15,
+      requiresReacceleration: [],
+      persistenceStates: null,
+      description: "Young token trading with genuine acceleration against its own baseline.",
+    },
+    BASE: {
+      setup: "BASE",
+      enabled: true,
+      marketCapMin: 30_000,
+      marketCapMax: 500_000,
+      marketCapEmphasis: [30_000, 200_000],
+      ageMinMinutes: 12 * HOUR,
+      ageMaxMinutes: 10 * DAY,
+      requiresKnownAge: true,
+      maxMinutesSinceLastTrade: 60,
+      minTurnover24h: 0.12,
+      activityStates: ["ACTIVE", "ACCELERATING", "EXTREME"],
+      minBaselineAcceleration: null,
+      requiresReacceleration: [],
+      persistenceStates: ["MODERATE", "HIGH", "UNKNOWN"],
+      description: "Survived the launch window and kept trading; acceleration is not required.",
+    },
+    REACCEL: {
+      setup: "REACCEL",
+      enabled: true,
+      marketCapMin: 30_000,
+      marketCapMax: null,
+      marketCapEmphasis: null,
+      ageMinMinutes: 14 * DAY,
+      ageMaxMinutes: null,
+      requiresKnownAge: true,
+      maxMinutesSinceLastTrade: 30,
+      minTurnover24h: null,
+      activityStates: ["ACCELERATING", "EXTREME"],
+      minBaselineAcceleration: 1.4,
+      requiresReacceleration: ["EARLY", "CONFIRMED", "EXTREME"],
+      persistenceStates: null,
+      description: "Older token showing genuinely renewed interest versus its own baseline.",
+    },
   },
-  POST_BOND_BASE: {
-    lane: "POST_BOND_BASE",
-    marketCapMin: 30_000,
-    marketCapMax: 750_000,
-    marketCapEmphasis: [40_000, 500_000],
-    ageMinMinutes: 30 * MIN,
-    ageMaxMinutes: 7 * DAY,
-    maxMinutesSinceLastTrade: 60,
-    minTurnover24h: 0.12,
-    description: "Post-bond retrace that refused to die: persistent turnover during consolidation.",
-  },
-  DEVELOPING_THESIS: {
-    lane: "DEVELOPING_THESIS",
-    marketCapMin: 75_000,
-    marketCapMax: 3_000_000,
-    marketCapEmphasis: [100_000, 2_000_000],
-    ageMinMinutes: 6 * HOUR,
-    ageMaxMinutes: 30 * DAY,
-    maxMinutesSinceLastTrade: 60,
-    minTurnover24h: 0.05,
-    description: "Past the launch window but still early enough to offer asymmetry.",
-  },
-  REACCELERATION: {
-    lane: "REACCELERATION",
-    marketCapMin: 750_000,
-    marketCapMax: null,
-    marketCapEmphasis: null,
-    ageMinMinutes: null,
-    ageMaxMinutes: null,
-    maxMinutesSinceLastTrade: 30,
-    minTurnover24h: null,
-    description: "Older or larger tokens showing genuinely new interest versus their own baseline.",
-  },
+  reservations: { BASE: 10, MOMENTUM: 10, REACCEL: 8 },
+  survivorLimit: 50,
 };
+
+/** Deterministic order in which setup reservations are filled. */
+export const SETUP_RESERVATION_ORDER: SetupType[] = ["BASE", "MOMENTUM", "REACCEL"];
+
+const ACTIVITY_STATE_VALUES: ActivityState[] = [
+  "DORMANT",
+  "LOW",
+  "ACTIVE",
+  "ACCELERATING",
+  "EXTREME",
+  "UNKNOWN",
+];
+const PERSISTENCE_VALUES: PersistenceSignal[] = ["LOW", "MODERATE", "HIGH", "UNKNOWN"];
+const REACCEL_VALUES: ReaccelerationSignal[] = ["NONE", "EARLY", "CONFIRMED", "EXTREME", "UNKNOWN"];
+
+function num(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function nullableNum(value: unknown, fallback: number | null): number | null {
+  if (value === null) return null;
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  return fallback;
+}
+
+function enumList<T extends string>(value: unknown, allowed: T[], fallback: T[]): T[] {
+  if (!Array.isArray(value)) return fallback;
+  const picked = value.filter((v): v is T => typeof v === "string" && allowed.includes(v as T));
+  return picked.length > 0 ? picked : fallback;
+}
+
+function normalizeSetup(setup: SetupType, raw: unknown): SetupFilterConfig {
+  const base = WINGMAN_DEFAULT_SETTINGS.setups[setup];
+  const r = (raw ?? {}) as Record<string, unknown>;
+  const marketCapMin = nullableNum(r["marketCapMin"], base.marketCapMin);
+  let marketCapMax = nullableNum(r["marketCapMax"], base.marketCapMax);
+  if (marketCapMin !== null && marketCapMax !== null && marketCapMax < marketCapMin) {
+    marketCapMax = marketCapMin;
+  }
+  const ageMinMinutes = nullableNum(r["ageMinMinutes"], base.ageMinMinutes);
+  let ageMaxMinutes = nullableNum(r["ageMaxMinutes"], base.ageMaxMinutes);
+  if (ageMinMinutes !== null && ageMaxMinutes !== null && ageMaxMinutes < ageMinMinutes) {
+    ageMaxMinutes = ageMinMinutes;
+  }
+  const persistenceRaw = r["persistenceStates"];
+  return {
+    setup,
+    enabled: typeof r["enabled"] === "boolean" ? (r["enabled"] as boolean) : base.enabled,
+    marketCapMin: marketCapMin === null ? null : Math.max(0, marketCapMin),
+    marketCapMax,
+    marketCapEmphasis: base.marketCapEmphasis,
+    ageMinMinutes: ageMinMinutes === null ? null : Math.max(0, ageMinMinutes),
+    ageMaxMinutes,
+    requiresKnownAge:
+      typeof r["requiresKnownAge"] === "boolean"
+        ? (r["requiresKnownAge"] as boolean)
+        : base.requiresKnownAge,
+    maxMinutesSinceLastTrade: Math.max(
+      MIN,
+      num(r["maxMinutesSinceLastTrade"], base.maxMinutesSinceLastTrade),
+    ),
+    minTurnover24h: nullableNum(r["minTurnover24h"], base.minTurnover24h),
+    activityStates: enumList(r["activityStates"], ACTIVITY_STATE_VALUES, base.activityStates),
+    minBaselineAcceleration: nullableNum(
+      r["minBaselineAcceleration"],
+      base.minBaselineAcceleration,
+    ),
+    requiresReacceleration: Array.isArray(r["requiresReacceleration"])
+      ? (r["requiresReacceleration"] as unknown[]).filter(
+          (v): v is ReaccelerationSignal =>
+            typeof v === "string" && REACCEL_VALUES.includes(v as ReaccelerationSignal),
+        )
+      : base.requiresReacceleration,
+    persistenceStates:
+      persistenceRaw === null
+        ? null
+        : enumList(persistenceRaw, PERSISTENCE_VALUES, base.persistenceStates ?? PERSISTENCE_VALUES),
+    description: typeof r["description"] === "string" ? (r["description"] as string) : base.description,
+  };
+}
 
 /**
- * EARLY_MOMENTUM needs acceleration, not just presence. POST_BOND_BASE and
- * DEVELOPING_THESIS accept steady ACTIVE trading. REACCELERATION demands a
- * real break from the token's own baseline.
+ * Validate and complete a stored/edited strategy. Unknown or invalid fields
+ * always fall back to the Wingman Default value; the result is always usable.
  */
-export const LANE_ACTIVITY_REQUIREMENTS: Record<
-  DiscoveryLane,
-  { states: string[]; minBaselineAcceleration: number | null; requiresReacceleration: string[] }
-> = {
-  EARLY_MOMENTUM: {
-    states: ["ACTIVE", "ACCELERATING", "EXTREME"],
-    minBaselineAcceleration: 1.15,
-    requiresReacceleration: [],
-  },
-  POST_BOND_BASE: {
-    states: ["ACTIVE", "ACCELERATING", "EXTREME"],
-    minBaselineAcceleration: null,
-    requiresReacceleration: [],
-  },
-  DEVELOPING_THESIS: {
-    states: ["ACTIVE", "ACCELERATING", "EXTREME"],
-    minBaselineAcceleration: null,
-    requiresReacceleration: [],
-  },
-  REACCELERATION: {
-    states: ["ACCELERATING", "EXTREME"],
-    minBaselineAcceleration: 1.4,
-    requiresReacceleration: ["EARLY", "CONFIRMED", "EXTREME"],
-  },
-};
+export function normalizeStrategySettings(raw: unknown): StrategySettings {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  const setupsRaw = (r["setups"] ?? {}) as Record<string, unknown>;
+  const reservationsRaw = (r["reservations"] ?? {}) as Record<string, unknown>;
 
-/** POST_BOND_BASE is the survival lane; weak persistence disqualifies it. */
-export const LANE_PERSISTENCE_REQUIREMENTS: Partial<Record<DiscoveryLane, string[]>> = {
-  POST_BOND_BASE: ["MODERATE", "HIGH", "UNKNOWN"],
-};
+  const setups = {} as Record<SetupType, SetupFilterConfig>;
+  const reservations = {} as Record<SetupType, number>;
+  for (const setup of SETUP_TYPES) {
+    setups[setup] = normalizeSetup(setup, setupsRaw[setup]);
+    reservations[setup] = Math.max(
+      0,
+      Math.round(num(reservationsRaw[setup], WINGMAN_DEFAULT_SETTINGS.reservations[setup])),
+    );
+  }
+
+  return {
+    name: typeof r["name"] === "string" ? (r["name"] as string) : WINGMAN_DEFAULT_SETTINGS.name,
+    configVersion: STRATEGY_CONFIG_VERSION,
+    setups,
+    reservations,
+    survivorLimit: Math.min(
+      200,
+      Math.max(1, Math.round(num(r["survivorLimit"], WINGMAN_DEFAULT_SETTINGS.survivorLimit))),
+    ),
+  };
+}
 
 export interface ActivityFloorConfig {
   /** Full-strength 24h floor for a mature token. Configurable, not universal. */
@@ -165,30 +277,6 @@ export const DIVERGENCE_ADJUSTMENT: Record<string, number> = {
   UNKNOWN: 0,
 };
 
-/**
- * Lane-aware survivor reservations.
- *
- * A single global top-N enrichment selection systematically crowds out quieter
- * archetypes (a consolidating post-bond base can never out-score a vertical
- * momentum token). These are CALIBRATION values, not permanent strategy rules.
- * Unused lane capacity always flows back to the global pool, and a token that
- * belongs to several lanes still costs exactly one survivor slot.
- */
-export const LANE_SURVIVOR_RESERVATIONS: Record<DiscoveryLane, number> = {
-  EARLY_MOMENTUM: 12,
-  POST_BOND_BASE: 15,
-  DEVELOPING_THESIS: 12,
-  REACCELERATION: 6,
-};
-
-/** Deterministic order in which lane reservations are filled. */
-export const LANE_RESERVATION_ORDER: DiscoveryLane[] = [
-  "POST_BOND_BASE",
-  "EARLY_MOMENTUM",
-  "DEVELOPING_THESIS",
-  "REACCELERATION",
-];
-
 export interface ScannerRunConfig {
   chain: string;
   calibrationMode: boolean;
@@ -198,26 +286,23 @@ export interface ScannerRunConfig {
   discoveryPageSize: number;
   /** Rejected candidates persisted for calibration. */
   maxPersistedRejections: number;
-  /** Per-lane reserved enrichment slots, filled before the global pool. */
-  laneReservations: Record<DiscoveryLane, number>;
+  /** The editable strategy this run evaluates with. */
+  strategy: StrategySettings;
 }
-
 
 export const DEFAULT_RUN_CONFIG: ScannerRunConfig = {
   chain: "solana",
   calibrationMode: true,
-  survivorEnrichmentLimit: 30,
+  survivorEnrichmentLimit: WINGMAN_DEFAULT_SETTINGS.survivorLimit,
   discoveryPageSize: 50,
   maxPersistedRejections: 400,
-  laneReservations: LANE_SURVIVOR_RESERVATIONS,
+  strategy: WINGMAN_DEFAULT_SETTINGS,
 };
-
 
 export function runConfig(overrides: Partial<ScannerRunConfig> = {}): ScannerRunConfig {
   const merged = { ...DEFAULT_RUN_CONFIG, ...overrides };
-  // Calibration keeps more of everything so false negatives stay visible.
-  if (merged.calibrationMode && overrides.survivorEnrichmentLimit === undefined) {
-    merged.survivorEnrichmentLimit = 50;
+  if (overrides.survivorEnrichmentLimit === undefined) {
+    merged.survivorEnrichmentLimit = merged.strategy.survivorLimit;
   }
   return merged;
 }
