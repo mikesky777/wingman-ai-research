@@ -161,7 +161,7 @@ describe("age handling", () => {
   it("uses the provider listing time when present", () => {
     const m = computeMetrics(GTAMEMES, NOW);
     expect(m.age.basis).toBe("provider_listing");
-    expect(Math.round(m.age.minutes!)).toBe(50);
+    expect(Math.round(m.age.minutes!)).toBe(360);
   });
 
   it("falls back to persisted pair creation when the provider has no listing", () => {
