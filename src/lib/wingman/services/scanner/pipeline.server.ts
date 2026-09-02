@@ -38,6 +38,7 @@ import {
   resolveTokenIds,
   startScanRun,
 } from "./persistence.server";
+import { loadActiveStrategy } from "./settings.server";
 import { TelemetryRecorder } from "./telemetry";
 import {
   SCANNER_VERSION,
