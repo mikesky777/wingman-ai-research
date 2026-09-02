@@ -1,56 +1,61 @@
-# Scanner: Re-shaped Lifecycle Lanes + Editable Filters
+# Scanner Setup Taxonomy v2 + Editable Strategy Settings
 
-Reshape the four scanner categories around the timescales that actually match your strategy, and make every lane threshold editable from the Scanner Workbench instead of being frozen in code. AI thesis/narrative scoring stays out of this iteration — this one gets the *shape* and the *controls* right so thesis scoring can plug into it next.
+Replace the four lifecycle lanes with three observable setup types (MOMENTUM, BASE, REACCEL) plus an explicit NONE state, and make every setup threshold editable and persisted. Setup labels describe market behavior only — not thesis, safety, or buy signals. No new APIs, AI, signals, or scoring-weight changes.
 
-## Why the current lanes miss your setups
+## 1. Taxonomy
 
-Today the lanes are mostly market-cap gates with loose age windows: EARLY accepts anything 10 minutes to 72 hours old, BASE 30 minutes to 7 days, and REACCEL only fires above $750K market cap. That means the highest-risk first-hours tokens flood EARLY, and an older $150K coin quietly regaining traction — the Buddy / GTA-style setup — cannot enter REACCEL at all because of the cap floor. The last completed scan showed exactly that: every DEVELOPING-only candidate under $750K was refused by REACCEL purely on the cap floor.
+New scans classify candidates as MOMENTUM, BASE, REACCEL — a candidate may match several. A candidate that passes hard filters but matches none gets `setup = NONE`: still ranked, still eligible for survivor selection, never auto-rejected. NONE is neutral, and exists so undefined setup families stay discoverable.
 
-## New lane definitions
+Legacy scans keep their stored `EARLY_MOMENTUM` / `POST_BOND_BASE` / `DEVELOPING_THESIS` / `REACCELERATION` values and remain readable; nothing historical is rewritten or migrated. New scans record a bumped scanner/config version, and the UI shows which version produced a scan.
 
-| Lane | Age window | Market cap | What it captures |
-| --- | --- | --- | --- |
-| EARLY (Early Momentum) | 2h – 36h | $30K – $750K | Fresh ignition, explicitly flagged high-risk. Excludes the first couple of hours where nothing is analysable. |
-| BASE (Post-Bond Base) | 12h – 10d | $30K – $500K | Survived the first day and holds turnover during consolidation. Acceleration is *not* required here — persistence is. |
-| DEVELOPING (Developing Thesis) | 3d – 45d | $50K – $3M | Post-bond development well after launch: the Buddy / GTA archetype, with the $30K–$200K band called out as the emphasis range. |
-| REACCEL (Reacceleration) | 14d+ (age required) | $30K and up — **no cap floor** | Older tokens genuinely regaining traction versus their own baseline, at any size. |
+## 2. Wingman Default v1
 
-Two structural changes beyond the numbers:
+| Setup | Age | Market cap | Last trade | Activity | Other |
+| --- | --- | --- | --- | --- | --- |
+| MOMENTUM | 3h – 72h | $30K – $500K | ≤ 15m | ACTIVE / ACCELERATING / EXTREME | Existing acceleration requirement; no persistence requirement |
+| BASE | 12h – 10d | $30K – $500K (emphasis $30K–$200K) | ≤ 60m | ACTIVE / ACCELERATING / EXTREME | Turnover ≥ 12%; persistence MODERATE / HIGH / UNKNOWN; no acceleration requirement |
+| REACCEL | 14d+, known age, no max | $30K+, no ceiling | ≤ 30m | ACCELERATING / EXTREME | Baseline acceleration ≥ 1.4; reacceleration EARLY / CONFIRMED / EXTREME |
 
-- REACCEL becomes an *age* lane, not a *size* lane. Age is required and must be old; the $750K floor is removed so a three-week-old $120K token that wakes up finally surfaces.
-- EARLY carries an explicit `HIGH_RISK` flag in the UI (a badge in the table and drawer), because until thesis scoring lands, a strong-looking early chart is unverified — the Grokstreet case.
+Notes carried into the code comments and UI copy:
 
-Lane emphasis bands (used for the lifecycle-fit part of the priority score, not as a hard gate) move to $30K–$200K for BASE and DEVELOPING so your target range ranks higher rather than being filtered on.
+- MOMENTUM requires real acceleration — youth alone never qualifies a token. The 3h floor excludes the least-evidenced launch window; the 72h ceiling leaves room for delayed ignition.
+- BASE is about survival and persistence, not bonding mechanics. Low or neutral acceleration is fine. The $30K–$200K band is a displayed *strategy emphasis*, not an eligibility gate, and adds no priority points; $200K–$500K stays fully eligible. UNKNOWN persistence stays eligible but is rendered visibly distinct from demonstrated MODERATE/HIGH.
+- REACCEL means materially renewed activity versus the token's own baseline, at any size, old only.
+- NONE has no setup window of its own beyond the global hard filters and gets no reservation.
 
-## Editable filters
+## 3. Editable Strategy Settings
 
-A new **Lane Filters** panel inside the Scanner Workbench's Calibration section, one card per lane, exposing every threshold that currently lives in code:
+A compact "Strategy Settings" panel in the Scanner, one card per setup, exposing only the fields that setup actually uses: min/max age, min/max market cap, min liquidity, min recent + 24h volume where supported, min turnover, max minutes since last trade, allowed activity states, min acceleration, allowed persistence states, allowed reacceleration states. Null means "no limit" (REACCEL max age, REACCEL max market cap). No internal scoring weights are exposed.
 
-- min/max age, min/max market cap, emphasis band
-- max minutes since last trade
-- min 24h turnover
-- accepted activity states, min baseline acceleration
-- required persistence / reacceleration signals
-- survivor reservation slots per lane
+Save and "Reset to Wingman Defaults" buttons. Validation blocks min > max on age and market cap, negative values, and unsupported state selections. The active configuration is persisted in the backend and every new scan reads it at start.
 
-Behaviour:
+## 4. Reproducibility
 
-- Edits are saved as a named **calibration profile** in the backend; one profile is active at a time and every scan records which profile it ran under, so old runs stay reproducible.
-- A built-in **Default** profile is read-only and always restorable in one click.
-- Values are validated (min < max, non-negative, ratios 0–1) before a profile can be saved.
-- Changing a profile never rewrites past scans — it only affects the next run.
+Each `scan_run` stores an immutable JSON snapshot of the exact configuration used: scanner version, config version, MOMENTUM/BASE/REACCEL filters, survivor reservations, and the global survivor limit. Editing Strategy Settings never touches past runs; historical scans display the configuration and version they actually ran under.
 
-## Scope boundaries
+## 5. Survivor selection
 
-- No AI, thesis score, narrative or social analysis in this iteration. The next plan adds a thesis stage and makes EARLY require a strong thesis before it is treated as actionable.
-- No changes to discovery providers, hard filters, the priority formula's weights, ingestion, evidence, or persistence of snapshots/observations.
-- No trading, wallets, or execution.
+Reservations become BASE 10, MOMENTUM 10, REACCEL 8, filled deterministically. Unused capacity returns to the global pool, which is filled by Quantitative Research Priority and includes both setup-classified and NONE candidates. A token matching several setups consumes exactly one survivor slot.
 
-## Technical notes
+## 6. Priority formula
 
-- `src/lib/wingman/services/scanner/config.ts` keeps `DEFAULT_RUN_CONFIG` and `LANE_CONFIG` as the built-in Default profile; lane thresholds become the shape of a profile record rather than the only source of truth.
-- New table `scanner_lane_profiles` (id, name, is_default, is_active, config jsonb, timestamps) with public read, service-role write, and grants — same security model as the other scanner tables.
-- `scan_runs` gains `lane_profile_id` and `lane_profile_name` so each run is reproducible against the thresholds it used.
-- The pipeline loads the active profile server-side and passes it into `evaluateLanes` / priority, which already read thresholds from config — the deterministic logic itself does not change.
-- Profile save/activate go through a `createServerFn` boundary with zod validation; the browser never writes these tables directly.
-- Tests: default profile reproduces today's lane behaviour on the existing fixtures; new-window fixtures for a 3-week-old $120K reaccelerating token and a Buddy-style post-bond developer; profile validation rejects inverted ranges; a run records its profile id.
+Unchanged weights and formulas. Only lifecycle-fit references are remapped: EARLY_MOMENTUM → MOMENTUM, POST_BOND_BASE → BASE, REACCELERATION → REACCEL; DEVELOPING_THESIS-specific lifecycle behavior is removed. NONE candidates rank globally but receive no setup/lifecycle-fit credit for being NONE. The emphasis band grants no points.
+
+## 7. UI
+
+Default filters become SURVIVORS · BASE · MOMENTUM · REACCEL. Candidates show one or more setup badges (e.g. BASE + MOMENTUM) or NONE. BASE candidates inside the emphasis band get a descriptive `CORE MC RANGE` marker with no scoring effect. All Candidates and Near Misses stay available under Calibration. No wider redesign.
+
+## 8. Fixtures and tests
+
+Fixtures represent generic behaviors, not token replicas, and remain sanity checks only — never scoring templates: a low-cap persistent post-launch token surviving as BASE, a low-cap accelerating young token as MOMENTUM, an older renewed-activity token as REACCEL, and a healthy token matching none surviving as NONE.
+
+Tests cover: legacy lane names replaced for new scans and DEVELOPING_THESIS never assigned; NONE never auto-rejects; MOMENTUM age bounds, acceleration requirement, and youth-alone rejection; BASE age bounds, low-acceleration qualification, persistence/turnover/activity conditions, $200K–$500K eligibility, and emphasis-band neutrality in priority; REACCEL known-age requirement, min age, no MC ceiling, and baseline/reacceleration evidence; BASE+MOMENTUM overlap; reservations not duplicating tokens; unused reservation capacity returning to the global pool; NONE receiving global survivor slots; settings changes affecting new scans but never historical configs; and every new run storing an immutable config snapshot.
+
+## 9. Technical notes
+
+- New table `scanner_strategy_settings` (single active row: name, config jsonb, is_default, timestamps) — public read, service-role write, explicit grants, RLS on, matching the other scanner tables.
+- `scan_runs` gains `config_snapshot jsonb` plus `config_version`; existing rows stay untouched and render as legacy.
+- `src/lib/wingman/services/scanner/config.ts` becomes the Wingman Default v1 source and the shape of a settings record; `types.ts` gains the `SetupType` union (`MOMENTUM | BASE | REACCEL`) with a legacy-lane display mapping for old scans.
+- `lanes.ts` → setup evaluation reading the run's resolved config; `evaluate.ts` keeps ranking deterministic and stops treating "no setup" as a rejection; `pipeline.server.ts` resolves the active settings once per run and writes the snapshot.
+- Settings read/save go through `createServerFn` with zod validation; the browser never writes these tables directly.
+- Existing evidence, snapshots, tokens, and historical scan rows are left intact.
