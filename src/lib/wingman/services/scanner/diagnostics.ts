@@ -59,7 +59,7 @@ function median(values: number[]): number | null {
   return sorted.length % 2 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2;
 }
 
-/** Per-lane calibration stats, including the POST_BOND_BASE panel numbers. */
+/** Per-setup calibration stats, including the BASE panel numbers. */
 export function laneDiagnostics(candidates: EvaluatedCandidate[]): LaneDiagnosticRow[] {
   return DISCOVERY_LANES.map((lane: DiscoveryLane) => {
     const qualified = candidates.filter((c) => c.lanes.includes(lane));

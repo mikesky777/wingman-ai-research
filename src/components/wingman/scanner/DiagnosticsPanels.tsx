@@ -7,7 +7,10 @@ import { formatAge, formatRatioPct, laneLabel } from "./shared";
  * remove them later? Every row is read from persisted run diagnostics.
  */
 export function DiagnosticsPanels({ diagnostics }: { diagnostics: ScanRunDiagnostics }) {
-  const postBond = diagnostics.lanes.find((l) => l.lane === "POST_BOND_BASE");
+  // Current runs use BASE; historical v1 runs still carry POST_BOND_BASE.
+  const postBond =
+    diagnostics.lanes.find((l) => l.lane === "BASE") ??
+    diagnostics.lanes.find((l) => l.lane === "POST_BOND_BASE");
 
   return (
     <div className="grid gap-6 xl:grid-cols-2">
