@@ -11,15 +11,16 @@ export {
   DISCOVERY_CONFIG_VERSION,
   DIVERGENCE_ADJUSTMENT,
   EXTENSION_PENALTY,
-  LANE_ACTIVITY_REQUIREMENTS,
-  LANE_CONFIG,
-  LANE_RESERVATION_ORDER,
-  LANE_SURVIVOR_RESERVATIONS,
-  LANE_PERSISTENCE_REQUIREMENTS,
   PRIORITY_WEIGHTS,
+  SCANNER_VERSION,
+  SETUP_RESERVATION_ORDER,
+  STRATEGY_CONFIG_VERSION,
+  WINGMAN_DEFAULT_SETTINGS,
+  normalizeStrategySettings,
   runConfig,
-  type LaneConfig,
   type ScannerRunConfig,
+  type SetupFilterConfig,
+  type StrategySettings,
 } from "./config";
 export {
   activityFloorFor,
@@ -40,7 +41,7 @@ export {
   reaccelerationSignal,
 } from "./signals";
 export { applyHardFilters } from "./hard-filters";
-export { evaluateLanes, type LaneEvaluation } from "./lanes";
+export { evaluateLanes, evaluateSetups, type LaneEvaluation, type SetupEvaluation } from "./lanes";
 export { quantitativePriority } from "./priority";
 export {
   assignRanks,
