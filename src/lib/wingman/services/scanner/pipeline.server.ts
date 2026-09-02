@@ -29,6 +29,7 @@ import {
   selectSurvivorsWithReservations,
 } from "./evaluate";
 import { resolveMarkets } from "./market-eligibility.server";
+import type { MarketResolution } from "./market-eligibility";
 import { bucketDiagnostics, laneDiagnostics } from "./diagnostics";
 import {
   ConcurrentScanError,
@@ -171,9 +172,7 @@ export async function runScannerPipeline(
 
     const evaluateWith = (
       token: (typeof deduped)[number],
-      market: Awaited<ReturnType<typeof resolveMarkets>> extends Map<string, infer V>
-        ? V | null
-        : never,
+      market: MarketResolution | null,
       requireMarket: boolean,
     ) => {
       const ctx = context.get(token.contractAddress);
