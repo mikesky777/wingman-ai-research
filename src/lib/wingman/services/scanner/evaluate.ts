@@ -5,9 +5,13 @@
  * is what makes the archetype fixtures (GTAmemes-like, Buddy-like, dead old
  * token, vertical chase) meaningful as regression tests.
  */
-import { LANE_RESERVATION_ORDER, LANE_SURVIVOR_RESERVATIONS } from "./config";
+import {
+  SETUP_RESERVATION_ORDER,
+  WINGMAN_DEFAULT_SETTINGS,
+  type StrategySettings,
+} from "./config";
 import { applyHardFilters } from "./hard-filters";
-import { evaluateLanes } from "./lanes";
+import { evaluateSetups } from "./lanes";
 import { computeMetrics, type AgeFallbacks } from "./metrics";
 import { quantitativePriority } from "./priority";
 import {
@@ -18,13 +22,14 @@ import {
   reaccelerationSignal,
 } from "./signals";
 import {
-  DISCOVERY_LANES,
+  SETUP_TYPES,
   type DiscoveredToken,
-  type DiscoveryLane,
   type EvaluatedCandidate,
   type HistoricalPoint,
   type ScannerSignals,
+  type SetupType,
 } from "./types";
+
 
 /**
  * Deduplicate by chain + contract address while preserving every discovery
