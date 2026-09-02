@@ -131,7 +131,8 @@ async function mapWithLimit<T>(items: T[], limit: number, fn: (item: T) => Promi
 export async function runScannerPipeline(
   overrides: Partial<ScannerRunConfig> = {},
 ): Promise<RunScanResult> {
-  const config = runConfig(overrides);
+  const activeStrategy = await loadActiveStrategy();
+  const config = runConfig({ strategy: activeStrategy.settings, ...overrides });
   const telemetry = new TelemetryRecorder();
   const startedAt = new Date().toISOString();
 
@@ -140,6 +141,7 @@ export async function runScannerPipeline(
     runId = await startScanRun({
       calibrationMode: config.calibrationMode,
       discoveryConfigVersion: DISCOVERY_CONFIG_VERSION,
+      strategy: config.strategy,
     });
   } catch (error) {
     if (error instanceof ConcurrentScanError) {
@@ -170,6 +172,7 @@ export async function runScannerPipeline(
       return evaluateCandidate(token, {
         nowIso,
         history: ctx?.history ?? [],
+        strategy: config.strategy,
         ageFallbacks: {
           pairCreatedAt: ctx?.pairCreatedAt ?? null,
           tokenCreatedAt: ctx?.tokenCreatedAt ?? null,
@@ -181,7 +184,7 @@ export async function runScannerPipeline(
     const selection = selectSurvivorsWithReservations(
       ranked,
       config.survivorEnrichmentLimit,
-      config.laneReservations,
+      config.strategy.reservations,
     );
     const survivors = selection.survivors;
 
@@ -201,7 +204,7 @@ export async function runScannerPipeline(
 
     const passedHardFilters = evaluated.filter((c) => c.passedHardFilters).length;
     const quantitativelyRanked = evaluated.filter(
-      (c) => c.passedHardFilters && c.lanes.length > 0,
+      (c) => c.passedHardFilters && c.quantitativePriority !== null,
     ).length;
     const enriched = survivors.filter((s) => s.enriched).length;
     const completedAt = new Date().toISOString();
