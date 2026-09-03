@@ -414,7 +414,28 @@ export interface StructuralDiagnostics {
   authorityUnavailable: number;
   policyVersion: string;
   shadowMode: boolean;
+  vetoEnabled: boolean;
+  /** Selection effects. Present once selection has run. */
+  selection?: StructuralSelectionDiagnostics;
 }
+
+/**
+ * How the structural veto changed Survivor allocation for THIS run.
+ * Universe exclusions are counted separately and never double-counted here:
+ * an OUT_OF_SCOPE candidate is already out before structural selection.
+ */
+export interface StructuralSelectionDiagnostics {
+  /** Structural FAIL candidates removed before survivor allocation. */
+  failRemovedBeforeSelection: number;
+  /** Of those, how many WOULD have been survivors without the veto. */
+  failWouldHaveBeenSurvivors: number;
+  /** Slots handed to the next eligible candidates because of the veto. */
+  slotsBackfilled: number;
+  survivorsByStatus: { pass: number; concern: number; unknown: number; fail: number };
+  /** Removed earlier by Universe Eligibility, disjoint from the counts above. */
+  outOfScopeRemoved: number;
+}
+
 
 export function structuralDiagnostics(
   evaluations: StructuralEvaluation[],
