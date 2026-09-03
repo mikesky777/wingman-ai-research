@@ -41,6 +41,15 @@ import {
   type RefreshDiagnostics,
 } from "./refresh";
 import {
+  structuralDiagnostics,
+  type StructuralDiagnostics,
+} from "./structural";
+import {
+  evaluateStructuralForTargets,
+  persistStructuralEvaluations,
+  type StructuralTarget,
+} from "./structural.server";
+import {
   classifyUniverse,
   universeDiagnostics,
   type UniverseAssessment,
@@ -91,6 +100,8 @@ export interface ScanRunSummary {
   selectedByGlobalRanking: number;
   refresh: RefreshDiagnostics;
   universe: UniverseDiagnostics;
+  /** Shadow-mode structural counts. Never affects selection. */
+  structural: StructuralDiagnostics | null;
 }
 
 export interface RunScanResult {
@@ -426,6 +437,7 @@ export async function runScannerPipeline(
       selectedByGlobalRanking: selection.globalCount,
       refresh: refreshDiagnostics,
       universe,
+      structural,
     };
 
     await completeScanRun({
@@ -442,6 +454,7 @@ export async function runScannerPipeline(
       recurrenceDiagnostics: refreshDiagnostics,
       refreshDiagnostics,
       universeDiagnostics: universe,
+      structuralDiagnostics: structural,
       notes: `${SCANNER_VERSION} · ${DISCOVERY_CONFIG_VERSION}`,
     });
 
