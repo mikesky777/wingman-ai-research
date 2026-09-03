@@ -416,7 +416,7 @@ export function CandidateDrawer({
               label="Historical candles"
               value={
                 persistedIntegrity
-                  ? `${persistedIntegrity.coverage.observationCount} · ${
+                  ? `${persistedIntegrity.coverage.observations} · ${
                       persistedIntegrity.coverage.resolutions?.join(", ") || "n/a"
                     }`
                   : "none fetched"
@@ -461,8 +461,8 @@ export function CandidateDrawer({
               <Row
                 label="Early-peak timing"
                 value={
-                  persistedIntegrity?.features.minutesFromLaunchToPeak != null
-                    ? formatAge(persistedIntegrity.features.minutesFromLaunchToPeak)
+                  persistedIntegrity?.features.minutesFirstObservationToPeak != null
+                    ? formatAge(persistedIntegrity.features.minutesFirstObservationToPeak)
                     : "unavailable"
                 }
               />
