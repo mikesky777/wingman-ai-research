@@ -346,9 +346,9 @@ export function CandidateDrawer({
             />
             <Row label="Policy" value={c.structuralPolicyVersion ?? "—"} />
             {(c.structuralDetail?.rules ?? []).map((rule) => (
-              <div key={rule.rule} className="mt-1 text-[11px]">
+              <div key={rule.id} className="mt-1 text-[11px]">
                 <div className="flex items-baseline justify-between gap-2">
-                  <span className="font-mono uppercase text-muted-foreground">{rule.rule}</span>
+                  <span className="font-mono uppercase text-muted-foreground">{rule.label}</span>
                   <span
                     className={cn(
                       "rounded border px-1 py-0.5 font-mono text-[10px]",
@@ -359,7 +359,7 @@ export function CandidateDrawer({
                   </span>
                 </div>
                 <p className="text-muted-foreground">
-                  {rule.detail} · {rule.source}
+                  {rule.detail ?? rule.fact} · {rule.source}
                   {rule.observedAt ? ` · ${formatOutcomeTime(rule.observedAt)}` : ""}
                 </p>
               </div>
@@ -370,7 +370,7 @@ export function CandidateDrawer({
                   Holder context (descriptive, not scored)
                 </div>
                 {(c.structuralDetail?.context ?? []).map((item) => (
-                  <Row key={item.key} label={item.label} value={item.display} />
+                  <Row key={item.id} label={item.label} value={item.value} />
                 ))}
               </div>
             ) : null}
