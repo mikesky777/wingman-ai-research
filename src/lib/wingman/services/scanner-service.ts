@@ -3,6 +3,10 @@ import { MarketDataService } from "./market-data-service";
 import type { MarketRegime, ScanSummary, ScannedCandidate } from "../types";
 import type { DomainRefreshDecision } from "./scanner/refresh";
 import type { StructuralContextItem, StructuralRuleResult } from "./scanner/structural";
+import type {
+  PriceIntegrityCoverage,
+  PriceIntegrityFeatures,
+} from "./scanner/price-integrity";
 
 interface ScanRunRow {
   id: string;
@@ -240,6 +244,16 @@ export interface StructuralDetail {
   rules: StructuralRuleResult[];
   context: StructuralContextItem[];
   shadowMode?: boolean;
+}
+
+/** Persisted shadow Price / Launch Integrity payload. */
+export interface PriceIntegrityDetail {
+  coverage: PriceIntegrityCoverage;
+  features: PriceIntegrityFeatures;
+  signals: string[];
+  reasons: string[];
+  shadowMode?: boolean;
+  evaluatedAt?: string;
 }
 
 export interface TokenOutcome {
