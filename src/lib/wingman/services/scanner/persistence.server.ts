@@ -308,6 +308,19 @@ export async function persistCandidates(
               shadowMode: c.structural.shadowMode,
             }
           : null,
+        // Price / Launch Integrity (shadow): recorded for calibration only.
+        price_integrity_status: c.priceIntegrity?.status ?? null,
+        price_integrity_policy_version: c.priceIntegrity?.policyVersion ?? null,
+        price_integrity_detail: c.priceIntegrity
+          ? {
+              coverage: c.priceIntegrity.coverage,
+              features: c.priceIntegrity.features,
+              signals: c.priceIntegrity.signals,
+              reasons: c.priceIntegrity.reasons,
+              shadowMode: c.priceIntegrity.shadowMode,
+              evaluatedAt: c.priceIntegrity.evaluatedAt,
+            }
+          : null,
         // Mandate eligibility. Never a quality or safety judgement.
         universe_eligibility: c.universe?.eligibility ?? "UNKNOWN",
         universe_category: c.universe?.category ?? null,
