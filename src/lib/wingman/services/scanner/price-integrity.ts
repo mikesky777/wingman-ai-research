@@ -563,3 +563,52 @@ export function evaluateFromCandidateRowSummary(row: {
     sourceReferences: [],
   };
 }
+
+/** A historical candle, provider-independent. Any field may be unavailable. */
+export interface IntegrityCandle {
+  interval: string;
+  candleTime: string;
+  open: number | null;
+  high: number | null;
+  low: number | null;
+  close: number | null;
+  volumeUsd: number | null;
+}
+
+/**
+ * Map real historical candles into the evaluation input. Close is the observed
+ * value, candle extremes preserve wick geometry, and nothing absent is filled.
+ */
+export function candlesToInput(
+  candles: IntegrityCandle[],
+  launchAt: string | null,
+  setups: string[] = [],
+): PriceIntegrityInput {
+  const points: PricePoint[] = candles
+    .filter((c) => c.close !== null || c.high !== null)
+    .map((c) => ({
+      capturedAt: c.candleTime,
+      marketCap: null,
+      priceUsd: c.close ?? c.high,
+      liquidityUsd: null,
+      highPrice: c.high,
+      lowPrice: c.low,
+      volumeUsd: c.volumeUsd,
+    }));
+  return {
+    points,
+    launchAt,
+    setups,
+    resolutions: [...new Set(candles.map((c) => c.interval))],
+  };
+}
+
+/** Convenience: evaluate straight from candles. Shadow-mode like every path. */
+export function evaluateFromCandles(
+  candles: IntegrityCandle[],
+  launchAt: string | null,
+  setups: string[] = [],
+  now: string = new Date().toISOString(),
+): PriceIntegrityEvaluation {
+  return evaluatePriceIntegrity(candlesToInput(candles, launchAt, setups), now);
+}
