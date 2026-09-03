@@ -23,6 +23,7 @@ import {
   RECURRENCE_TONE,
   REFRESH_HINT,
   REFRESH_TONE,
+  STRUCTURAL_TONE,
   formatEvidenceAge,
   formatOutcomePct,
   formatOutcomeTime,

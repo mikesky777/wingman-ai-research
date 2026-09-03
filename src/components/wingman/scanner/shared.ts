@@ -136,6 +136,14 @@ export function formatScanTime(value: string | null): string {
 }
 
 /** Evidence refresh urgency. Cost/freshness only — never a quality verdict. */
+/** Structural Eligibility badge tones. Descriptive only — shadow mode. */
+export const STRUCTURAL_TONE: Record<string, string> = {
+  PASS: "border-emerald-500/40 text-emerald-300",
+  CONCERN: "border-amber-500/40 text-amber-300",
+  FAIL: "border-rose-500/40 text-rose-300",
+  UNKNOWN: "border-border-strong text-muted-foreground",
+};
+
 export const REFRESH_TONE: Record<string, string> = {
   REFRESH_REQUIRED: "border-primary/40 bg-primary/10 text-primary",
   REFRESH_OPTIONAL: "border-border-strong text-foreground",
