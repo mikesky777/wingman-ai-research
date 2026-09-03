@@ -6,8 +6,7 @@ import {
   evaluatePriceIntegrity,
   type PricePoint,
 } from "./price-integrity";
-import { selectSurvivorsWithReservations } from "./evaluate";
-import { computePriority } from "./priority";
+import { readFileSync } from "node:fs";
 
 const LAUNCH = "2026-09-01T00:00:00.000Z";
 
@@ -114,12 +113,11 @@ describe("price integrity v1", () => {
     expect(bad.reasons.join(" ")).toContain("never invalidates");
   });
 
-  it("cannot be read by priority or survivor selection", async () => {
-    const priority = await import("./priority");
-    const evaluate = await import("./evaluate");
-    const source = [computePriority, selectSurvivorsWithReservations].map((f) => f.toString()).join("\n");
-    expect(source).not.toContain("priceIntegrity");
-    expect(Object.keys(priority).join(" ")).not.toContain("PriceIntegrity");
-    expect(Object.keys(evaluate).join(" ")).not.toContain("PriceIntegrity");
+  it("cannot be read by priority, selection or persistence", () => {
+    for (const file of ["priority.ts", "evaluate.ts", "pipeline.server.ts", "persistence.server.ts"]) {
+      const source = readFileSync(`src/lib/wingman/services/scanner/${file}`, "utf8");
+      expect(source).not.toContain("price-integrity");
+      expect(source).not.toContain("priceIntegrity");
+    }
   });
 });
