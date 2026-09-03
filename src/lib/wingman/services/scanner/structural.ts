@@ -455,5 +455,6 @@ export function structuralDiagnostics(
       .length,
     policyVersion: STRUCTURAL_POLICY_VERSION,
     shadowMode: STRUCTURAL_SHADOW_MODE,
+    vetoEnabled: STRUCTURAL_VETO_ENABLED,
   };
 }
