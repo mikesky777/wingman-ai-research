@@ -407,3 +407,65 @@ export function evaluatePriceIntegrity(
 
   return { ...base, status, signals, reasons };
 }
+
+/**
+ * UI helper: what a persisted scan-candidate row alone can say about price /
+ * launch integrity. A row carries counts and ages, never a price series, so
+ * this can only ever report coverage — it deliberately never classifies.
+ */
+export function evaluateFromCandidateRowSummary(row: {
+  historySnapshotCount: number;
+  ageMinutes: number | null;
+  firstSeenScanAt: string | null;
+  scanAt: string | null;
+}): PriceIntegrityEvaluation {
+  const minutesSinceFirstSeen =
+    row.firstSeenScanAt && row.scanAt ? minutesBetween(row.firstSeenScanAt, row.scanAt) : null;
+  const minutesFromLaunch =
+    row.ageMinutes !== null && minutesSinceFirstSeen !== null
+      ? Math.max(0, row.ageMinutes - minutesSinceFirstSeen)
+      : null;
+  const launchImpulseObserved =
+    minutesFromLaunch !== null &&
+    minutesFromLaunch <= PRICE_INTEGRITY_CALIBRATION.maxMinutesFromLaunchToFirstObservation;
+
+  const gaps: string[] = [];
+  if (row.historySnapshotCount < PRICE_INTEGRITY_CALIBRATION.minObservations) {
+    gaps.push(
+      `Only ${row.historySnapshotCount} stored observations (need ${PRICE_INTEGRITY_CALIBRATION.minObservations}).`,
+    );
+  }
+  if (!launchImpulseObserved) {
+    gaps.push(
+      minutesFromLaunch === null
+        ? "Launch time unknown — the launch impulse cannot be located."
+        : "Wingman's first observation is well after launch, so the launch impulse and early peak were never observed.",
+    );
+  }
+
+  return {
+    status: "UNKNOWN",
+    policyVersion: PRICE_INTEGRITY_POLICY_VERSION,
+    shadowMode: PRICE_INTEGRITY_SHADOW_MODE,
+    evaluatedAt: row.scanAt ?? new Date().toISOString(),
+    coverage: {
+      observations: row.historySnapshotCount,
+      usableObservations: row.historySnapshotCount,
+      firstObservedAt: row.firstSeenScanAt,
+      lastObservedAt: row.scanAt,
+      observedWindowMinutes: minutesSinceFirstSeen,
+      minutesFromLaunchToFirstObservation: minutesFromLaunch,
+      launchImpulseObserved,
+      hasLiquidityHistory: false,
+      sufficientForClassification: false,
+      gaps,
+    },
+    features: { ...EMPTY_FEATURES },
+    signals: [],
+    reasons: [
+      "Not classified: stored scan history does not observe launch structure.",
+      ...gaps,
+    ],
+    sourceReferences: [],
+  };
+}
