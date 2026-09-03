@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { formatUsd } from "@/lib/wingman/format";
 import { checkTokenHolders, setCandidateLabel } from "@/lib/wingman/workbench.functions";
 import type { WorkbenchCandidate } from "@/lib/wingman/services/scanner-service";
+import { evaluateFromCandidateRowSummary } from "@/lib/wingman/services/scanner/price-integrity";
 import {
   COMPONENT_LABELS,
   EXTENSION_TONE,
@@ -98,6 +99,14 @@ export function CandidateDrawer({
   if (!candidate) return null;
   const c = candidate;
   const breakdown = c.priorityBreakdown;
+  // Shadow-only coverage read. A persisted row carries no price series, so this
+  // reports what history exists and never classifies from it.
+  const priceIntegrity = evaluateFromCandidateRowSummary({
+    historySnapshotCount: c.historySnapshotCount,
+    ageMinutes: c.ageMinutes,
+    firstSeenScanAt: c.firstSeenScanAt,
+    scanAt: c.lastEnrichedAt,
+  });
 
   return (
     <Sheet open onOpenChange={(open) => (!open ? onClose() : undefined)}>
@@ -377,6 +386,59 @@ export function CandidateDrawer({
             ) : null}
           </Block>
 
+          <Block title="Price / launch integrity (shadow)">
+            <p className="mb-2 text-[11px] text-muted-foreground">
+              Calibration only — never affects priority, setups, structural status or Survivor
+              selection. Deep drawdown alone is never damage, and unobserved launch history stays
+              UNKNOWN rather than being guessed.
+            </p>
+            <Row
+              label="Status"
+              value={
+                <span className="rounded border border-border-strong px-1 py-0.5 font-mono text-[10px] text-muted-foreground">
+                  {priceIntegrity.status}
+                </span>
+              }
+            />
+            <Row label="Policy" value={priceIntegrity.policyVersion} />
+            <div className="mt-2 border-t border-border pt-2">
+              <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                Measured coverage
+              </div>
+              <Row label="Stored observations" value={c.historySnapshotCount} />
+              <Row label="Scans seen" value={c.scansSeenCount} />
+              <Row label="First seen" value={formatOutcomeTime(c.firstSeenScanAt)} />
+              <Row
+                label="Launch → first observation"
+                value={
+                  priceIntegrity.coverage.minutesFromLaunchToFirstObservation === null
+                    ? "unknown"
+                    : formatAge(priceIntegrity.coverage.minutesFromLaunchToFirstObservation)
+                }
+              />
+              <Row
+                label="Launch impulse observed"
+                value={priceIntegrity.coverage.launchImpulseObserved ? "yes" : "no"}
+              />
+            </div>
+            <div className="mt-2 border-t border-border pt-2">
+              <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                Derived features
+              </div>
+              <Row label="Peak → current drawdown" value="unavailable" />
+              <Row label="Early-peak timing" value="unavailable" />
+              <Row label="Recovery from low" value="unavailable" />
+              <Row label="Subsequent-high behavior" value="unavailable" />
+              <Row label="Liquidity retention" value="unavailable" />
+            </div>
+            <ul className="mt-2 space-y-1">
+              {priceIntegrity.reasons.map((reason) => (
+                <li key={reason} className="text-[11px] text-muted-foreground">
+                  · {reason}
+                </li>
+              ))}
+            </ul>
+          </Block>
 
 
           <Block title="Outcome since Wingman observation">
