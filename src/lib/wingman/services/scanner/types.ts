@@ -9,6 +9,7 @@
  * (no trades, no volume) is a fact and stays `0`.
  */
 import type { ChainId } from "../external/chains";
+import type { RecurrenceInfo } from "./recurrence";
 
 export const SCANNER_VERSION = "scanner/v2";
 
@@ -279,6 +280,11 @@ export interface EvaluatedCandidate {
   structuralSafety: StructuralSafety;
   tokenSecurity: TokenSecurityStatus;
   historySnapshotCount: number;
+  /**
+   * Scan-recurrence metadata derived from persisted history. Descriptive only:
+   * never an input to priority, filtering, qualification or selection.
+   */
+  recurrence?: RecurrenceInfo | null;
 }
 
 

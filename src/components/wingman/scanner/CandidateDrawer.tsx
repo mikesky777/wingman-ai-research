@@ -19,11 +19,14 @@ import {
   COMPONENT_LABELS,
   EXTENSION_TONE,
   LANE_TONE,
+  RECURRENCE_HINT,
+  RECURRENCE_TONE,
   SIGNAL_TONE,
   formatAge,
   formatNum,
   formatPctChange,
   formatRatioPct,
+  formatScanTime,
   laneLabel,
 } from "./shared";
 
@@ -196,6 +199,62 @@ export function CandidateDrawer({
             <Row label="Price change 24h" value={formatPctChange(c.priceChange24h)} />
             <Row label="Age" value={`${formatAge(c.ageMinutes)} (${c.ageBasis ?? "unknown"})`} />
             <Row label="Snapshots in Wingman history" value={c.historySnapshotCount} />
+          </Block>
+
+          <Block title="Scan recurrence">
+            <p className="mb-2 text-[11px] text-muted-foreground">
+              Wingman scan history only. Descriptive — it never changes priority, filtering or
+              survivor selection.
+            </p>
+            <Row
+              label="Recurrence state"
+              value={
+                <span
+                  className={cn(
+                    "rounded border px-1.5 py-0.5 font-mono text-[10px] tracking-wide",
+                    RECURRENCE_TONE[c.recurrenceState] ?? "border-border-strong",
+                  )}
+                  title={RECURRENCE_HINT[c.recurrenceState] ?? ""}
+                >
+                  {c.recurrenceState}
+                </span>
+              }
+            />
+            <Row label="First seen (Wingman)" value={formatScanTime(c.firstSeenScanAt)} />
+            <Row label="Previous seen" value={formatScanTime(c.previousSeenScanAt)} />
+            <Row label="Scans seen" value={c.scansSeenCount} />
+            <Row label="Consecutive scans seen" value={c.consecutiveScansSeen} />
+            <Row
+              label="Priority previous → current"
+              value={`${c.previousQuantitativePriority ?? "—"} → ${c.quantitativePriority ?? "—"}`}
+            />
+            <Row
+              label="Priority delta"
+              value={
+                c.priorityDelta === null
+                  ? "—"
+                  : `${c.priorityDelta > 0 ? "+" : ""}${c.priorityDelta}`
+              }
+            />
+            <Row
+              label="Setups previous → current"
+              value={`${c.previousSetups.length ? c.previousSetups.join("+") : "—"} → ${
+                c.lanes.length ? c.lanes.join("+") : "NONE"
+              }`}
+            />
+            <Row
+              label="Last survivor selection"
+              value={formatScanTime(c.lastSelectedAsSurvivorAt)}
+            />
+            {c.recurrenceChangeReasons.length > 0 ? (
+              <ul className="mt-2 space-y-1">
+                {c.recurrenceChangeReasons.map((reason) => (
+                  <li key={reason} className="text-[11px] text-muted-foreground">
+                    · {reason}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
           </Block>
 
           <Block title="Lifecycle signals">

@@ -187,12 +187,25 @@ export interface WorkbenchCandidate {
   enriched: boolean;
   previousPriority: number | null;
   priorityChange: number | null;
+  /** Descriptive scan-recurrence metadata. Never affects scanner behavior. */
+  recurrenceState: string;
+  firstSeenScanAt: string | null;
+  previousSeenScanAt: string | null;
+  scansSeenCount: number;
+  consecutiveScansSeen: number;
+  previousQuantitativePriority: number | null;
+  priorityDelta: number | null;
+  previousSetups: string[];
+  setupChanged: boolean;
+  previousSelectedAsSurvivor: boolean;
+  lastSelectedAsSurvivorAt: string | null;
+  recurrenceChangeReasons: string[];
   label: string;
   labelNote: string | null;
 }
 
 const WORKBENCH_COLUMNS =
-  "id, token_id, contract_address, discovery_lanes, lane_rejections, discovery_queries, discovery_ranks, token_age_minutes, age_basis, market_cap, market_cap_bucket, liquidity_usd, price_usd, volume_1h, volume_24h, trades_1h, trades_24h, buys_24h, sells_24h, holder_count, price_change_1h, price_change_24h, volume_to_market_cap_24h, volume_to_liquidity_24h, activity_state, persistence_signal, reacceleration_signal, extension_risk, extension_reasons, attention_price_divergence, structural_safety, token_security, quantitative_priority, priority_breakdown, metrics_detail, global_rank, lane_ranks, selected_by_lane_reservation, selected_by_global_ranking, history_snapshot_count, stage_reached, rejection_reason, rejection_details, enriched, token:tokens!inner(id, name, symbol)";
+  "id, token_id, contract_address, discovery_lanes, lane_rejections, discovery_queries, discovery_ranks, token_age_minutes, age_basis, market_cap, market_cap_bucket, liquidity_usd, price_usd, volume_1h, volume_24h, trades_1h, trades_24h, buys_24h, sells_24h, holder_count, price_change_1h, price_change_24h, volume_to_market_cap_24h, volume_to_liquidity_24h, activity_state, persistence_signal, reacceleration_signal, extension_risk, extension_reasons, attention_price_divergence, structural_safety, token_security, quantitative_priority, priority_breakdown, metrics_detail, global_rank, lane_ranks, selected_by_lane_reservation, selected_by_global_ranking, history_snapshot_count, stage_reached, rejection_reason, rejection_details, enriched, recurrence_state, first_seen_scan_at, previous_seen_scan_at, scans_seen_count, consecutive_scans_seen, previous_quantitative_priority, priority_delta, previous_setups, setup_changed, previous_selected_as_survivor, last_selected_as_survivor_at, recurrence_detail, token:tokens!inner(id, name, symbol)";
 
 const RUN_COLUMNS =
   "id, started_at, completed_at, status, tokens_scanned, tokens_discovered, passed_hard_filters, passed_quantitative_ranking, quantitatively_ranked, passed_ai_triage, deep_researched, enriched_count, actionable_count, market_regime, scanner_version, discovery_config_version, calibration_mode, provider_telemetry";
@@ -396,6 +409,20 @@ export const ScannerService = {
         enriched: Boolean(r["enriched"]),
         previousPriority: prior,
         priorityChange: priority !== null && prior !== null ? priority - prior : null,
+        recurrenceState: (r["recurrence_state"] as string | null) ?? "NEW",
+        firstSeenScanAt: (r["first_seen_scan_at"] as string | null) ?? null,
+        previousSeenScanAt: (r["previous_seen_scan_at"] as string | null) ?? null,
+        scansSeenCount: (r["scans_seen_count"] as number | null) ?? 1,
+        consecutiveScansSeen: (r["consecutive_scans_seen"] as number | null) ?? 1,
+        previousQuantitativePriority:
+          (r["previous_quantitative_priority"] as number | null) ?? null,
+        priorityDelta: (r["priority_delta"] as number | null) ?? null,
+        previousSetups: (r["previous_setups"] as string[] | null) ?? [],
+        setupChanged: Boolean(r["setup_changed"]),
+        previousSelectedAsSurvivor: Boolean(r["previous_selected_as_survivor"]),
+        lastSelectedAsSurvivorAt: (r["last_selected_as_survivor_at"] as string | null) ?? null,
+        recurrenceChangeReasons:
+          ((r["recurrence_detail"] as { changeReasons?: string[] } | null)?.changeReasons ?? []),
         label: labels[token.id]?.label ?? "UNREVIEWED",
         labelNote: labels[token.id]?.note ?? null,
       };

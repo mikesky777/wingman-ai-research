@@ -31,10 +31,12 @@ import {
 import { resolveMarkets } from "./market-eligibility.server";
 import type { MarketResolution } from "./market-eligibility";
 import { bucketDiagnostics, laneDiagnostics } from "./diagnostics";
+import { deriveRecurrence } from "./recurrence";
 import {
   ConcurrentScanError,
   completeScanRun,
   failScanRun,
+  loadRecurrenceHistory,
   loadTokenContext,
   persistCandidates,
   resolveTokenIds,
@@ -224,6 +226,26 @@ export async function runScannerPipeline(
     const survivorSet = new Set(survivors.map((s) => s.token.contractAddress));
     const others = ranked.filter((c) => !survivorSet.has(c.token.contractAddress));
     const toPersist = [...survivors, ...others.slice(0, config.maxPersistedRejections)];
+
+    // Recurrence awareness: descriptive only, derived AFTER every selection
+    // decision so it can never influence ranking, filtering or survivors.
+    const recurrenceHistory = await loadRecurrenceHistory(
+      toPersist.map((c) => c.token.contractAddress),
+      runId,
+    );
+    for (const candidate of toPersist) {
+      candidate.recurrence = deriveRecurrence({
+        current: {
+          setups: candidate.lanes,
+          quantitativePriority: candidate.quantitativePriority,
+          activityState: candidate.signals.activityState,
+          persistenceSignal: candidate.signals.persistenceSignal,
+          reaccelerationSignal: candidate.signals.reaccelerationSignal,
+        },
+        appearances: recurrenceHistory.byAddress.get(candidate.token.contractAddress) ?? [],
+        recentRunIds: recurrenceHistory.recentRunIds,
+      });
+    }
 
     const tokenIds = await resolveTokenIds(toPersist.map((c) => c.token));
     await persistCandidates(runId, toPersist, tokenIds);

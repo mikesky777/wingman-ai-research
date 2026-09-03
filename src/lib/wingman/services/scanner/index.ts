@@ -60,3 +60,10 @@ export {
 } from "./evaluate";
 export { bucketDiagnostics, laneDiagnostics, marketCapBucket } from "./diagnostics";
 export { TelemetryRecorder } from "./telemetry";
+export {
+  RECURRENCE_CONFIG,
+  deriveRecurrence,
+  type RecurrenceAppearance,
+  type RecurrenceInfo,
+  type RecurrenceState,
+} from "./recurrence";

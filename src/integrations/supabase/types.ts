@@ -398,6 +398,7 @@ export type Database = {
           attention_price_divergence: string | null
           buys_24h: number | null
           chain: string
+          consecutive_scans_seen: number
           contract_address: string | null
           created_at: string
           discovery_lanes: string[]
@@ -407,35 +408,46 @@ export type Database = {
           enriched: boolean
           extension_reasons: Json | null
           extension_risk: string | null
+          first_seen_scan_at: string | null
           global_rank: number | null
           history_snapshot_count: number
           holder_count: number | null
           id: string
           lane_ranks: Json | null
           lane_rejections: Json | null
+          last_selected_as_survivor_at: string | null
           liquidity_usd: number | null
           market_cap: number | null
           market_cap_bucket: string | null
           metrics_detail: Json | null
           minutes_since_last_trade: number | null
           persistence_signal: string | null
+          previous_quantitative_priority: number | null
+          previous_seen_scan_at: string | null
+          previous_selected_as_survivor: boolean
+          previous_setups: string[]
           price_change_1h: number | null
           price_change_24h: number | null
           price_change_6h: number | null
           price_usd: number | null
           priority_breakdown: Json | null
           priority_components: Json | null
+          priority_delta: number | null
           promoted_reason: string | null
           quantitative_priority: number | null
           quantitative_score: number | null
           reacceleration_signal: string | null
+          recurrence_detail: Json | null
+          recurrence_state: string
           rejection_details: Json | null
           rejection_reason: string | null
           scan_run_id: string
           scanner_version: string | null
+          scans_seen_count: number
           selected_by_global_ranking: boolean
           selected_by_lane_reservation: boolean
           sells_24h: number | null
+          setup_changed: boolean
           stage_reached: string
           structural_safety: string
           token_age_minutes: number | null
@@ -457,6 +469,7 @@ export type Database = {
           attention_price_divergence?: string | null
           buys_24h?: number | null
           chain?: string
+          consecutive_scans_seen?: number
           contract_address?: string | null
           created_at?: string
           discovery_lanes?: string[]
@@ -466,35 +479,46 @@ export type Database = {
           enriched?: boolean
           extension_reasons?: Json | null
           extension_risk?: string | null
+          first_seen_scan_at?: string | null
           global_rank?: number | null
           history_snapshot_count?: number
           holder_count?: number | null
           id?: string
           lane_ranks?: Json | null
           lane_rejections?: Json | null
+          last_selected_as_survivor_at?: string | null
           liquidity_usd?: number | null
           market_cap?: number | null
           market_cap_bucket?: string | null
           metrics_detail?: Json | null
           minutes_since_last_trade?: number | null
           persistence_signal?: string | null
+          previous_quantitative_priority?: number | null
+          previous_seen_scan_at?: string | null
+          previous_selected_as_survivor?: boolean
+          previous_setups?: string[]
           price_change_1h?: number | null
           price_change_24h?: number | null
           price_change_6h?: number | null
           price_usd?: number | null
           priority_breakdown?: Json | null
           priority_components?: Json | null
+          priority_delta?: number | null
           promoted_reason?: string | null
           quantitative_priority?: number | null
           quantitative_score?: number | null
           reacceleration_signal?: string | null
+          recurrence_detail?: Json | null
+          recurrence_state?: string
           rejection_details?: Json | null
           rejection_reason?: string | null
           scan_run_id: string
           scanner_version?: string | null
+          scans_seen_count?: number
           selected_by_global_ranking?: boolean
           selected_by_lane_reservation?: boolean
           sells_24h?: number | null
+          setup_changed?: boolean
           stage_reached: string
           structural_safety?: string
           token_age_minutes?: number | null
@@ -516,6 +540,7 @@ export type Database = {
           attention_price_divergence?: string | null
           buys_24h?: number | null
           chain?: string
+          consecutive_scans_seen?: number
           contract_address?: string | null
           created_at?: string
           discovery_lanes?: string[]
@@ -525,35 +550,46 @@ export type Database = {
           enriched?: boolean
           extension_reasons?: Json | null
           extension_risk?: string | null
+          first_seen_scan_at?: string | null
           global_rank?: number | null
           history_snapshot_count?: number
           holder_count?: number | null
           id?: string
           lane_ranks?: Json | null
           lane_rejections?: Json | null
+          last_selected_as_survivor_at?: string | null
           liquidity_usd?: number | null
           market_cap?: number | null
           market_cap_bucket?: string | null
           metrics_detail?: Json | null
           minutes_since_last_trade?: number | null
           persistence_signal?: string | null
+          previous_quantitative_priority?: number | null
+          previous_seen_scan_at?: string | null
+          previous_selected_as_survivor?: boolean
+          previous_setups?: string[]
           price_change_1h?: number | null
           price_change_24h?: number | null
           price_change_6h?: number | null
           price_usd?: number | null
           priority_breakdown?: Json | null
           priority_components?: Json | null
+          priority_delta?: number | null
           promoted_reason?: string | null
           quantitative_priority?: number | null
           quantitative_score?: number | null
           reacceleration_signal?: string | null
+          recurrence_detail?: Json | null
+          recurrence_state?: string
           rejection_details?: Json | null
           rejection_reason?: string | null
           scan_run_id?: string
           scanner_version?: string | null
+          scans_seen_count?: number
           selected_by_global_ranking?: boolean
           selected_by_lane_reservation?: boolean
           sells_24h?: number | null
+          setup_changed?: boolean
           stage_reached?: string
           structural_safety?: string
           token_age_minutes?: number | null
