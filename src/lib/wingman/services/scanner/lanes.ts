@@ -21,12 +21,29 @@ export interface LaneEvaluation {
 
 export type SetupEvaluation = LaneEvaluation;
 
+/** Stable machine-readable prefix for a setup's 24h volume floor rejection. */
+export const SETUP_VOLUME_FLOOR_TOO_LOW = (setup: SetupType) => `${setup}_VOLUME_24H_TOO_LOW`;
+export const SETUP_VOLUME_FLOOR_UNAVAILABLE = (setup: SetupType) =>
+  `${setup}_VOLUME_24H_UNAVAILABLE`;
+
 function setupRejection(
   cfg: SetupFilterConfig,
   marketCap: number | null,
   m: ScannerMetrics,
   signals: ScannerSignals,
+  volume24h: number | null,
 ): string | null {
+  // Hard volume floor. Unavailable volume is never coerced to zero: it follows
+  // the same missing-evidence semantics as every other unavailable fact.
+  if (cfg.minVolume24hUsd !== null) {
+    if (!isNum(volume24h)) {
+      return `${SETUP_VOLUME_FLOOR_UNAVAILABLE(cfg.setup)}: 24h volume unavailable — the setup requires an observed 24h volume.`;
+    }
+    if (volume24h < cfg.minVolume24hUsd) {
+      return `${SETUP_VOLUME_FLOOR_TOO_LOW(cfg.setup)}: 24h volume $${Math.round(volume24h).toLocaleString()} below the setup's $${cfg.minVolume24hUsd.toLocaleString()} floor.`;
+    }
+  }
+
   if (cfg.marketCapMin !== null || cfg.marketCapMax !== null) {
     if (!isNum(marketCap)) return "Market cap unavailable.";
     if (cfg.marketCapMin !== null && marketCap < cfg.marketCapMin) {
@@ -93,12 +110,13 @@ export function evaluateSetups(
   m: ScannerMetrics,
   signals: ScannerSignals,
   strategy: StrategySettings = WINGMAN_DEFAULT_SETTINGS,
+  volume24h: number | null = null,
 ): SetupEvaluation {
   const lanes: SetupType[] = [];
   const rejections: Record<string, string> = {};
 
   for (const setup of SETUP_TYPES) {
-    const reason = setupRejection(strategy.setups[setup], marketCap, m, signals);
+    const reason = setupRejection(strategy.setups[setup], marketCap, m, signals, volume24h);
     if (reason === null) lanes.push(setup);
     else rejections[setup] = reason;
   }

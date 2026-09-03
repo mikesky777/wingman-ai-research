@@ -90,6 +90,82 @@ export function DiagnosticsPanels({ diagnostics }: { diagnostics: ScanRunDiagnos
           </p>
         ) : null}
       </Section>
+
+      <Section
+        title="BASE Activity Floor"
+        description="Effect of the editable BASE minimum 24h volume on this run."
+      >
+        {diagnostics.baseVolumeFloor ? (
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <Stat
+              label="Floor"
+              value={
+                diagnostics.baseVolumeFloor.thresholdUsd === null
+                  ? "none"
+                  : `$${diagnostics.baseVolumeFloor.thresholdUsd.toLocaleString()}`
+              }
+            />
+            <Stat label="BASE qualified" value={diagnostics.baseVolumeFloor.qualifiedBase} />
+            <Stat
+              label="BASE before floor"
+              value={diagnostics.baseVolumeFloor.baseBeforeVolumeFloor}
+            />
+            <Stat
+              label="Removed by floor"
+              value={diagnostics.baseVolumeFloor.removedByVolumeFloor}
+            />
+            <Stat
+              label="Volume unavailable"
+              value={diagnostics.baseVolumeFloor.volumeUnavailable}
+            />
+          </div>
+        ) : (
+          <p className="text-[11px] text-muted-foreground">
+            Not recorded for this run.
+          </p>
+        )}
+      </Section>
+
+      <Section
+        title="Price / Launch Integrity (shadow)"
+        description="Calibration only — never affects setups, priority, structural status or Survivor selection."
+      >
+        {diagnostics.priceIntegrity ? (
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <Stat
+              label="Candidates with history fetched"
+              value={diagnostics.priceIntegrity.candidatesRequiringHistory}
+            />
+            <Stat
+              label="Tokens with candles"
+              value={diagnostics.priceIntegrity.tokensWithHistory}
+            />
+            <Stat label="Provider requests" value={diagnostics.priceIntegrity.providerRequests} />
+            <Stat
+              label="Served from cache"
+              value={diagnostics.priceIntegrity.servedFullyFromCache}
+            />
+            <Stat label="Candles stored" value={diagnostics.priceIntegrity.candlesStored} />
+            <Stat label="History failures" value={diagnostics.priceIntegrity.failures} />
+            {Object.entries(diagnostics.priceIntegrity.statuses ?? {}).map(([status, count]) => (
+              <Stat key={status} label={status} value={count} />
+            ))}
+          </div>
+        ) : (
+          <p className="text-[11px] text-muted-foreground">
+            Not recorded for this run.
+          </p>
+        )}
+      </Section>
+    </div>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="rounded border border-border px-2 py-1">
+      <div className="label-xs text-muted-foreground">{label}</div>
+      <div className="tabular text-sm">{value}</div>
     </div>
   );
 }

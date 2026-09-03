@@ -50,6 +50,12 @@ export const PRICE_INTEGRITY_CALIBRATION = {
   improvingSubsequentHigh: 0.15,
   /** Liquidity retained vs peak-era liquidity below this is poor retention. */
   poorLiquidityRetention: 0.25,
+  /** Window (minutes from first observation) counted as launch-era volume. */
+  earlyVolumeWindowMinutes: 6 * 60,
+  /** Launch-era share of observed volume above this is concentrated. */
+  concentratedEarlyVolumeShare: 0.6,
+  /** Peak / stabilized value above this is an extreme spike (context only). */
+  extremePeakToStabilizedRatio: 15,
   /** Damage requires at least this many independent damage signals. */
   minDamageSignals: 4,
   /** Concern requires at least this many. */
@@ -62,6 +68,11 @@ export interface PricePoint {
   marketCap: number | null;
   priceUsd: number | null;
   liquidityUsd: number | null;
+  /** Intra-interval extremes, when the source is a candle rather than a poll. */
+  highPrice?: number | null;
+  lowPrice?: number | null;
+  /** USD volume traded during the interval, when supplied. */
+  volumeUsd?: number | null;
 }
 
 export interface PriceIntegrityInput {
@@ -71,6 +82,8 @@ export interface PriceIntegrityInput {
   launchAt: string | null;
   /** Setup context. Only changes how the result is *described*, never gated. */
   setups?: string[];
+  /** Resolutions the observations came from, e.g. ["1m", "15m"]. */
+  resolutions?: string[];
 }
 
 export interface PriceIntegrityCoverage {
@@ -84,6 +97,9 @@ export interface PriceIntegrityCoverage {
   /** True only when the launch impulse itself was plausibly observed. */
   launchImpulseObserved: boolean;
   hasLiquidityHistory: boolean;
+  /** Resolutions actually present in the observed history. */
+  resolutions: string[];
+  hasCandleHistory: boolean;
   sufficientForClassification: boolean;
   gaps: string[];
 }
@@ -107,6 +123,12 @@ export interface PriceIntegrityFeatures {
   observationsAfterCollapse: number;
   minutesSustainedAfterCollapse: number | null;
   liquidityRetention: number | null;
+  /** Early peak / current (stabilized) value. Never damage on its own. */
+  peakToStabilizedRatio: number | null;
+  /** Share of observed USD volume traded inside the launch window. */
+  earlyVolumeShare: number | null;
+  earlyVolumeUsd: number | null;
+  laterVolumeUsd: number | null;
   basis: "market_cap" | "price" | "none";
 }
 
@@ -142,6 +164,10 @@ const EMPTY_FEATURES: PriceIntegrityFeatures = {
   observationsAfterCollapse: 0,
   minutesSustainedAfterCollapse: null,
   liquidityRetention: null,
+  peakToStabilizedRatio: null,
+  earlyVolumeShare: null,
+  earlyVolumeUsd: null,
+  laterVolumeUsd: null,
   basis: "none",
 };
 
@@ -186,6 +212,8 @@ export function assessCoverage(input: PriceIntegrityInput): PriceIntegrityCovera
     minutesFromLaunchToFirstObservation: minutesFromLaunch,
     launchImpulseObserved,
     hasLiquidityHistory: usable.some((p) => p.liquidityUsd !== null),
+    resolutions: input.resolutions ?? [],
+    hasCandleHistory: usable.some((p) => (p.highPrice ?? null) !== null),
     sufficientForClassification:
       usable.length >= cal.minObservations &&
       observedWindowMinutes !== null &&
@@ -209,12 +237,28 @@ export function deriveFeatures(input: PriceIntegrityInput): PriceIntegrityFeatur
   if (basis === "none") return { ...EMPTY_FEATURES };
 
   const series = sorted
-    .map((p) => ({
-      at: p.capturedAt,
-      value: basis === "market_cap" ? p.marketCap : p.priceUsd,
-      liquidity: p.liquidityUsd,
-    }))
-    .filter((p): p is { at: string; value: number; liquidity: number | null } => p.value !== null);
+    .map((p) => {
+      const value = basis === "market_cap" ? p.marketCap : p.priceUsd;
+      return {
+        at: p.capturedAt,
+        value,
+        // Candle extremes reveal a wick a close-only series cannot see.
+        high: p.highPrice ?? value,
+        low: p.lowPrice ?? value,
+        liquidity: p.liquidityUsd,
+        volumeUsd: p.volumeUsd ?? null,
+      };
+    })
+    .filter(
+      (p): p is {
+        at: string;
+        value: number;
+        high: number;
+        low: number;
+        liquidity: number | null;
+        volumeUsd: number | null;
+      } => p.value !== null,
+    );
 
   if (series.length === 0) return { ...EMPTY_FEATURES };
 
@@ -222,16 +266,18 @@ export function deriveFeatures(input: PriceIntegrityInput): PriceIntegrityFeatur
   const lastPoint = series[series.length - 1]!;
   let peakIndex = 0;
   for (let i = 1; i < series.length; i += 1) {
-    if (series[i]!.value > series[peakIndex]!.value) peakIndex = i;
+    if (series[i]!.high > series[peakIndex]!.high) peakIndex = i;
   }
-  const peak = series[peakIndex]!;
+  const peakPoint = series[peakIndex]!;
+  const peak = { at: peakPoint.at, value: peakPoint.high, liquidity: peakPoint.liquidity };
   const after = series.slice(peakIndex + 1);
 
   let lowIndex = -1;
   for (let i = 0; i < after.length; i += 1) {
-    if (lowIndex === -1 || after[i]!.value < after[lowIndex]!.value) lowIndex = i;
+    if (lowIndex === -1 || after[i]!.low < after[lowIndex]!.low) lowIndex = i;
   }
-  const low = lowIndex >= 0 ? after[lowIndex]! : null;
+  const lowPoint = lowIndex >= 0 ? after[lowIndex]! : null;
+  const low = lowPoint ? { at: lowPoint.at, value: lowPoint.low } : null;
 
   const drawdownFromPeak = peak.value > 0 ? 1 - lastPoint.value / peak.value : null;
   const maxAdverseMove = low && peak.value > 0 ? 1 - low.value / peak.value : null;
@@ -255,6 +301,26 @@ export function deriveFeatures(input: PriceIntegrityInput): PriceIntegrityFeatur
   const afterCollapse = collapseAt
     ? series.filter((p) => new Date(p.at).getTime() > new Date(collapseAt).getTime())
     : [];
+
+  // Volume concentration: launch window versus the rest of the observed life.
+  const windowEndMs =
+    new Date(firstPoint.at).getTime() +
+    PRICE_INTEGRITY_CALIBRATION.earlyVolumeWindowMinutes * 60_000;
+  const volumePoints = series.filter((p) => p.volumeUsd !== null);
+  let earlyVolumeUsd: number | null = null;
+  let laterVolumeUsd: number | null = null;
+  if (volumePoints.length > 0) {
+    earlyVolumeUsd = 0;
+    laterVolumeUsd = 0;
+    for (const p of volumePoints) {
+      if (new Date(p.at).getTime() <= windowEndMs) earlyVolumeUsd += p.volumeUsd!;
+      else laterVolumeUsd += p.volumeUsd!;
+    }
+  }
+  const totalVolume =
+    earlyVolumeUsd === null || laterVolumeUsd === null ? null : earlyVolumeUsd + laterVolumeUsd;
+  const earlyVolumeShare =
+    totalVolume !== null && totalVolume > 0 ? (earlyVolumeUsd ?? 0) / totalVolume : null;
 
   const peakEraLiquidity = peak.liquidity;
   const currentLiquidity = lastPoint.liquidity;
@@ -282,6 +348,11 @@ export function deriveFeatures(input: PriceIntegrityInput): PriceIntegrityFeatur
         ? minutesBetween(afterCollapse[0]!.at, afterCollapse[afterCollapse.length - 1]!.at)
         : null,
     liquidityRetention,
+    peakToStabilizedRatio:
+      lastPoint.value > 0 && peak.value > 0 ? peak.value / lastPoint.value : null,
+    earlyVolumeShare,
+    earlyVolumeUsd,
+    laterVolumeUsd,
     basis,
   };
 }
@@ -382,8 +453,29 @@ export function evaluatePriceIntegrity(
     );
   }
 
+  const extremeSpike =
+    features.peakToStabilizedRatio !== null &&
+    features.peakToStabilizedRatio >= cal.extremePeakToStabilizedRatio;
+  if (extremeSpike) {
+    signals.push("EXTREME_PEAK_TO_STABILIZED_RATIO");
+    reasons.push(
+      `Early peak is ${features.peakToStabilizedRatio!.toFixed(1)}x the stabilized value (context only — never damage on its own).`,
+    );
+  }
+
+  const concentratedVolume =
+    features.earlyVolumeShare !== null &&
+    features.earlyVolumeShare >= cal.concentratedEarlyVolumeShare;
+  if (concentratedVolume) {
+    signals.push("LAUNCH_CONCENTRATED_VOLUME");
+    reasons.push(
+      `${Math.round(features.earlyVolumeShare! * 100)}% of observed USD volume traded inside the launch window.`,
+    );
+  }
+
   // Drawdown alone is never damage: damage needs launch-distortion evidence.
-  const distortionSignals = signals.filter((s) => s !== "SEVERE_DRAWDOWN");
+  const contextOnly = new Set(["SEVERE_DRAWDOWN", "EXTREME_PEAK_TO_STABILIZED_RATIO"]);
+  const distortionSignals = signals.filter((s) => !contextOnly.has(s));
   const hasLaunchDistortion = concentratedPeak && rapidSurrender;
 
   let status: PriceIntegrityStatus = "HEALTHY";
@@ -457,6 +549,8 @@ export function evaluateFromCandidateRowSummary(row: {
       minutesFromLaunchToFirstObservation: minutesFromLaunch,
       launchImpulseObserved,
       hasLiquidityHistory: false,
+      resolutions: [],
+      hasCandleHistory: false,
       sufficientForClassification: false,
       gaps,
     },
@@ -468,4 +562,53 @@ export function evaluateFromCandidateRowSummary(row: {
     ],
     sourceReferences: [],
   };
+}
+
+/** A historical candle, provider-independent. Any field may be unavailable. */
+export interface IntegrityCandle {
+  interval: string;
+  candleTime: string;
+  open: number | null;
+  high: number | null;
+  low: number | null;
+  close: number | null;
+  volumeUsd: number | null;
+}
+
+/**
+ * Map real historical candles into the evaluation input. Close is the observed
+ * value, candle extremes preserve wick geometry, and nothing absent is filled.
+ */
+export function candlesToInput(
+  candles: IntegrityCandle[],
+  launchAt: string | null,
+  setups: string[] = [],
+): PriceIntegrityInput {
+  const points: PricePoint[] = candles
+    .filter((c) => c.close !== null || c.high !== null)
+    .map((c) => ({
+      capturedAt: c.candleTime,
+      marketCap: null,
+      priceUsd: c.close ?? c.high,
+      liquidityUsd: null,
+      highPrice: c.high,
+      lowPrice: c.low,
+      volumeUsd: c.volumeUsd,
+    }));
+  return {
+    points,
+    launchAt,
+    setups,
+    resolutions: [...new Set(candles.map((c) => c.interval))],
+  };
+}
+
+/** Convenience: evaluate straight from candles. Shadow-mode like every path. */
+export function evaluateFromCandles(
+  candles: IntegrityCandle[],
+  launchAt: string | null,
+  setups: string[] = [],
+  now: string = new Date().toISOString(),
+): PriceIntegrityEvaluation {
+  return evaluatePriceIntegrity(candlesToInput(candles, launchAt, setups), now);
 }

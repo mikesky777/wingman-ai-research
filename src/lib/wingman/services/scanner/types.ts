@@ -13,6 +13,7 @@ import type { RecurrenceInfo } from "./recurrence";
 import type { RefreshDecision, RefreshPlan } from "./refresh";
 import type { UniverseAssessment } from "./universe";
 import type { StructuralEvaluation } from "./structural";
+import type { PriceIntegrityEvaluation } from "./price-integrity";
 
 export const SCANNER_VERSION = "scanner/v2";
 
@@ -307,6 +308,11 @@ export interface EvaluatedCandidate {
    * by ranking, setup classification, reservations or survivor selection.
    */
   structural?: StructuralEvaluation | null;
+  /**
+   * Price / Launch Integrity v1, SHADOW / CALIBRATION ONLY: descriptive.
+   * Never read by ranking, setup qualification or survivor selection.
+   */
+  priceIntegrity?: PriceIntegrityEvaluation | null;
 }
 
 

@@ -16,7 +16,8 @@ export type ProviderCapabilityId =
   | "holder_distribution"
   | "holder_classification"
   | "wallet_classification"
-  | "holder_positions";
+  | "holder_positions"
+  | "price_history";
 
 export interface ProviderCapability {
   id: ProviderCapabilityId;
@@ -74,6 +75,12 @@ export const PROVIDER_REGISTRY: ProviderDescriptor[] = [
         supportedChains: ["solana"],
         costTier: "standard",
         description: "Wallet-level top-holder concentration (raw, no exclusions).",
+      },
+      {
+        id: "price_history",
+        supportedChains: ["solana"],
+        costTier: "standard",
+        description: "Historical OHLCV candles (open/high/low/close, base and USD volume).",
       },
       {
         id: "holder_classification",

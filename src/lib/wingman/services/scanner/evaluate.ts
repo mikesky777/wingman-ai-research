@@ -183,7 +183,7 @@ export function evaluateCandidate(
   }
 
   const strategy = options.strategy ?? WINGMAN_DEFAULT_SETTINGS;
-  const { lanes, rejections } = evaluateSetups(token.marketCap, metrics, signals, strategy);
+  const { lanes, rejections } = evaluateSetups(token.marketCap, metrics, signals, strategy, token.volume24h);
   const priority = quantitativePriority(token, metrics, signals, lanes);
 
   // Matching no setup is NOT a rejection. The candidate is NONE: still ranked,

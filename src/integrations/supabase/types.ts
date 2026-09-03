@@ -432,6 +432,9 @@ export type Database = {
           price_change_1h: number | null
           price_change_24h: number | null
           price_change_6h: number | null
+          price_integrity_detail: Json | null
+          price_integrity_policy_version: string | null
+          price_integrity_status: string | null
           price_usd: number | null
           priority_breakdown: Json | null
           priority_components: Json | null
@@ -514,6 +517,9 @@ export type Database = {
           price_change_1h?: number | null
           price_change_24h?: number | null
           price_change_6h?: number | null
+          price_integrity_detail?: Json | null
+          price_integrity_policy_version?: string | null
+          price_integrity_status?: string | null
           price_usd?: number | null
           priority_breakdown?: Json | null
           priority_components?: Json | null
@@ -596,6 +602,9 @@ export type Database = {
           price_change_1h?: number | null
           price_change_24h?: number | null
           price_change_6h?: number | null
+          price_integrity_detail?: Json | null
+          price_integrity_policy_version?: string | null
+          price_integrity_status?: string | null
           price_usd?: number | null
           priority_breakdown?: Json | null
           priority_components?: Json | null
@@ -658,6 +667,7 @@ export type Database = {
       scan_runs: {
         Row: {
           actionable_count: number
+          base_volume_floor_diagnostics: Json | null
           bucket_diagnostics: Json | null
           calibration_mode: boolean
           completed_at: string | null
@@ -676,6 +686,7 @@ export type Database = {
           passed_ai_triage: number
           passed_hard_filters: number
           passed_quantitative_ranking: number
+          price_integrity_diagnostics: Json | null
           provider_telemetry: Json | null
           quantitatively_ranked: number
           recurrence_diagnostics: Json | null
@@ -691,6 +702,7 @@ export type Database = {
         }
         Insert: {
           actionable_count?: number
+          base_volume_floor_diagnostics?: Json | null
           bucket_diagnostics?: Json | null
           calibration_mode?: boolean
           completed_at?: string | null
@@ -709,6 +721,7 @@ export type Database = {
           passed_ai_triage?: number
           passed_hard_filters?: number
           passed_quantitative_ranking?: number
+          price_integrity_diagnostics?: Json | null
           provider_telemetry?: Json | null
           quantitatively_ranked?: number
           recurrence_diagnostics?: Json | null
@@ -724,6 +737,7 @@ export type Database = {
         }
         Update: {
           actionable_count?: number
+          base_volume_floor_diagnostics?: Json | null
           bucket_diagnostics?: Json | null
           calibration_mode?: boolean
           completed_at?: string | null
@@ -742,6 +756,7 @@ export type Database = {
           passed_ai_triage?: number
           passed_hard_filters?: number
           passed_quantitative_ranking?: number
+          price_integrity_diagnostics?: Json | null
           provider_telemetry?: Json | null
           quantitatively_ranked?: number
           recurrence_diagnostics?: Json | null
@@ -894,6 +909,66 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      token_price_candles: {
+        Row: {
+          candle_time: string
+          chain: string
+          close_price: number | null
+          contract_address: string
+          created_at: string
+          fetched_at: string
+          high_price: number | null
+          id: string
+          interval: string
+          low_price: number | null
+          open_price: number | null
+          pair_address: string | null
+          provider_unix_time: number | null
+          source: string
+          source_reference: string | null
+          volume_base: number | null
+          volume_usd: number | null
+        }
+        Insert: {
+          candle_time: string
+          chain?: string
+          close_price?: number | null
+          contract_address: string
+          created_at?: string
+          fetched_at?: string
+          high_price?: number | null
+          id?: string
+          interval: string
+          low_price?: number | null
+          open_price?: number | null
+          pair_address?: string | null
+          provider_unix_time?: number | null
+          source?: string
+          source_reference?: string | null
+          volume_base?: number | null
+          volume_usd?: number | null
+        }
+        Update: {
+          candle_time?: string
+          chain?: string
+          close_price?: number | null
+          contract_address?: string
+          created_at?: string
+          fetched_at?: string
+          high_price?: number | null
+          id?: string
+          interval?: string
+          low_price?: number | null
+          open_price?: number | null
+          pair_address?: string | null
+          provider_unix_time?: number | null
+          source?: string
+          source_reference?: string | null
+          volume_base?: number | null
+          volume_usd?: number | null
+        }
+        Relationships: []
       }
       token_scanner_outcomes: {
         Row: {

@@ -33,6 +33,11 @@ export interface SetupFilterConfig {
   requiresKnownAge: boolean;
   maxMinutesSinceLastTrade: number;
   minTurnover24h: number | null;
+  /**
+   * Hard minimum trailing 24h volume (USD) for the setup. `null` = no floor.
+   * Unavailable volume is NEVER treated as zero.
+   */
+  minVolume24hUsd: number | null;
   activityStates: ActivityState[];
   minBaselineAcceleration: number | null;
   requiresReacceleration: ReaccelerationSignal[];
@@ -72,6 +77,7 @@ export const WINGMAN_DEFAULT_SETTINGS: StrategySettings = {
       requiresKnownAge: true,
       maxMinutesSinceLastTrade: 15,
       minTurnover24h: null,
+      minVolume24hUsd: null,
       activityStates: ["ACTIVE", "ACCELERATING", "EXTREME"],
       minBaselineAcceleration: 1.15,
       requiresReacceleration: [],
@@ -89,6 +95,8 @@ export const WINGMAN_DEFAULT_SETTINGS: StrategySettings = {
       requiresKnownAge: true,
       maxMinutesSinceLastTrade: 60,
       minTurnover24h: 0.12,
+      // BASE must show meaningful participation, not just survival.
+      minVolume24hUsd: 10_000,
       activityStates: ["ACTIVE", "ACCELERATING", "EXTREME"],
       minBaselineAcceleration: null,
       requiresReacceleration: [],
@@ -106,6 +114,8 @@ export const WINGMAN_DEFAULT_SETTINGS: StrategySettings = {
       requiresKnownAge: true,
       maxMinutesSinceLastTrade: 30,
       minTurnover24h: null,
+      // REACCEL is deliberately unaffected by the BASE volume floor.
+      minVolume24hUsd: null,
       activityStates: ["ACCELERATING", "EXTREME"],
       minBaselineAcceleration: 1.4,
       requiresReacceleration: ["EARLY", "CONFIRMED", "EXTREME"],
@@ -178,6 +188,7 @@ function normalizeSetup(setup: SetupType, raw: unknown): SetupFilterConfig {
       num(r["maxMinutesSinceLastTrade"], base.maxMinutesSinceLastTrade),
     ),
     minTurnover24h: nullableNum(r["minTurnover24h"], base.minTurnover24h),
+    minVolume24hUsd: nullableNum(r["minVolume24hUsd"], base.minVolume24hUsd),
     activityStates: enumList(r["activityStates"], ACTIVITY_STATE_VALUES, base.activityStates),
     minBaselineAcceleration: nullableNum(
       r["minBaselineAcceleration"],

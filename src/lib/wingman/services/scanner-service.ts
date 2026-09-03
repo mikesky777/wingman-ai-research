@@ -3,6 +3,10 @@ import { MarketDataService } from "./market-data-service";
 import type { MarketRegime, ScanSummary, ScannedCandidate } from "../types";
 import type { DomainRefreshDecision } from "./scanner/refresh";
 import type { StructuralContextItem, StructuralRuleResult } from "./scanner/structural";
+import type {
+  PriceIntegrityCoverage,
+  PriceIntegrityFeatures,
+} from "./scanner/price-integrity";
 
 interface ScanRunRow {
   id: string;
@@ -128,7 +132,30 @@ export interface ScanRunDiagnostics {
   buckets: BucketRow[];
   lanes: LaneRow[];
   providerTelemetry: unknown;
+  /** BASE 24h volume floor effect for the run. */
+  baseVolumeFloor: BaseVolumeFloorDiagnostics | null;
+  /** Price / Launch Integrity shadow diagnostics for the run. */
+  priceIntegrity: PriceIntegrityRunDiagnostics | null;
   errorMessage: string | null;
+}
+
+export interface BaseVolumeFloorDiagnostics {
+  thresholdUsd: number | null;
+  qualifiedBase: number;
+  removedByVolumeFloor: number;
+  baseBeforeVolumeFloor: number;
+  volumeUnavailable: number;
+}
+
+export interface PriceIntegrityRunDiagnostics {
+  shadowMode: boolean;
+  candidatesRequiringHistory: number;
+  providerRequests: number;
+  servedFullyFromCache: number;
+  candlesStored: number;
+  tokensWithHistory: number;
+  failures: number;
+  statuses: Record<string, number>;
 }
 
 export interface PriorityBreakdownRow {
@@ -220,6 +247,13 @@ export interface WorkbenchCandidate {
   structuralStatus: string | null;
   structuralPolicyVersion: string | null;
   structuralDetail: StructuralDetail | null;
+  /**
+   * Price / Launch Integrity v1 (SHADOW / CALIBRATION): descriptive only.
+   * Never a veto, never an input to priority, setups or selection.
+   */
+  priceIntegrityStatus: string | null;
+  priceIntegrityPolicyVersion: string | null;
+  priceIntegrityDetail: PriceIntegrityDetail | null;
   label: string;
   labelNote: string | null;
   /**
@@ -233,6 +267,16 @@ export interface StructuralDetail {
   rules: StructuralRuleResult[];
   context: StructuralContextItem[];
   shadowMode?: boolean;
+}
+
+/** Persisted shadow Price / Launch Integrity payload. */
+export interface PriceIntegrityDetail {
+  coverage: PriceIntegrityCoverage;
+  features: PriceIntegrityFeatures;
+  signals: string[];
+  reasons: string[];
+  shadowMode?: boolean;
+  evaluatedAt?: string;
 }
 
 export interface TokenOutcome {
@@ -256,7 +300,7 @@ const OUTCOME_COLUMNS =
   "token_id, first_seen_at, first_seen_market_cap_usd, first_call_at, first_call_market_cap_usd, current_market_cap_usd, market_cap_change_since_first_seen_pct, market_cap_change_since_first_call_pct, max_gain_since_first_seen_pct, max_gain_since_first_call_pct, max_adverse_change_since_first_seen_pct, max_adverse_change_since_first_call_pct, max_peak_to_trough_drawdown_since_first_seen_pct, max_peak_to_trough_drawdown_since_first_call_pct, observation_count";
 
 const WORKBENCH_COLUMNS =
-  "id, token_id, contract_address, discovery_lanes, lane_rejections, discovery_queries, discovery_ranks, token_age_minutes, age_basis, market_cap, market_cap_bucket, liquidity_usd, price_usd, volume_1h, volume_24h, trades_1h, trades_24h, buys_24h, sells_24h, holder_count, price_change_1h, price_change_24h, volume_to_market_cap_24h, volume_to_liquidity_24h, activity_state, persistence_signal, reacceleration_signal, extension_risk, extension_reasons, attention_price_divergence, structural_safety, token_security, quantitative_priority, priority_breakdown, metrics_detail, global_rank, lane_ranks, selected_by_lane_reservation, selected_by_global_ranking, history_snapshot_count, stage_reached, rejection_reason, rejection_details, enriched, recurrence_state, first_seen_scan_at, previous_seen_scan_at, scans_seen_count, consecutive_scans_seen, previous_quantitative_priority, priority_delta, previous_setups, setup_changed, previous_selected_as_survivor, last_selected_as_survivor_at, recurrence_detail, refresh_state, evidence_carried_forward, last_enriched_at, evidence_age_minutes, refresh_domains, universe_eligibility, universe_category, universe_reason, structural_status, structural_policy_version, structural_detail, token:tokens!inner(id, name, symbol)";
+  "id, token_id, contract_address, discovery_lanes, lane_rejections, discovery_queries, discovery_ranks, token_age_minutes, age_basis, market_cap, market_cap_bucket, liquidity_usd, price_usd, volume_1h, volume_24h, trades_1h, trades_24h, buys_24h, sells_24h, holder_count, price_change_1h, price_change_24h, volume_to_market_cap_24h, volume_to_liquidity_24h, activity_state, persistence_signal, reacceleration_signal, extension_risk, extension_reasons, attention_price_divergence, structural_safety, token_security, quantitative_priority, priority_breakdown, metrics_detail, global_rank, lane_ranks, selected_by_lane_reservation, selected_by_global_ranking, history_snapshot_count, stage_reached, rejection_reason, rejection_details, enriched, recurrence_state, first_seen_scan_at, previous_seen_scan_at, scans_seen_count, consecutive_scans_seen, previous_quantitative_priority, priority_delta, previous_setups, setup_changed, previous_selected_as_survivor, last_selected_as_survivor_at, recurrence_detail, refresh_state, evidence_carried_forward, last_enriched_at, evidence_age_minutes, refresh_domains, universe_eligibility, universe_category, universe_reason, structural_status, structural_policy_version, structural_detail, price_integrity_status, price_integrity_policy_version, price_integrity_detail, token:tokens!inner(id, name, symbol)";
 
 const RUN_COLUMNS =
   "id, started_at, completed_at, status, tokens_scanned, tokens_discovered, passed_hard_filters, passed_quantitative_ranking, quantitatively_ranked, passed_ai_triage, deep_researched, enriched_count, actionable_count, market_regime, scanner_version, discovery_config_version, calibration_mode, provider_telemetry";
@@ -364,7 +408,7 @@ export const ScannerService = {
     const { data, error } = await supabase
       .from("scan_runs")
       .select(
-        "id, status, started_at, completed_at, duration_ms, survivor_limit, calibration_mode, scanner_version, discovery_config_version, bucket_diagnostics, lane_diagnostics, provider_telemetry, error_message",
+        "id, status, started_at, completed_at, duration_ms, survivor_limit, calibration_mode, scanner_version, discovery_config_version, bucket_diagnostics, lane_diagnostics, provider_telemetry, base_volume_floor_diagnostics, price_integrity_diagnostics, error_message",
       )
       .eq("id", scanRunId)
       .maybeSingle();
@@ -384,6 +428,10 @@ export const ScannerService = {
       buckets: (r["bucket_diagnostics"] as BucketRow[] | null) ?? [],
       lanes: (r["lane_diagnostics"] as LaneRow[] | null) ?? [],
       providerTelemetry: r["provider_telemetry"],
+      baseVolumeFloor:
+        (r["base_volume_floor_diagnostics"] as BaseVolumeFloorDiagnostics | null) ?? null,
+      priceIntegrity:
+        (r["price_integrity_diagnostics"] as PriceIntegrityRunDiagnostics | null) ?? null,
       errorMessage: (r["error_message"] as string | null) ?? null,
     };
   },
@@ -487,6 +535,11 @@ export const ScannerService = {
         structuralStatus: (r["structural_status"] as string | null) ?? null,
         structuralPolicyVersion: (r["structural_policy_version"] as string | null) ?? null,
         structuralDetail: (r["structural_detail"] as StructuralDetail | null) ?? null,
+        priceIntegrityStatus: (r["price_integrity_status"] as string | null) ?? null,
+        priceIntegrityPolicyVersion:
+          (r["price_integrity_policy_version"] as string | null) ?? null,
+        priceIntegrityDetail:
+          (r["price_integrity_detail"] as PriceIntegrityDetail | null) ?? null,
         recurrenceChangeReasons:
           ((r["recurrence_detail"] as { changeReasons?: string[] } | null)?.changeReasons ?? []),
         label: labels[token.id]?.label ?? "UNREVIEWED",

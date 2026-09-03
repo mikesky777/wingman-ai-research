@@ -49,6 +49,14 @@ import {
   persistStructuralEvaluations,
   type StructuralTarget,
 } from "./structural.server";
+import { isStructurallyEligible } from "./structural";
+import {
+  evaluatePriceIntegrityForTargets,
+  EMPTY_PRICE_INTEGRITY_DIAGNOSTICS,
+  type PriceIntegrityDiagnostics,
+  type PriceIntegrityTarget,
+} from "./price-integrity.server";
+import { SETUP_VOLUME_FLOOR_TOO_LOW } from "./lanes";
 import {
   classifyUniverse,
   universeDiagnostics,
@@ -102,6 +110,16 @@ export interface ScanRunSummary {
   universe: UniverseDiagnostics;
   /** Shadow-mode structural counts. Never affects selection. */
   structural: StructuralDiagnostics | null;
+  /** BASE 24h-volume floor effect for this run. */
+  baseVolumeFloor: {
+    thresholdUsd: number | null;
+    qualifiedBase: number;
+    removedByVolumeFloor: number;
+    baseBeforeVolumeFloor: number;
+    volumeUnavailable: number;
+  };
+  /** Price / Launch Integrity (shadow). Never affects selection. */
+  priceIntegrity: PriceIntegrityDiagnostics;
 }
 
 export interface RunScanResult {
@@ -298,6 +316,43 @@ export async function runScannerPipeline(
     const survivors = selection.survivors;
 
 
+    // Price / Launch Integrity v1 — SHADOW / CALIBRATION. Runs AFTER selection
+    // so it can never influence it, and only for the narrow set where launch
+    // structure is meaningful: structurally eligible, in-scope BASE survivors.
+    let priceIntegrity: PriceIntegrityDiagnostics = { ...EMPTY_PRICE_INTEGRITY_DIAGNOSTICS };
+    try {
+      const historyTargets: PriceIntegrityTarget[] = survivors
+        .filter(
+          (c) =>
+            c.lanes.includes("BASE") &&
+            isStructurallyEligible(c.structural?.status ?? null) &&
+            (c.universe?.eligibility ?? "UNKNOWN") !== "OUT_OF_SCOPE",
+        )
+        .map((c) => {
+          const ctx = context.get(c.token.contractAddress);
+          return {
+            contractAddress: c.token.contractAddress,
+            chain: c.token.chain,
+            launchAt:
+              ctx?.pairCreatedAt ?? ctx?.tokenCreatedAt ?? c.token.listedAt ?? null,
+            setups: c.lanes,
+            pairAddress: markets.get(c.token.contractAddress)?.pairAddress ?? null,
+          };
+        });
+      const result = await evaluatePriceIntegrityForTargets(historyTargets, {
+        track: (fn) => telemetry.track("birdeye", "price_history", fn),
+      });
+      for (const candidate of survivors) {
+        candidate.priceIntegrity = result.evaluations.get(candidate.token.contractAddress) ?? null;
+      }
+      priceIntegrity = result.diagnostics;
+    } catch (priceError) {
+      console.error(
+        "price integrity evaluation failed",
+        priceError instanceof Error ? priceError.message : priceError,
+      );
+    }
+
     // Persist survivors first, then rejected candidates up to the cap.
     const survivorSet = new Set(survivors.map((s) => s.token.contractAddress));
     const others = ranked.filter((c) => !survivorSet.has(c.token.contractAddress));
@@ -455,6 +510,16 @@ export async function runScannerPipeline(
     const buckets = bucketDiagnostics(evaluated);
     const lanes = laneDiagnostics(evaluated);
 
+    const baseFloor = config.strategy.setups.BASE.minVolume24hUsd;
+    const floorPrefix = SETUP_VOLUME_FLOOR_TOO_LOW("BASE");
+    const qualifiedBase = evaluated.filter((c) => c.lanes.includes("BASE")).length;
+    const removedByVolumeFloor = evaluated.filter((c) =>
+      (c.laneRejections["BASE"] ?? "").startsWith(floorPrefix),
+    ).length;
+    const volumeUnavailable = evaluated.filter((c) =>
+      (c.laneRejections["BASE"] ?? "").startsWith("BASE_VOLUME_24H_UNAVAILABLE"),
+    ).length;
+
     const summary: ScanRunSummary = {
       runId,
       scannerVersion: SCANNER_VERSION,
@@ -479,6 +544,14 @@ export async function runScannerPipeline(
       refresh: refreshDiagnostics,
       universe,
       structural,
+      baseVolumeFloor: {
+        thresholdUsd: baseFloor,
+        qualifiedBase,
+        removedByVolumeFloor,
+        baseBeforeVolumeFloor: qualifiedBase + removedByVolumeFloor,
+        volumeUnavailable,
+      },
+      priceIntegrity,
     };
 
     await completeScanRun({
@@ -496,6 +569,8 @@ export async function runScannerPipeline(
       refreshDiagnostics,
       universeDiagnostics: universe,
       structuralDiagnostics: structural,
+      baseVolumeFloorDiagnostics: summary.baseVolumeFloor,
+      priceIntegrityDiagnostics: priceIntegrity,
       notes: `${SCANNER_VERSION} · ${DISCOVERY_CONFIG_VERSION}`,
     });
 
