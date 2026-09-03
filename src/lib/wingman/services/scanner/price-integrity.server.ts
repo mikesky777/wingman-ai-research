@@ -80,7 +80,7 @@ export async function evaluatePriceIntegrityForTargets(
             launchAt: target.launchAt,
             pairAddress: target.pairAddress ?? null,
           },
-          { now: options.now, track: options.track },
+          { ...(options.now ? { now: options.now } : {}), ...(options.track ? { track: options.track } : {}) },
         );
         diagnostics.providerRequests += history.providerRequests;
         diagnostics.candlesStored += history.candlesStored;
