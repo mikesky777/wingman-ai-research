@@ -132,7 +132,30 @@ export interface ScanRunDiagnostics {
   buckets: BucketRow[];
   lanes: LaneRow[];
   providerTelemetry: unknown;
+  /** BASE 24h volume floor effect for the run. */
+  baseVolumeFloor: BaseVolumeFloorDiagnostics | null;
+  /** Price / Launch Integrity shadow diagnostics for the run. */
+  priceIntegrity: PriceIntegrityRunDiagnostics | null;
   errorMessage: string | null;
+}
+
+export interface BaseVolumeFloorDiagnostics {
+  thresholdUsd: number | null;
+  qualifiedBase: number;
+  removedByVolumeFloor: number;
+  baseBeforeVolumeFloor: number;
+  volumeUnavailable: number;
+}
+
+export interface PriceIntegrityRunDiagnostics {
+  shadowMode: boolean;
+  candidatesRequiringHistory: number;
+  providerRequests: number;
+  servedFullyFromCache: number;
+  candlesStored: number;
+  tokensWithHistory: number;
+  failures: number;
+  statuses: Record<string, number>;
 }
 
 export interface PriorityBreakdownRow {
@@ -385,7 +408,7 @@ export const ScannerService = {
     const { data, error } = await supabase
       .from("scan_runs")
       .select(
-        "id, status, started_at, completed_at, duration_ms, survivor_limit, calibration_mode, scanner_version, discovery_config_version, bucket_diagnostics, lane_diagnostics, provider_telemetry, error_message",
+        "id, status, started_at, completed_at, duration_ms, survivor_limit, calibration_mode, scanner_version, discovery_config_version, bucket_diagnostics, lane_diagnostics, provider_telemetry, base_volume_floor_diagnostics, price_integrity_diagnostics, error_message",
       )
       .eq("id", scanRunId)
       .maybeSingle();
@@ -405,6 +428,10 @@ export const ScannerService = {
       buckets: (r["bucket_diagnostics"] as BucketRow[] | null) ?? [],
       lanes: (r["lane_diagnostics"] as LaneRow[] | null) ?? [],
       providerTelemetry: r["provider_telemetry"],
+      baseVolumeFloor:
+        (r["base_volume_floor_diagnostics"] as BaseVolumeFloorDiagnostics | null) ?? null,
+      priceIntegrity:
+        (r["price_integrity_diagnostics"] as PriceIntegrityRunDiagnostics | null) ?? null,
       errorMessage: (r["error_message"] as string | null) ?? null,
     };
   },
