@@ -26,6 +26,7 @@ type NumericField =
   | "ageMaxMinutes"
   | "maxMinutesSinceLastTrade"
   | "minTurnover24h"
+  | "minVolume24hUsd"
   | "minBaselineAcceleration";
 
 const FIELDS: { key: NumericField; label: string; hint: string }[] = [
@@ -35,6 +36,11 @@ const FIELDS: { key: NumericField; label: string; hint: string }[] = [
   { key: "ageMaxMinutes", label: "Max age (minutes)", hint: "blank = no limit" },
   { key: "maxMinutesSinceLastTrade", label: "Max minutes since last trade", hint: "required" },
   { key: "minTurnover24h", label: "Min 24h turnover (ratio)", hint: "0.12 = 12%" },
+  {
+    key: "minVolume24hUsd",
+    label: "Min 24h volume ($)",
+    hint: "blank = no floor; unavailable volume is never treated as zero",
+  },
   { key: "minBaselineAcceleration", label: "Min baseline acceleration", hint: "blank = not required" },
 ];
 
