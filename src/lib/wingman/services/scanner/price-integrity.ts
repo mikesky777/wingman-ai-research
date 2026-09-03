@@ -616,28 +616,86 @@ export function evaluatePriceIntegrity(
     );
   }
 
-  const concentratedVolume =
+  // v1.1: the 12h share is DESCRIPTIVE ONLY. It never forms a signal, because a
+  // young token whose whole life sits inside 12h would otherwise be penalized.
+  if (
     features.earlyVolumeShare !== null &&
-    features.earlyVolumeShare >= cal.concentratedEarlyVolumeShare;
-  if (concentratedVolume) {
-    signals.push("LAUNCH_CONCENTRATED_VOLUME");
+    features.earlyVolumeShare >= cal.concentratedEarlyVolumeShare
+  ) {
     reasons.push(
-      `${Math.round(features.earlyVolumeShare! * 100)}% of observed USD volume traded inside the launch window.`,
+      `${Math.round(features.earlyVolumeShare! * 100)}% of observed USD volume traded inside the 12h high-resolution window (descriptive context only).`,
     );
   }
 
-  // Drawdown alone is never damage: damage needs launch-distortion evidence.
+  // v1.1: age-normalized concentration. USD/min in the launch hour vs later.
+  const concentratedVolume =
+    features.launchToLaterVolumeRateRatio !== null &&
+    features.launchToLaterVolumeRateRatio >= cal.concentratedVolumeRateRatio;
+  if (concentratedVolume) {
+    signals.push("LAUNCH_CONCENTRATED_VOLUME");
+    reasons.push(
+      `Launch-hour volume rate is ${features.launchToLaterVolumeRateRatio!.toFixed(1)}x the later-lifecycle rate (${Math.round((features.first1hVolumeShare ?? 0) * 100)}% of observed volume in the first hour).`,
+    );
+  }
+
+  // v1.1: repair is measured against the ORIGINAL peak, never the crash low.
+  const weakNormalizedReclaim =
+    features.peakRepairFraction !== null &&
+    features.peakRepairFraction < cal.weakPeakRepairFraction;
+  if (weakNormalizedReclaim) {
+    signals.push("WEAK_NORMALIZED_RECLAIM");
+    reasons.push(
+      `Only ${Math.round(features.peakRepairFraction! * 100)}% of the peak→low damage was reclaimed (normalized against the original peak).`,
+    );
+  }
+  const repaired =
+    (features.peakRepairFraction !== null &&
+      features.peakRepairFraction >= cal.repairedPeakFraction) ||
+    (features.currentToOriginalPeakRatio !== null &&
+      features.currentToOriginalPeakRatio >= cal.repairedCurrentToPeakRatio);
+  if (repaired) {
+    reasons.push(
+      `Structure repaired on a peak-normalized basis (reclaimed ${Math.round((features.peakRepairFraction ?? 0) * 100)}% of the damage; now ${Math.round((features.currentToOriginalPeakRatio ?? 0) * 100)}% of the original peak).`,
+    );
+  }
+
+  // v1.1: blowoffs are not only a launch phenomenon.
+  const lateBlowoff =
+    !concentratedPeak &&
+    features.peakToPrePeakBaselineRatio !== null &&
+    features.peakToPrePeakBaselineRatio >= cal.blowoffPeakToBaselineRatio &&
+    rapidSurrender &&
+    weakNormalizedReclaim &&
+    !repaired;
+  if (lateBlowoff) {
+    signals.push("LIFECYCLE_BLOWOFF_COLLAPSE");
+    reasons.push(
+      `Late-lifecycle blowoff: peak was ${features.peakToPrePeakBaselineRatio!.toFixed(1)}x the preceding baseline, surrendered rapidly and was never reclaimed.`,
+    );
+  }
+
+  // Drawdown alone is never damage: damage needs distortion + failed repair.
   const contextOnly = new Set(["SEVERE_DRAWDOWN", "EXTREME_PEAK_TO_STABILIZED_RATIO"]);
   const distortionSignals = signals.filter((s) => !contextOnly.has(s));
   const hasLaunchDistortion = concentratedPeak && rapidSurrender;
 
   let status: PriceIntegrityStatus = "HEALTHY";
-  if (hasLaunchDistortion && signals.length >= cal.minDamageSignals && distortionSignals.length >= 3) {
+  if (
+    (hasLaunchDistortion || lateBlowoff) &&
+    !repaired &&
+    weakNormalizedReclaim &&
+    signals.length >= cal.minDamageSignals &&
+    distortionSignals.length >= 3
+  ) {
     status = "DAMAGED";
-    reasons.unshift("Concentrated launch peak, rapid surrender and no repaired structure.");
-  } else if (distortionSignals.length >= cal.minConcernSignals) {
+    reasons.unshift(
+      lateBlowoff
+        ? "Lifecycle blowoff, rapid surrender and no peak-normalized repair."
+        : "Concentrated launch peak, rapid surrender and no peak-normalized repair.",
+    );
+  } else if (distortionSignals.length >= cal.minConcernSignals && !repaired) {
     status = "CONCERN";
-    reasons.unshift("Some launch-distortion evidence, but not enough to call the lifecycle damaged.");
+    reasons.unshift("Some distortion evidence, but not enough to call the lifecycle damaged.");
   } else {
     reasons.unshift(
       "Observed lifecycle is consistent with constructive cooldown and consolidation.",
