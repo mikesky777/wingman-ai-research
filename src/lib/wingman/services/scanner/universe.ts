@@ -25,6 +25,7 @@ export type UniverseCategory =
   | "WRAPPED_ASSET"
   | "LIQUID_STAKING"
   | "RECEIPT_OR_LP"
+  | "TOKENIZED_EQUITY"
   | "OTHER_FINANCIAL_PRIMITIVE";
 
 /** Why a candidate carries its eligibility. Machine-readable + human note. */
@@ -140,6 +141,141 @@ export const UNIVERSE_REGISTRY: RegistryEntry[] = [
     category: "RECEIPT_OR_LP",
     note: "Staked Orca (xORCA) receipt token — verified mint in Wingman token records.",
   },
+
+  // --- Registry maintenance 2026-09-03: mints observed in Wingman's own scan
+  // history, each verified against the stored `tokens` record for that exact
+  // mint. Nothing here was inferred from a symbol or a resemblance.
+  {
+    mint: "USD1ttGY1N17NEEHLmELoaybftRBUSErhqYiQzvEmuB",
+    category: "STABLE_ASSET",
+    note: "World Liberty Financial USD (USD1) — verified mint in Wingman token records.",
+  },
+  {
+    mint: "2u1tszSeqZ3qBWF3uNGPFc8TzMk2tdiwknnRMWGWjGWH",
+    category: "STABLE_ASSET",
+    note: "Global Dollar (USDG) — verified mint in Wingman token records.",
+  },
+  {
+    mint: "USDH1SM1ojwWUga67PGrgFWUHibbjqMvuMaDkRJTgkX",
+    category: "STABLE_ASSET",
+    note: "USDH Hubble Stablecoin — verified mint in Wingman token records.",
+  },
+  {
+    mint: "5BkRoYVvrX4sYV32pWM2GRyt3c8yR2NHJDyw1kTcVCzy",
+    category: "STABLE_ASSET",
+    note: "Syntropia USDC (synUSD) — verified mint in Wingman token records.",
+  },
+  {
+    mint: "AvZZF1YaZDziPY2RCK4oJrRVrbN3mTD9NL24hPeaZeUj",
+    category: "RECEIPT_OR_LP",
+    note: "Syrup USDC yield-bearing receipt — verified mint in Wingman token records.",
+  },
+  {
+    mint: "9BEcn9aPEmhSPbPQeFGjidRiEKki46fVQDyPpSQXPA2D",
+    category: "RECEIPT_OR_LP",
+    note: "Jupiter Lend USDC (jlUSDC) lending receipt — verified mint in Wingman token records.",
+  },
+  {
+    mint: "27G8MtK7VtTcCHkpASjSDdkWWYfoqT6ggEuKidVJidD4",
+    category: "RECEIPT_OR_LP",
+    note: "Jupiter Perps LP (JLP) pool token — verified mint in Wingman token records.",
+  },
+
+  // Liquid-staking assets.
+  {
+    mint: "mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So",
+    category: "LIQUID_STAKING",
+    note: "Marinade staked SOL (mSOL) — verified mint in Wingman token records.",
+  },
+  {
+    mint: "LSTxxxnJzKDFSLr4dUkPcmCf5VyryEqzPLz5j4bpxFp",
+    category: "LIQUID_STAKING",
+    note: "Liquid Staking Token (LST) — verified mint in Wingman token records.",
+  },
+  {
+    mint: "axiom1dWfDXKn6r4pn3jjaYuLTExG5TdLuAqXQohNuG",
+    category: "LIQUID_STAKING",
+    note: "Axiom Staked SOL (axiSOL) — verified mint in Wingman token records.",
+  },
+  {
+    mint: "HUBsveNpjo5pWqNkH57QzxjQASdTVXcSK7bVKTSZtcSX",
+    category: "LIQUID_STAKING",
+    note: "Hubra staked SOL (raSOL) — verified mint in Wingman token records.",
+  },
+
+  // Wrapped / bridged majors.
+  {
+    mint: "zBTCug3er3tLyffELcvDNrKkCymbPWysGcWihESYfLg",
+    category: "WRAPPED_ASSET",
+    note: "zBTC Bitcoin representation — verified mint in Wingman token records.",
+  },
+
+  // Tokenized equities / ETFs (xStocks, Backpack Securities, Ondo, PreStocks).
+  {
+    mint: "XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB",
+    category: "TOKENIZED_EQUITY",
+    note: "Tesla xStock (TSLAx) — verified mint in Wingman token records.",
+  },
+  {
+    mint: "XsP7xzNPvEHS1m6qfanPUGjNmdnmsLKEoNAnHjdxxyZ",
+    category: "TOKENIZED_EQUITY",
+    note: "MicroStrategy xStock (MSTRx) — verified mint in Wingman token records.",
+  },
+  {
+    mint: "XsjFwUPiLofddX5cWFHW35GCbXcSu1BCUGfxoQAQjeL",
+    category: "TOKENIZED_EQUITY",
+    note: "Oracle xStock (ORCLx) — verified mint in Wingman token records.",
+  },
+  {
+    mint: "Xs2yquAgsHByNzx68WJC55WHjHBvG9JsMB7CWjTLyPy",
+    category: "TOKENIZED_EQUITY",
+    note: "DFDV xStock (DFDVx) — verified mint in Wingman token records.",
+  },
+  {
+    mint: "XsaBXg8dU5cPM6ehmVctMkVqoiRG2ZjMo1cyBJ3AykQ",
+    category: "TOKENIZED_EQUITY",
+    note: "Coca-Cola xStock (KOx) — verified mint in Wingman token records.",
+  },
+  {
+    mint: "XsfCC9VL4DamVGNgdJpfLXB3sBVa158Gbx8sh7NzmTk",
+    category: "TOKENIZED_EQUITY",
+    note: "Vida Global xStock (VIDAx) — verified mint in Wingman token records.",
+  },
+  {
+    mint: "MSTRdWXMeZxdE8osAQy3fA4rvTY5rgummDSMEx6U7Nz",
+    category: "TOKENIZED_EQUITY",
+    note: "Strategy — Backpack Securities tokenized equity; verified mint in Wingman token records.",
+  },
+  {
+    mint: "SNDKbwMUQvZhnLnxLduradgLHG5KrPuKwpnrkkGRhfH",
+    category: "TOKENIZED_EQUITY",
+    note: "Sandisk — Backpack Securities tokenized equity; verified mint in Wingman token records.",
+  },
+  {
+    mint: "GPRR2u6NS5yBQHWGauoJ9HXgjrTH8dDsrBfTV5zAYvDH",
+    category: "TOKENIZED_EQUITY",
+    note: "GoPro — Backpack Securities tokenized equity; verified mint in Wingman token records.",
+  },
+  {
+    mint: "DRAMjSWR7HRfJKjRkvQWYL2bcaejaVhuxEcjf4pAY4Cw",
+    category: "TOKENIZED_EQUITY",
+    note: "Roundhill Memory ETF — Backpack Securities; verified mint in Wingman token records.",
+  },
+  {
+    mint: "cJpUMp5R7rZ6fGeLHbHhrRuJzK9mkyKDjZqNpT3ondo",
+    category: "TOKENIZED_EQUITY",
+    note: "Intel (Ondo Tokenized) — verified mint in Wingman token records.",
+  },
+  {
+    mint: "X7j77hTmjZJbepkXXBcsEapM8qNgdfihkFj6CZ5ondo",
+    category: "TOKENIZED_EQUITY",
+    note: "Global X Copper Miners ETF (Ondo Tokenized) — verified mint in Wingman token records.",
+  },
+  {
+    mint: "PreweJYECqtQwBtpxHL171nL2K6umo692gTm7Q3rpgF",
+    category: "TOKENIZED_EQUITY",
+    note: "OpenAI PreStocks tokenized pre-IPO equity — verified mint in Wingman token records.",
+  },
 ];
 
 const REGISTRY_BY_MINT: Map<string, RegistryEntry> = new Map(
@@ -151,6 +287,7 @@ export const CATEGORY_LABELS: Record<UniverseCategory, string> = {
   WRAPPED_ASSET: "Wrapped / bridged asset",
   LIQUID_STAKING: "Liquid staking token",
   RECEIPT_OR_LP: "Receipt / LP token",
+  TOKENIZED_EQUITY: "Tokenized equity / ETF",
   OTHER_FINANCIAL_PRIMITIVE: "Financial primitive",
 };
 
