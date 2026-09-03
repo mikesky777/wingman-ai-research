@@ -667,6 +667,7 @@ export type Database = {
       scan_runs: {
         Row: {
           actionable_count: number
+          base_volume_floor_diagnostics: Json | null
           bucket_diagnostics: Json | null
           calibration_mode: boolean
           completed_at: string | null
@@ -685,6 +686,7 @@ export type Database = {
           passed_ai_triage: number
           passed_hard_filters: number
           passed_quantitative_ranking: number
+          price_integrity_diagnostics: Json | null
           provider_telemetry: Json | null
           quantitatively_ranked: number
           recurrence_diagnostics: Json | null
@@ -700,6 +702,7 @@ export type Database = {
         }
         Insert: {
           actionable_count?: number
+          base_volume_floor_diagnostics?: Json | null
           bucket_diagnostics?: Json | null
           calibration_mode?: boolean
           completed_at?: string | null
@@ -718,6 +721,7 @@ export type Database = {
           passed_ai_triage?: number
           passed_hard_filters?: number
           passed_quantitative_ranking?: number
+          price_integrity_diagnostics?: Json | null
           provider_telemetry?: Json | null
           quantitatively_ranked?: number
           recurrence_diagnostics?: Json | null
@@ -733,6 +737,7 @@ export type Database = {
         }
         Update: {
           actionable_count?: number
+          base_volume_floor_diagnostics?: Json | null
           bucket_diagnostics?: Json | null
           calibration_mode?: boolean
           completed_at?: string | null
@@ -751,6 +756,7 @@ export type Database = {
           passed_ai_triage?: number
           passed_hard_filters?: number
           passed_quantitative_ranking?: number
+          price_integrity_diagnostics?: Json | null
           provider_telemetry?: Json | null
           quantitatively_ranked?: number
           recurrence_diagnostics?: Json | null
