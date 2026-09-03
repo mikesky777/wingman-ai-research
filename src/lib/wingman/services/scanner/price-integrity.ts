@@ -1,0 +1,409 @@
+/**
+ * Price / Launch Integrity v1 — deterministic, pure, SHADOW / CALIBRATION ONLY.
+ *
+ * Purpose: distinguish a constructive post-launch lifecycle (impulse → cooldown
+ * → sustained trading → consolidation) from a structurally damaged one
+ * (concentrated launch spike → catastrophic surrender → no meaningful
+ * recovery). It is NOT a thesis score, NOT entry quality and NOT safety.
+ *
+ * Hard rules:
+ *   - Deep drawdown ALONE can never produce DAMAGED.
+ *   - Missing history is UNKNOWN. It is never DAMAGED and never zero.
+ *   - Launch behaviour that was not observed is never inferred or fabricated.
+ *   - This module is read by nobody in the scan pipeline: it cannot affect
+ *     Quantitative Research Priority, setup qualification, Structural
+ *     Eligibility, Survivor selection or outcomes.
+ */
+
+export const PRICE_INTEGRITY_POLICY_VERSION = "price_integrity/v1";
+
+/** Shadow mode: evaluation is observational only. Never a veto. */
+export const PRICE_INTEGRITY_SHADOW_MODE = true;
+
+export type PriceIntegrityStatus = "HEALTHY" | "CONCERN" | "DAMAGED" | "UNKNOWN";
+
+/**
+ * CALIBRATION DEFAULTS — not universal truths. Every threshold lives here so a
+ * calibration change is one versioned edit, never a scattered constant.
+ */
+export const PRICE_INTEGRITY_CALIBRATION = {
+  version: PRICE_INTEGRITY_POLICY_VERSION,
+  /** Minimum usable observations before any classification is attempted. */
+  minObservations: 8,
+  /** Minimum observed window (minutes) before any classification. */
+  minObservedWindowMinutes: 6 * 60,
+  /**
+   * The early peak must be observed close enough to launch for "launch
+   * integrity" to mean anything. Beyond this, launch behaviour is unobserved.
+   */
+  maxMinutesFromLaunchToFirstObservation: 90,
+  /** Peak reached within this window of the first observation = concentrated. */
+  concentratedPeakMinutes: 60,
+  /** Losing this share of the peak within `rapidSurrenderMinutes` = rapid. */
+  rapidSurrenderFraction: 0.7,
+  rapidSurrenderMinutes: 120,
+  /** Drawdown considered severe. Severe ALONE is never damage. */
+  severeDrawdown: 0.85,
+  /** Recovery from the post-peak low below this is "weak". */
+  weakRecoveryFromLow: 0.25,
+  /** Subsequent highs must improve by at least this to count as improving. */
+  improvingSubsequentHigh: 0.15,
+  /** Liquidity retained vs peak-era liquidity below this is poor retention. */
+  poorLiquidityRetention: 0.25,
+  /** Damage requires at least this many independent damage signals. */
+  minDamageSignals: 4,
+  /** Concern requires at least this many. */
+  minConcernSignals: 2,
+} as const;
+
+/** One observed point. Any field may be null = genuinely unavailable. */
+export interface PricePoint {
+  capturedAt: string;
+  marketCap: number | null;
+  priceUsd: number | null;
+  liquidityUsd: number | null;
+}
+
+export interface PriceIntegrityInput {
+  /** Observations, any order. Points with no market cap and no price are unusable. */
+  points: PricePoint[];
+  /** Token/pair creation time (ISO), when actually known. Null = unknown. */
+  launchAt: string | null;
+  /** Setup context. Only changes how the result is *described*, never gated. */
+  setups?: string[];
+}
+
+export interface PriceIntegrityCoverage {
+  observations: number;
+  usableObservations: number;
+  firstObservedAt: string | null;
+  lastObservedAt: string | null;
+  observedWindowMinutes: number | null;
+  /** Minutes between launch and Wingman's first stored observation. */
+  minutesFromLaunchToFirstObservation: number | null;
+  /** True only when the launch impulse itself was plausibly observed. */
+  launchImpulseObserved: boolean;
+  hasLiquidityHistory: boolean;
+  sufficientForClassification: boolean;
+  gaps: string[];
+}
+
+/** Derived features. `null` always means "not derivable from real data". */
+export interface PriceIntegrityFeatures {
+  earliestValue: number | null;
+  peakValue: number | null;
+  currentValue: number | null;
+  postPeakLowValue: number | null;
+  /** Peak → current, as a fraction (0.9 = 90% below peak). */
+  drawdownFromPeak: number | null;
+  /** Max adverse move observed across the early lifecycle. */
+  maxAdverseMove: number | null;
+  minutesFirstObservationToPeak: number | null;
+  minutesPeakToMajorDrawdown: number | null;
+  /** Recovery off the post-peak low, as a fraction of that low. */
+  recoveryFromLow: number | null;
+  /** Best post-collapse high vs the post-peak low. */
+  subsequentHighImprovement: number | null;
+  observationsAfterCollapse: number;
+  minutesSustainedAfterCollapse: number | null;
+  liquidityRetention: number | null;
+  basis: "market_cap" | "price" | "none";
+}
+
+export interface PriceIntegrityEvaluation {
+  status: PriceIntegrityStatus;
+  policyVersion: string;
+  shadowMode: boolean;
+  evaluatedAt: string;
+  coverage: PriceIntegrityCoverage;
+  features: PriceIntegrityFeatures;
+  /** Named damage signals that actually fired. Never inferred. */
+  signals: string[];
+  reasons: string[];
+  /** Source references for the observations used. */
+  sourceReferences: string[];
+}
+
+function minutesBetween(a: string, b: string): number {
+  return (new Date(b).getTime() - new Date(a).getTime()) / 60000;
+}
+
+const EMPTY_FEATURES: PriceIntegrityFeatures = {
+  earliestValue: null,
+  peakValue: null,
+  currentValue: null,
+  postPeakLowValue: null,
+  drawdownFromPeak: null,
+  maxAdverseMove: null,
+  minutesFirstObservationToPeak: null,
+  minutesPeakToMajorDrawdown: null,
+  recoveryFromLow: null,
+  subsequentHighImprovement: null,
+  observationsAfterCollapse: 0,
+  minutesSustainedAfterCollapse: null,
+  liquidityRetention: null,
+  basis: "none",
+};
+
+/** Coverage assessment. Pure bookkeeping — no judgement about the token. */
+export function assessCoverage(input: PriceIntegrityInput): PriceIntegrityCoverage {
+  const cal = PRICE_INTEGRITY_CALIBRATION;
+  const sorted = [...input.points].sort(
+    (a, b) => new Date(a.capturedAt).getTime() - new Date(b.capturedAt).getTime(),
+  );
+  const usable = sorted.filter((p) => p.marketCap !== null || p.priceUsd !== null);
+  const first = usable[0] ?? null;
+  const last = usable[usable.length - 1] ?? null;
+
+  const observedWindowMinutes =
+    first && last ? minutesBetween(first.capturedAt, last.capturedAt) : null;
+  const minutesFromLaunch =
+    input.launchAt && first ? minutesBetween(input.launchAt, first.capturedAt) : null;
+  const launchImpulseObserved =
+    minutesFromLaunch !== null && minutesFromLaunch <= cal.maxMinutesFromLaunchToFirstObservation;
+
+  const gaps: string[] = [];
+  if (usable.length < cal.minObservations) {
+    gaps.push(`Only ${usable.length} usable observations (need ${cal.minObservations}).`);
+  }
+  if (observedWindowMinutes !== null && observedWindowMinutes < cal.minObservedWindowMinutes) {
+    gaps.push(`Observed window is ${Math.round(observedWindowMinutes)}m (need ${cal.minObservedWindowMinutes}m).`);
+  }
+  if (minutesFromLaunch === null) {
+    gaps.push("Launch time unknown — launch impulse cannot be located.");
+  } else if (!launchImpulseObserved) {
+    gaps.push(
+      `First observation is ${Math.round(minutesFromLaunch)}m after launch — the launch impulse and early peak were not observed.`,
+    );
+  }
+
+  return {
+    observations: sorted.length,
+    usableObservations: usable.length,
+    firstObservedAt: first?.capturedAt ?? null,
+    lastObservedAt: last?.capturedAt ?? null,
+    observedWindowMinutes,
+    minutesFromLaunchToFirstObservation: minutesFromLaunch,
+    launchImpulseObserved,
+    hasLiquidityHistory: usable.some((p) => p.liquidityUsd !== null),
+    sufficientForClassification:
+      usable.length >= cal.minObservations &&
+      observedWindowMinutes !== null &&
+      observedWindowMinutes >= cal.minObservedWindowMinutes &&
+      launchImpulseObserved,
+    gaps,
+  };
+}
+
+/** Deterministic feature derivation from observed points only. */
+export function deriveFeatures(input: PriceIntegrityInput): PriceIntegrityFeatures {
+  const sorted = [...input.points].sort(
+    (a, b) => new Date(a.capturedAt).getTime() - new Date(b.capturedAt).getTime(),
+  );
+  const useMarketCap = sorted.some((p) => p.marketCap !== null);
+  const basis: PriceIntegrityFeatures["basis"] = useMarketCap
+    ? "market_cap"
+    : sorted.some((p) => p.priceUsd !== null)
+      ? "price"
+      : "none";
+  if (basis === "none") return { ...EMPTY_FEATURES };
+
+  const series = sorted
+    .map((p) => ({
+      at: p.capturedAt,
+      value: basis === "market_cap" ? p.marketCap : p.priceUsd,
+      liquidity: p.liquidityUsd,
+    }))
+    .filter((p): p is { at: string; value: number; liquidity: number | null } => p.value !== null);
+
+  if (series.length === 0) return { ...EMPTY_FEATURES };
+
+  const firstPoint = series[0]!;
+  const lastPoint = series[series.length - 1]!;
+  let peakIndex = 0;
+  for (let i = 1; i < series.length; i += 1) {
+    if (series[i]!.value > series[peakIndex]!.value) peakIndex = i;
+  }
+  const peak = series[peakIndex]!;
+  const after = series.slice(peakIndex + 1);
+
+  let lowIndex = -1;
+  for (let i = 0; i < after.length; i += 1) {
+    if (lowIndex === -1 || after[i]!.value < after[lowIndex]!.value) lowIndex = i;
+  }
+  const low = lowIndex >= 0 ? after[lowIndex]! : null;
+
+  const drawdownFromPeak = peak.value > 0 ? 1 - lastPoint.value / peak.value : null;
+  const maxAdverseMove = low && peak.value > 0 ? 1 - low.value / peak.value : null;
+
+  const majorDrawdownPoint = after.find(
+    (p) => peak.value > 0 && 1 - p.value / peak.value >= PRICE_INTEGRITY_CALIBRATION.rapidSurrenderFraction,
+  );
+
+  const recoveryFromLow = low && low.value > 0 ? lastPoint.value / low.value - 1 : null;
+
+  let subsequentHighImprovement: number | null = null;
+  if (low && lowIndex >= 0) {
+    const afterLow = after.slice(lowIndex + 1);
+    if (afterLow.length > 0 && low.value > 0) {
+      const best = afterLow.reduce((m, p) => (p.value > m ? p.value : m), afterLow[0]!.value);
+      subsequentHighImprovement = best / low.value - 1;
+    }
+  }
+
+  const collapseAt = majorDrawdownPoint?.at ?? null;
+  const afterCollapse = collapseAt
+    ? series.filter((p) => new Date(p.at).getTime() > new Date(collapseAt).getTime())
+    : [];
+
+  const peakEraLiquidity = peak.liquidity;
+  const currentLiquidity = lastPoint.liquidity;
+  const liquidityRetention =
+    peakEraLiquidity !== null && peakEraLiquidity > 0 && currentLiquidity !== null
+      ? currentLiquidity / peakEraLiquidity
+      : null;
+
+  return {
+    earliestValue: firstPoint.value,
+    peakValue: peak.value,
+    currentValue: lastPoint.value,
+    postPeakLowValue: low?.value ?? null,
+    drawdownFromPeak,
+    maxAdverseMove,
+    minutesFirstObservationToPeak: minutesBetween(firstPoint.at, peak.at),
+    minutesPeakToMajorDrawdown: majorDrawdownPoint
+      ? minutesBetween(peak.at, majorDrawdownPoint.at)
+      : null,
+    recoveryFromLow,
+    subsequentHighImprovement,
+    observationsAfterCollapse: afterCollapse.length,
+    minutesSustainedAfterCollapse:
+      afterCollapse.length > 1
+        ? minutesBetween(afterCollapse[0]!.at, afterCollapse[afterCollapse.length - 1]!.at)
+        : null,
+    liquidityRetention,
+    basis,
+  };
+}
+
+/**
+ * Classification. Damage requires a COMBINATION of independent signals of
+ * launch distortion; drawdown alone is explicitly insufficient.
+ */
+export function evaluatePriceIntegrity(
+  input: PriceIntegrityInput,
+  now: string = new Date().toISOString(),
+): PriceIntegrityEvaluation {
+  const cal = PRICE_INTEGRITY_CALIBRATION;
+  const coverage = assessCoverage(input);
+  const features = deriveFeatures(input);
+  const sourceReferences = input.points
+    .map((p) => p.capturedAt)
+    .sort()
+    .filter((v, i, a) => a.indexOf(v) === i);
+
+  const base = {
+    policyVersion: PRICE_INTEGRITY_POLICY_VERSION,
+    shadowMode: PRICE_INTEGRITY_SHADOW_MODE,
+    evaluatedAt: now,
+    coverage,
+    features,
+    sourceReferences,
+  };
+
+  if (!coverage.sufficientForClassification) {
+    return {
+      ...base,
+      status: "UNKNOWN",
+      signals: [],
+      reasons: [
+        "Insufficient observed history to judge launch structure.",
+        ...coverage.gaps,
+      ],
+    };
+  }
+
+  const signals: string[] = [];
+  const reasons: string[] = [];
+
+  const concentratedPeak =
+    features.minutesFirstObservationToPeak !== null &&
+    features.minutesFirstObservationToPeak <= cal.concentratedPeakMinutes;
+  if (concentratedPeak) {
+    signals.push("CONCENTRATED_EARLY_PEAK");
+    reasons.push(
+      `Peak reached ${Math.round(features.minutesFirstObservationToPeak!)}m after the first observation.`,
+    );
+  }
+
+  const rapidSurrender =
+    features.minutesPeakToMajorDrawdown !== null &&
+    features.minutesPeakToMajorDrawdown <= cal.rapidSurrenderMinutes;
+  if (rapidSurrender) {
+    signals.push("RAPID_SURRENDER");
+    reasons.push(
+      `Lost ${Math.round(cal.rapidSurrenderFraction * 100)}% of the peak within ${Math.round(features.minutesPeakToMajorDrawdown!)}m.`,
+    );
+  }
+
+  const severeDrawdown =
+    features.drawdownFromPeak !== null && features.drawdownFromPeak >= cal.severeDrawdown;
+  if (severeDrawdown) {
+    signals.push("SEVERE_DRAWDOWN");
+    reasons.push(
+      `Currently ${Math.round(features.drawdownFromPeak! * 100)}% below the observed peak (context only — never damage on its own).`,
+    );
+  }
+
+  const weakRecovery =
+    features.recoveryFromLow !== null && features.recoveryFromLow < cal.weakRecoveryFromLow;
+  if (weakRecovery) {
+    signals.push("WEAK_RECOVERY");
+    reasons.push(
+      `Recovery from the post-peak low is ${Math.round(features.recoveryFromLow! * 100)}%.`,
+    );
+  }
+
+  const noImprovingStructure =
+    features.subsequentHighImprovement !== null &&
+    features.subsequentHighImprovement < cal.improvingSubsequentHigh;
+  if (noImprovingStructure) {
+    signals.push("NO_IMPROVING_STRUCTURE");
+    reasons.push("Subsequent highs did not materially improve on the post-peak low.");
+  }
+
+  const poorRetention =
+    features.liquidityRetention !== null &&
+    features.liquidityRetention < cal.poorLiquidityRetention;
+  if (poorRetention) {
+    signals.push("POOR_LIQUIDITY_RETENTION");
+    reasons.push(
+      `Liquidity retained vs the peak era is ${Math.round(features.liquidityRetention! * 100)}%.`,
+    );
+  }
+
+  // Drawdown alone is never damage: damage needs launch-distortion evidence.
+  const distortionSignals = signals.filter((s) => s !== "SEVERE_DRAWDOWN");
+  const hasLaunchDistortion = concentratedPeak && rapidSurrender;
+
+  let status: PriceIntegrityStatus = "HEALTHY";
+  if (hasLaunchDistortion && signals.length >= cal.minDamageSignals && distortionSignals.length >= 3) {
+    status = "DAMAGED";
+    reasons.unshift("Concentrated launch peak, rapid surrender and no repaired structure.");
+  } else if (distortionSignals.length >= cal.minConcernSignals) {
+    status = "CONCERN";
+    reasons.unshift("Some launch-distortion evidence, but not enough to call the lifecycle damaged.");
+  } else {
+    reasons.unshift(
+      "Observed lifecycle is consistent with constructive cooldown and consolidation.",
+    );
+  }
+
+  if ((input.setups ?? []).includes("REACCEL") && status !== "HEALTHY") {
+    reasons.push(
+      "REACCEL context: historical launch damage is descriptive only and never invalidates a genuinely new reacceleration.",
+    );
+  }
+
+  return { ...base, status, signals, reasons };
+}
