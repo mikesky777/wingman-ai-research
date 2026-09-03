@@ -2,6 +2,7 @@ import { supabase } from "../data/supabase";
 import { MarketDataService } from "./market-data-service";
 import type { MarketRegime, ScanSummary, ScannedCandidate } from "../types";
 import type { DomainRefreshDecision } from "./scanner/refresh";
+import type { StructuralContextItem, StructuralRuleResult } from "./scanner/structural";
 
 interface ScanRunRow {
   id: string;
