@@ -134,3 +134,27 @@ export function formatScanTime(value: string | null): string {
   if (Number.isNaN(ms)) return "—";
   return new Date(ms).toLocaleString();
 }
+
+/** Evidence refresh urgency. Cost/freshness only — never a quality verdict. */
+export const REFRESH_TONE: Record<string, string> = {
+  REFRESH_REQUIRED: "border-primary/40 bg-primary/10 text-primary",
+  REFRESH_OPTIONAL: "border-border-strong text-foreground",
+  CARRY_FORWARD: "border-border-strong text-muted-foreground",
+};
+
+export const REFRESH_LABEL: Record<string, string> = {
+  REFRESH_REQUIRED: "REFRESH",
+  REFRESH_OPTIONAL: "FRESH",
+  CARRY_FORWARD: "CARRY",
+};
+
+export const REFRESH_HINT: Record<string, string> = {
+  REFRESH_REQUIRED: "Needs fresh evidence this scan.",
+  REFRESH_OPTIONAL: "Evidence is approaching the freshness limit.",
+  CARRY_FORWARD: "Unchanged repeat — still-valid evidence reused, no provider calls spent.",
+};
+
+export function formatEvidenceAge(minutes: number | null | undefined): string {
+  if (minutes === null || minutes === undefined) return "—";
+  return formatAge(minutes);
+}

@@ -10,6 +10,7 @@
  */
 import type { ChainId } from "../external/chains";
 import type { RecurrenceInfo } from "./recurrence";
+import type { RefreshDecision } from "./refresh";
 
 export const SCANNER_VERSION = "scanner/v2";
 
@@ -285,6 +286,13 @@ export interface EvaluatedCandidate {
    * never an input to priority, filtering, qualification or selection.
    */
   recurrence?: RecurrenceInfo | null;
+  /**
+   * Evidence refresh urgency. Governs provider spend only: never priority,
+   * setup qualification, hard filtering or survivor membership.
+   */
+  refresh?: RefreshDecision | null;
+  /** True when this scan reused still-valid prior evidence for the candidate. */
+  evidenceCarriedForward?: boolean;
 }
 
 

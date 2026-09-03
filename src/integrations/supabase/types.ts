@@ -406,6 +406,8 @@ export type Database = {
           discovery_ranks: Json | null
           discovery_sources: string[]
           enriched: boolean
+          evidence_age_minutes: number | null
+          evidence_carried_forward: boolean
           extension_reasons: Json | null
           extension_risk: string | null
           first_seen_scan_at: string | null
@@ -415,6 +417,7 @@ export type Database = {
           id: string
           lane_ranks: Json | null
           lane_rejections: Json | null
+          last_enriched_at: string | null
           last_selected_as_survivor_at: string | null
           liquidity_usd: number | null
           market_cap: number | null
@@ -439,6 +442,7 @@ export type Database = {
           reacceleration_signal: string | null
           recurrence_detail: Json | null
           recurrence_state: string
+          refresh_state: string
           rejection_details: Json | null
           rejection_reason: string | null
           scan_run_id: string
@@ -477,6 +481,8 @@ export type Database = {
           discovery_ranks?: Json | null
           discovery_sources?: string[]
           enriched?: boolean
+          evidence_age_minutes?: number | null
+          evidence_carried_forward?: boolean
           extension_reasons?: Json | null
           extension_risk?: string | null
           first_seen_scan_at?: string | null
@@ -486,6 +492,7 @@ export type Database = {
           id?: string
           lane_ranks?: Json | null
           lane_rejections?: Json | null
+          last_enriched_at?: string | null
           last_selected_as_survivor_at?: string | null
           liquidity_usd?: number | null
           market_cap?: number | null
@@ -510,6 +517,7 @@ export type Database = {
           reacceleration_signal?: string | null
           recurrence_detail?: Json | null
           recurrence_state?: string
+          refresh_state?: string
           rejection_details?: Json | null
           rejection_reason?: string | null
           scan_run_id: string
@@ -548,6 +556,8 @@ export type Database = {
           discovery_ranks?: Json | null
           discovery_sources?: string[]
           enriched?: boolean
+          evidence_age_minutes?: number | null
+          evidence_carried_forward?: boolean
           extension_reasons?: Json | null
           extension_risk?: string | null
           first_seen_scan_at?: string | null
@@ -557,6 +567,7 @@ export type Database = {
           id?: string
           lane_ranks?: Json | null
           lane_rejections?: Json | null
+          last_enriched_at?: string | null
           last_selected_as_survivor_at?: string | null
           liquidity_usd?: number | null
           market_cap?: number | null
@@ -581,6 +592,7 @@ export type Database = {
           reacceleration_signal?: string | null
           recurrence_detail?: Json | null
           recurrence_state?: string
+          refresh_state?: string
           rejection_details?: Json | null
           rejection_reason?: string | null
           scan_run_id?: string
@@ -645,6 +657,7 @@ export type Database = {
           passed_quantitative_ranking: number
           provider_telemetry: Json | null
           quantitatively_ranked: number
+          recurrence_diagnostics: Json | null
           scanner_version: string | null
           started_at: string
           status: string
@@ -674,6 +687,7 @@ export type Database = {
           passed_quantitative_ranking?: number
           provider_telemetry?: Json | null
           quantitatively_ranked?: number
+          recurrence_diagnostics?: Json | null
           scanner_version?: string | null
           started_at?: string
           status?: string
@@ -703,6 +717,7 @@ export type Database = {
           passed_quantitative_ranking?: number
           provider_telemetry?: Json | null
           quantitatively_ranked?: number
+          recurrence_diagnostics?: Json | null
           scanner_version?: string | null
           started_at?: string
           status?: string

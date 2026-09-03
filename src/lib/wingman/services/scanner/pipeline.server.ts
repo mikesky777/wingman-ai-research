@@ -32,6 +32,7 @@ import { resolveMarkets } from "./market-eligibility.server";
 import type { MarketResolution } from "./market-eligibility";
 import { bucketDiagnostics, laneDiagnostics } from "./diagnostics";
 import { deriveRecurrence } from "./recurrence";
+import { deriveRefreshState, type RefreshDiagnostics } from "./refresh";
 import {
   ConcurrentScanError,
   completeScanRun,
@@ -73,6 +74,7 @@ export interface ScanRunSummary {
   laneReservationUsage: Record<string, number>;
   selectedByReservation: number;
   selectedByGlobalRanking: number;
+  refresh: RefreshDiagnostics;
 }
 
 export interface RunScanResult {
@@ -216,12 +218,6 @@ export async function runScannerPipeline(
     );
     const survivors = selection.survivors;
 
-    await mapWithLimit(survivors, 4, async (candidate) => {
-      const ok = await enrichSurvivor(candidate, runId, telemetry);
-      candidate.enriched = ok;
-      if (ok) candidate.stageReached = "enriched";
-    });
-
     // Persist survivors first, then rejected candidates up to the cap.
     const survivorSet = new Set(survivors.map((s) => s.token.contractAddress));
     const others = ranked.filter((c) => !survivorSet.has(c.token.contractAddress));
@@ -245,10 +241,49 @@ export async function runScannerPipeline(
         appearances: recurrenceHistory.byAddress.get(candidate.token.contractAddress) ?? [],
         recentRunIds: recurrenceHistory.recentRunIds,
       });
+
+      // Refresh urgency decides only whether we spend provider calls. It never
+      // changes priority, setup classification or survivor membership.
+      const history = context.get(candidate.token.contractAddress)?.history ?? [];
+      const lastEnrichedAt = history.length ? history[history.length - 1]!.capturedAt : null;
+      candidate.refresh = deriveRefreshState({
+        recurrenceState: candidate.recurrence.state,
+        lastEnrichedAt,
+        nowIso,
+      });
     }
+
+    // Enrichment: survivors keep their slot, but an unchanged repeat with still
+    // valid evidence reuses it instead of refetching. Freed capacity naturally
+    // goes to NEW / CHANGED / RETURNING candidates.
+    const needsEnrichment = survivors.filter((s) => s.refresh?.state !== "CARRY_FORWARD");
+    const carriedForward = survivors.filter((s) => s.refresh?.state === "CARRY_FORWARD");
+    for (const candidate of carriedForward) {
+      candidate.evidenceCarriedForward = true;
+    }
+
+    await mapWithLimit(needsEnrichment, 4, async (candidate) => {
+      const ok = await enrichSurvivor(candidate, runId, telemetry);
+      candidate.enriched = ok;
+      if (ok) candidate.stageReached = "enriched";
+    });
+
+    const refreshDiagnostics: RefreshDiagnostics = {
+      newCount: toPersist.filter((c) => c.recurrence?.state === "NEW").length,
+      changedCount: toPersist.filter((c) => c.recurrence?.state === "CHANGED").length,
+      returningCount: toPersist.filter((c) => c.recurrence?.state === "RETURNING").length,
+      repeatCount: toPersist.filter((c) => c.recurrence?.state === "REPEAT").length,
+      refreshRequired: toPersist.filter((c) => c.refresh?.state === "REFRESH_REQUIRED").length,
+      refreshOptional: toPersist.filter((c) => c.refresh?.state === "REFRESH_OPTIONAL").length,
+      carryForward: toPersist.filter((c) => c.refresh?.state === "CARRY_FORWARD").length,
+      freshEnrichments: survivors.filter((s) => s.enriched).length,
+      carriedForwardSurvivors: carriedForward.length,
+      enrichmentRequestsAvoided: carriedForward.length,
+    };
 
     const tokenIds = await resolveTokenIds(toPersist.map((c) => c.token));
     await persistCandidates(runId, toPersist, tokenIds);
+
 
     const passedHardFilters = evaluated.filter((c) => c.passedHardFilters).length;
     const quantitativelyRanked = evaluated.filter(
@@ -280,6 +315,7 @@ export async function runScannerPipeline(
       laneReservationUsage: selection.laneUsage,
       selectedByReservation: selection.reservedCount,
       selectedByGlobalRanking: selection.globalCount,
+      refresh: refreshDiagnostics,
     };
 
     await completeScanRun({
@@ -293,6 +329,7 @@ export async function runScannerPipeline(
       laneDiagnostics: lanes,
       durationMs: summary.durationMs,
       survivorLimit: config.survivorEnrichmentLimit,
+      recurrenceDiagnostics: refreshDiagnostics,
       notes: `${SCANNER_VERSION} · ${DISCOVERY_CONFIG_VERSION}`,
     });
 

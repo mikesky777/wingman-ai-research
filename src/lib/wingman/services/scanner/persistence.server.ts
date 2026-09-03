@@ -72,6 +72,8 @@ export interface CompleteRunInput {
   laneDiagnostics?: unknown;
   durationMs?: number | null;
   survivorLimit?: number | null;
+  /** Run-level recurrence/refresh counts for calibration and API-cost review. */
+  recurrenceDiagnostics?: unknown;
 }
 
 export async function completeScanRun(input: CompleteRunInput): Promise<void> {
@@ -95,6 +97,7 @@ export async function completeScanRun(input: CompleteRunInput): Promise<void> {
       lane_diagnostics: (input.laneDiagnostics ?? null) as never,
       duration_ms: input.durationMs ?? null,
       survivor_limit: input.survivorLimit ?? null,
+      recurrence_diagnostics: (input.recurrenceDiagnostics ?? null) as never,
       notes: input.notes ?? null,
     } as never)
     .eq("id", input.runId);
@@ -279,8 +282,16 @@ export async function persistCandidates(
         setup_changed: c.recurrence?.setupChanged ?? false,
         previous_selected_as_survivor: c.recurrence?.previousSelectedAsSurvivor ?? false,
         last_selected_as_survivor_at: c.recurrence?.lastSelectedAsSurvivorAt ?? null,
+        refresh_state: c.refresh?.state ?? "REFRESH_REQUIRED",
+        evidence_carried_forward: Boolean(c.evidenceCarriedForward),
+        last_enriched_at: c.refresh?.lastEnrichedAt ?? null,
+        evidence_age_minutes: c.refresh?.evidenceAgeMinutes ?? null,
         recurrence_detail: c.recurrence
-          ? { missedScans: c.recurrence.missedScans, changeReasons: c.recurrence.changeReasons }
+          ? {
+              missedScans: c.recurrence.missedScans,
+              changeReasons: c.recurrence.changeReasons,
+              refreshReason: c.refresh?.reason ?? null,
+            }
           : null,
         market_cap_bucket: marketCapBucket(c.token.marketCap),
         price_usd: c.token.priceUsd,
