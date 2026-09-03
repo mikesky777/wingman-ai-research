@@ -25,6 +25,14 @@ export interface MarketResolution {
   liquidityUsd: number | null;
   /** Why the market was not usable. `null` when ok. */
   reasonDetail: string | null;
+  /** Descriptive provenance of the resolved pair (never a filter input). */
+  dexId?: string | null;
+  quoteTokenSymbol?: string | null;
+  /**
+   * True when the lookup itself failed. A provider failure is NOT a confirmed
+   * absence of a market; only a completed lookup can confirm that.
+   */
+  providerFailure?: boolean;
 }
 
 function isNum(value: unknown): value is number {
