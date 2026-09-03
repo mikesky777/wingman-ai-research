@@ -10,7 +10,8 @@
  */
 import type { ChainId } from "../external/chains";
 import type { RecurrenceInfo } from "./recurrence";
-import type { RefreshDecision } from "./refresh";
+import type { RefreshDecision, RefreshPlan } from "./refresh";
+import type { UniverseAssessment } from "./universe";
 
 export const SCANNER_VERSION = "scanner/v2";
 
@@ -291,8 +292,15 @@ export interface EvaluatedCandidate {
    * setup qualification, hard filtering or survivor membership.
    */
   refresh?: RefreshDecision | null;
+  /** Per-evidence-domain refresh plan. Each domain is decided independently. */
+  refreshPlan?: RefreshPlan | null;
   /** True when this scan reused still-valid prior evidence for the candidate. */
   evidenceCarriedForward?: boolean;
+  /**
+   * Mandate eligibility. Never a quality, safety or thesis judgement and never
+   * an input to Quantitative Research Priority.
+   */
+  universe?: UniverseAssessment | null;
 }
 
 

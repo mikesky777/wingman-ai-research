@@ -273,6 +273,46 @@ export function CandidateDrawer({
               value={c.evidenceCarriedForward ? "Carried forward" : "Fresh evidence"}
             />
 
+            {c.refreshDomains ? (
+              <div className="mt-2 space-y-1">
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                  Evidence domains (judged independently)
+                </div>
+                {Object.values(c.refreshDomains).map((d) => (
+                  <div
+                    key={d.domain}
+                    className="flex items-baseline justify-between gap-2 text-[11px]"
+                  >
+                    <span className="font-mono uppercase text-muted-foreground">{d.domain}</span>
+                    <span className="text-right">
+                      <span
+                        className={cn(
+                          "rounded border px-1 py-0.5 font-mono text-[10px]",
+                          REFRESH_TONE[d.state] ?? "border-border-strong",
+                        )}
+                        title={d.reason}
+                      >
+                        {d.state}
+                      </span>{" "}
+                      <span className="text-muted-foreground">
+                        {formatEvidenceAge(d.evidenceAgeMinutes)}
+                      </span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            {c.universeEligibility === "OUT_OF_SCOPE" ? (
+              <Row
+                label="Mandate"
+                value={`Out of scope · ${c.universeCategory ?? "—"}${
+                  c.universeReason ? ` — ${c.universeReason}` : ""
+                }`}
+              />
+            ) : null}
+
+
             {c.recurrenceChangeReasons.length > 0 ? (
               <ul className="mt-2 space-y-1">
                 {c.recurrenceChangeReasons.map((reason) => (

@@ -64,7 +64,7 @@ export const Route = createFileRoute("/scanner")({
 });
 
 
-type Filter = "SURVIVORS" | "ALL" | "NEAR_MISS" | (typeof LANES)[number];
+type Filter = "SURVIVORS" | "ALL" | "NEAR_MISS" | "OUT_OF_SCOPE" | (typeof LANES)[number];
 
 type StrategyShape = { setups: Record<string, { enabled: boolean }> } | null;
 
@@ -81,6 +81,7 @@ function calibrationFilters(strategy: StrategyShape): { key: Filter; label: stri
   return [
     { key: "ALL" as Filter, label: "All candidates" },
     { key: "NEAR_MISS" as Filter, label: "Near misses" },
+    { key: "OUT_OF_SCOPE" as Filter, label: "Out of mandate" },
     ...disabledSetups(strategy).map((lane) => ({
       key: lane as Filter,
       label: `${laneLabel(lane)} (disabled)`,
@@ -102,6 +103,9 @@ function applyFilter(candidates: Row[], filter: Filter): Row[] {
       return candidates;
     case "SURVIVORS":
       return candidates.filter((c) => c.enriched || c.selectedByLaneReservation || c.selectedByGlobalRanking);
+    case "OUT_OF_SCOPE":
+      // Mandate exclusions: retained and inspectable, never silently dropped.
+      return candidates.filter((c) => c.universeEligibility === "OUT_OF_SCOPE");
     case "NEAR_MISS":
       // Passed the mechanical filters but was never enriched.
       return candidates.filter(

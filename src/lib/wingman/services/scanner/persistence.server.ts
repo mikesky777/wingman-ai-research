@@ -74,6 +74,10 @@ export interface CompleteRunInput {
   survivorLimit?: number | null;
   /** Run-level recurrence/refresh counts for calibration and API-cost review. */
   recurrenceDiagnostics?: unknown;
+  /** Per-domain refresh counts and honest request accounting. */
+  refreshDiagnostics?: unknown;
+  /** Mandate eligibility counts for this run. */
+  universeDiagnostics?: unknown;
 }
 
 export async function completeScanRun(input: CompleteRunInput): Promise<void> {
@@ -98,6 +102,8 @@ export async function completeScanRun(input: CompleteRunInput): Promise<void> {
       duration_ms: input.durationMs ?? null,
       survivor_limit: input.survivorLimit ?? null,
       recurrence_diagnostics: (input.recurrenceDiagnostics ?? null) as never,
+      refresh_diagnostics: (input.refreshDiagnostics ?? null) as never,
+      universe_diagnostics: (input.universeDiagnostics ?? null) as never,
       notes: input.notes ?? null,
     } as never)
     .eq("id", input.runId);
@@ -282,10 +288,18 @@ export async function persistCandidates(
         setup_changed: c.recurrence?.setupChanged ?? false,
         previous_selected_as_survivor: c.recurrence?.previousSelectedAsSurvivor ?? false,
         last_selected_as_survivor_at: c.recurrence?.lastSelectedAsSurvivorAt ?? null,
-        refresh_state: c.refresh?.state ?? "REFRESH_REQUIRED",
+        refresh_state: c.refreshPlan?.state ?? c.refresh?.state ?? "REFRESH_REQUIRED",
         evidence_carried_forward: Boolean(c.evidenceCarriedForward),
-        last_enriched_at: c.refresh?.lastEnrichedAt ?? null,
-        evidence_age_minutes: c.refresh?.evidenceAgeMinutes ?? null,
+        last_enriched_at: c.refreshPlan?.lastEnrichedAt ?? c.refresh?.lastEnrichedAt ?? null,
+        evidence_age_minutes:
+          c.refreshPlan?.evidenceAgeMinutes ?? c.refresh?.evidenceAgeMinutes ?? null,
+        // Per-domain refresh plan: every evidence domain decided independently.
+        refresh_domains: c.refreshPlan ? c.refreshPlan.domains : null,
+        // Mandate eligibility. Never a quality or safety judgement.
+        universe_eligibility: c.universe?.eligibility ?? "UNKNOWN",
+        universe_category: c.universe?.category ?? null,
+        universe_reason:
+          c.universe && c.universe.eligibility !== "UNKNOWN" ? c.universe.reason : null,
         recurrence_detail: c.recurrence
           ? {
               missedScans: c.recurrence.missedScans,
@@ -411,4 +425,42 @@ export async function loadRecurrenceHistory(
   }
 
   return { recentRunIds: runIds, byAddress };
+}
+
+/**
+ * Newest stored observation timestamp per evidence domain, per token.
+ *
+ * Freshness is evaluated INDEPENDENTLY per domain, so a stale market
+ * observation can never invalidate still-valid holder/creator/provenance
+ * evidence. Timestamps are read as stored and never rewritten.
+ */
+export async function loadEvidenceDomainAges(
+  tokenIds: string[],
+): Promise<Map<string, Record<string, string>>> {
+  const out = new Map<string, Record<string, string>>();
+  if (tokenIds.length === 0) return out;
+
+  for (let i = 0; i < tokenIds.length; i += 100) {
+    const chunk = tokenIds.slice(i, i + 100);
+    const { data, error } = await supabaseAdmin
+      .from("evidence_observations")
+      .select("token_id, domain, captured_at")
+      .in("token_id", chunk)
+      .order("captured_at", { ascending: false })
+      .limit(5000);
+    if (error) continue; // Absent evidence stays NO_EVIDENCE, never fabricated.
+    for (const row of (data ?? []) as Row[]) {
+      const tokenId = row["token_id"] as string;
+      const domain = row["domain"] as string;
+      const capturedAt = row["captured_at"] as string;
+      const current = out.get(tokenId) ?? {};
+      // Rows arrive newest-first; keep the first timestamp seen per domain.
+      if (!current[domain]) {
+        current[domain] = capturedAt;
+        out.set(tokenId, current);
+      }
+    }
+  }
+
+  return out;
 }

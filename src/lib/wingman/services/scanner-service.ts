@@ -1,6 +1,7 @@
 import { supabase } from "../data/supabase";
 import { MarketDataService } from "./market-data-service";
 import type { MarketRegime, ScanSummary, ScannedCandidate } from "../types";
+import type { DomainRefreshDecision } from "./scanner/refresh";
 
 interface ScanRunRow {
   id: string;
@@ -205,6 +206,12 @@ export interface WorkbenchCandidate {
   evidenceCarriedForward: boolean;
   lastEnrichedAt: string | null;
   evidenceAgeMinutes: number | null;
+  /** Per-domain refresh decisions. Each evidence domain is judged separately. */
+  refreshDomains: Record<string, DomainRefreshDecision> | null;
+  /** Mandate eligibility. Never a quality, safety or thesis judgement. */
+  universeEligibility: string;
+  universeCategory: string | null;
+  universeReason: string | null;
   label: string;
   labelNote: string | null;
   /**
@@ -235,7 +242,7 @@ const OUTCOME_COLUMNS =
   "token_id, first_seen_at, first_seen_market_cap_usd, first_call_at, first_call_market_cap_usd, current_market_cap_usd, market_cap_change_since_first_seen_pct, market_cap_change_since_first_call_pct, max_gain_since_first_seen_pct, max_gain_since_first_call_pct, max_adverse_change_since_first_seen_pct, max_adverse_change_since_first_call_pct, max_peak_to_trough_drawdown_since_first_seen_pct, max_peak_to_trough_drawdown_since_first_call_pct, observation_count";
 
 const WORKBENCH_COLUMNS =
-  "id, token_id, contract_address, discovery_lanes, lane_rejections, discovery_queries, discovery_ranks, token_age_minutes, age_basis, market_cap, market_cap_bucket, liquidity_usd, price_usd, volume_1h, volume_24h, trades_1h, trades_24h, buys_24h, sells_24h, holder_count, price_change_1h, price_change_24h, volume_to_market_cap_24h, volume_to_liquidity_24h, activity_state, persistence_signal, reacceleration_signal, extension_risk, extension_reasons, attention_price_divergence, structural_safety, token_security, quantitative_priority, priority_breakdown, metrics_detail, global_rank, lane_ranks, selected_by_lane_reservation, selected_by_global_ranking, history_snapshot_count, stage_reached, rejection_reason, rejection_details, enriched, recurrence_state, first_seen_scan_at, previous_seen_scan_at, scans_seen_count, consecutive_scans_seen, previous_quantitative_priority, priority_delta, previous_setups, setup_changed, previous_selected_as_survivor, last_selected_as_survivor_at, recurrence_detail, refresh_state, evidence_carried_forward, last_enriched_at, evidence_age_minutes, token:tokens!inner(id, name, symbol)";
+  "id, token_id, contract_address, discovery_lanes, lane_rejections, discovery_queries, discovery_ranks, token_age_minutes, age_basis, market_cap, market_cap_bucket, liquidity_usd, price_usd, volume_1h, volume_24h, trades_1h, trades_24h, buys_24h, sells_24h, holder_count, price_change_1h, price_change_24h, volume_to_market_cap_24h, volume_to_liquidity_24h, activity_state, persistence_signal, reacceleration_signal, extension_risk, extension_reasons, attention_price_divergence, structural_safety, token_security, quantitative_priority, priority_breakdown, metrics_detail, global_rank, lane_ranks, selected_by_lane_reservation, selected_by_global_ranking, history_snapshot_count, stage_reached, rejection_reason, rejection_details, enriched, recurrence_state, first_seen_scan_at, previous_seen_scan_at, scans_seen_count, consecutive_scans_seen, previous_quantitative_priority, priority_delta, previous_setups, setup_changed, previous_selected_as_survivor, last_selected_as_survivor_at, recurrence_detail, refresh_state, evidence_carried_forward, last_enriched_at, evidence_age_minutes, refresh_domains, universe_eligibility, universe_category, universe_reason, token:tokens!inner(id, name, symbol)";
 
 const RUN_COLUMNS =
   "id, started_at, completed_at, status, tokens_scanned, tokens_discovered, passed_hard_filters, passed_quantitative_ranking, quantitatively_ranked, passed_ai_triage, deep_researched, enriched_count, actionable_count, market_regime, scanner_version, discovery_config_version, calibration_mode, provider_telemetry";
@@ -458,6 +465,11 @@ export const ScannerService = {
         evidenceCarriedForward: Boolean(r["evidence_carried_forward"]),
         lastEnrichedAt: (r["last_enriched_at"] as string | null) ?? null,
         evidenceAgeMinutes: (r["evidence_age_minutes"] as number | null) ?? null,
+        refreshDomains:
+          (r["refresh_domains"] as Record<string, DomainRefreshDecision> | null) ?? null,
+        universeEligibility: (r["universe_eligibility"] as string | null) ?? "UNKNOWN",
+        universeCategory: (r["universe_category"] as string | null) ?? null,
+        universeReason: (r["universe_reason"] as string | null) ?? null,
         recurrenceChangeReasons:
           ((r["recurrence_detail"] as { changeReasons?: string[] } | null)?.changeReasons ?? []),
         label: labels[token.id]?.label ?? "UNREVIEWED",

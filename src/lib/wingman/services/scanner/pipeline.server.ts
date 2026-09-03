@@ -32,11 +32,25 @@ import { resolveMarkets } from "./market-eligibility.server";
 import type { MarketResolution } from "./market-eligibility";
 import { bucketDiagnostics, laneDiagnostics } from "./diagnostics";
 import { deriveRecurrence } from "./recurrence";
-import { deriveRefreshState, type RefreshDiagnostics } from "./refresh";
+import {
+  deriveRefreshPlan,
+  deriveRefreshState,
+  EVIDENCE_REFRESH_DOMAINS,
+  type DomainRefreshDecision,
+  type EvidenceRefreshDomain,
+  type RefreshDiagnostics,
+} from "./refresh";
+import {
+  classifyUniverse,
+  universeDiagnostics,
+  type UniverseAssessment,
+  type UniverseDiagnostics,
+} from "./universe";
 import {
   ConcurrentScanError,
   completeScanRun,
   failScanRun,
+  loadEvidenceDomainAges,
   loadRecurrenceHistory,
   loadTokenContext,
   persistCandidates,
@@ -76,6 +90,7 @@ export interface ScanRunSummary {
   selectedByReservation: number;
   selectedByGlobalRanking: number;
   refresh: RefreshDiagnostics;
+  universe: UniverseDiagnostics;
 }
 
 export interface RunScanResult {
@@ -179,6 +194,7 @@ export async function runScannerPipeline(
       token: (typeof deduped)[number],
       market: MarketResolution | null,
       requireMarket: boolean,
+      universe: UniverseAssessment | null = null,
     ) => {
       const ctx = context.get(token.contractAddress);
       return evaluateCandidate(token, {
@@ -187,6 +203,7 @@ export async function runScannerPipeline(
         strategy: config.strategy,
         requireMarket,
         market,
+        universe,
         ageFallbacks: {
           pairCreatedAt: ctx?.pairCreatedAt ?? null,
           tokenCreatedAt: ctx?.tokenCreatedAt ?? null,
@@ -204,10 +221,17 @@ export async function runScannerPipeline(
       { track: (provider, capability, fn) => telemetry.track(provider, capability, fn) },
     );
 
+    // Pass 3: mandate eligibility, applied AFTER identity + market resolution
+    // and BEFORE setup qualification / survivor selection. UNKNOWN is eligible.
     const evaluated = firstPass.map((candidate) => {
       if (!candidate.passedHardFilters) return candidate;
       const address = candidate.token.contractAddress;
-      return evaluateWith(candidate.token, markets.get(address) ?? null, true);
+      return evaluateWith(
+        candidate.token,
+        markets.get(address) ?? null,
+        true,
+        classifyUniverse(address),
+      );
     });
 
     const ranked = assignRanks(rankCandidates(evaluated));
@@ -230,6 +254,11 @@ export async function runScannerPipeline(
       toPersist.map((c) => c.token.contractAddress),
       runId,
     );
+    const domainAges = await loadEvidenceDomainAges(
+      toPersist
+        .map((c) => context.get(c.token.contractAddress)?.tokenId)
+        .filter((id): id is string => Boolean(id)),
+    );
     for (const candidate of toPersist) {
       candidate.recurrence = deriveRecurrence({
         current: {
@@ -244,21 +273,37 @@ export async function runScannerPipeline(
       });
 
       // Refresh urgency decides only whether we spend provider calls. It never
-      // changes priority, setup classification or survivor membership.
-      const history = context.get(candidate.token.contractAddress)?.history ?? [];
-      const lastEnrichedAt = history.length ? history[history.length - 1]!.capturedAt : null;
+      // changes priority, setup classification or survivor membership. Every
+      // evidence domain is decided independently: recurrence is market-derived
+      // and must not invalidate fresh holder/creator/provenance evidence.
+      const ctx = context.get(candidate.token.contractAddress);
+      const history = ctx?.history ?? [];
+      const lastMarketAt = history.length ? history[history.length - 1]!.capturedAt : null;
+      const stored = (ctx?.tokenId ? domainAges.get(ctx.tokenId) : undefined) ?? {};
+      candidate.refreshPlan = deriveRefreshPlan({
+        recurrenceState: candidate.recurrence.state,
+        nowIso,
+        lastObservedAt: {
+          market: lastMarketAt ?? stored["market"] ?? null,
+          holders: stored["holders"] ?? null,
+          creator: stored["creator"] ?? null,
+          provenance: stored["provenance"] ?? null,
+        },
+      });
       candidate.refresh = deriveRefreshState({
         recurrenceState: candidate.recurrence.state,
-        lastEnrichedAt,
+        lastEnrichedAt: lastMarketAt,
         nowIso,
       });
     }
 
     // Enrichment: survivors keep their slot, but an unchanged repeat with still
-    // valid evidence reuses it instead of refetching. Freed capacity naturally
-    // goes to NEW / CHANGED / RETURNING candidates.
-    const needsEnrichment = survivors.filter((s) => s.refresh?.state !== "CARRY_FORWARD");
-    const carriedForward = survivors.filter((s) => s.refresh?.state === "CARRY_FORWARD");
+    // valid market evidence reuses it instead of refetching. Freed capacity
+    // naturally goes to NEW / CHANGED / RETURNING candidates.
+    const marketState = (c: (typeof survivors)[number]) =>
+      c.refreshPlan?.domains.market.state ?? c.refresh?.state ?? "REFRESH_REQUIRED";
+    const needsEnrichment = survivors.filter((s) => marketState(s) !== "CARRY_FORWARD");
+    const carriedForward = survivors.filter((s) => marketState(s) === "CARRY_FORWARD");
     for (const candidate of carriedForward) {
       candidate.evidenceCarriedForward = true;
     }
@@ -269,18 +314,52 @@ export async function runScannerPipeline(
       if (ok) candidate.stageReached = "enriched";
     });
 
+    const domainCount = (
+      pick: (d: DomainRefreshDecision) => boolean,
+    ): Record<EvidenceRefreshDomain, number> => {
+      const counts = {} as Record<EvidenceRefreshDomain, number>;
+      for (const domain of EVIDENCE_REFRESH_DOMAINS) {
+        counts[domain] = toPersist.filter((c) => {
+          const decision = c.refreshPlan?.domains[domain];
+          return decision ? pick(decision) : false;
+        }).length;
+      }
+      return counts;
+    };
+
     const refreshDiagnostics: RefreshDiagnostics = {
       newCount: toPersist.filter((c) => c.recurrence?.state === "NEW").length,
       changedCount: toPersist.filter((c) => c.recurrence?.state === "CHANGED").length,
       returningCount: toPersist.filter((c) => c.recurrence?.state === "RETURNING").length,
       repeatCount: toPersist.filter((c) => c.recurrence?.state === "REPEAT").length,
-      refreshRequired: toPersist.filter((c) => c.refresh?.state === "REFRESH_REQUIRED").length,
-      refreshOptional: toPersist.filter((c) => c.refresh?.state === "REFRESH_OPTIONAL").length,
-      carryForward: toPersist.filter((c) => c.refresh?.state === "CARRY_FORWARD").length,
+      refreshRequired: toPersist.filter((c) => c.refreshPlan?.state === "REFRESH_REQUIRED").length,
+      refreshOptional: toPersist.filter((c) => c.refreshPlan?.state === "REFRESH_OPTIONAL").length,
+      carryForward: toPersist.filter((c) => c.refreshPlan?.state === "CARRY_FORWARD").length,
       freshEnrichments: survivors.filter((s) => s.enriched).length,
       carriedForwardSurvivors: carriedForward.length,
+      // Only the market domain has an executable refresh path today, so the
+      // carried survivors are exactly the calls actually avoided.
       enrichmentRequestsAvoided: carriedForward.length,
+      candidatesRequiringRefresh: toPersist.filter(
+        (c) => c.refreshPlan?.state !== "CARRY_FORWARD",
+      ).length,
+      candidatesUsingCarriedEvidence: toPersist.filter((c) =>
+        EVIDENCE_REFRESH_DOMAINS.some((d) => c.refreshPlan?.domains[d].carriedForward),
+      ).length,
+      domainRefreshes: domainCount((d) => d.state === "REFRESH_REQUIRED"),
+      domainsCarriedForward: domainCount((d) => d.carriedForward),
+      providerRequestsExecuted: telemetry.totalRequests(),
+      // Honest accounting: a carried holder/creator/provenance domain is NOT an
+      // avoided request, because the scanner has no call for it yet.
+      providerRequestsAvoided: carriedForward.length,
     };
+
+    const universe = universeDiagnostics(
+      evaluated.map((c) => ({
+        eligibility: c.universe?.eligibility ?? "UNKNOWN",
+        category: c.universe?.category ?? null,
+      })),
+    );
 
     const tokenIds = await resolveTokenIds(toPersist.map((c) => c.token));
     await persistCandidates(runId, toPersist, tokenIds);
@@ -317,6 +396,7 @@ export async function runScannerPipeline(
       selectedByReservation: selection.reservedCount,
       selectedByGlobalRanking: selection.globalCount,
       refresh: refreshDiagnostics,
+      universe,
     };
 
     await completeScanRun({
@@ -331,6 +411,8 @@ export async function runScannerPipeline(
       durationMs: summary.durationMs,
       survivorLimit: config.survivorEnrichmentLimit,
       recurrenceDiagnostics: refreshDiagnostics,
+      refreshDiagnostics,
+      universeDiagnostics: universe,
       notes: `${SCANNER_VERSION} · ${DISCOVERY_CONFIG_VERSION}`,
     });
 

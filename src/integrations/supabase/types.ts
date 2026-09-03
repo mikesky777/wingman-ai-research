@@ -442,6 +442,7 @@ export type Database = {
           reacceleration_signal: string | null
           recurrence_detail: Json | null
           recurrence_state: string
+          refresh_domains: Json | null
           refresh_state: string
           rejection_details: Json | null
           rejection_reason: string | null
@@ -460,6 +461,9 @@ export type Database = {
           trades_1h: number | null
           trades_24h: number | null
           trades_5m: number | null
+          universe_category: string | null
+          universe_eligibility: string
+          universe_reason: string | null
           volume_1h: number | null
           volume_24h: number | null
           volume_5m: number | null
@@ -517,6 +521,7 @@ export type Database = {
           reacceleration_signal?: string | null
           recurrence_detail?: Json | null
           recurrence_state?: string
+          refresh_domains?: Json | null
           refresh_state?: string
           rejection_details?: Json | null
           rejection_reason?: string | null
@@ -535,6 +540,9 @@ export type Database = {
           trades_1h?: number | null
           trades_24h?: number | null
           trades_5m?: number | null
+          universe_category?: string | null
+          universe_eligibility?: string
+          universe_reason?: string | null
           volume_1h?: number | null
           volume_24h?: number | null
           volume_5m?: number | null
@@ -592,6 +600,7 @@ export type Database = {
           reacceleration_signal?: string | null
           recurrence_detail?: Json | null
           recurrence_state?: string
+          refresh_domains?: Json | null
           refresh_state?: string
           rejection_details?: Json | null
           rejection_reason?: string | null
@@ -610,6 +619,9 @@ export type Database = {
           trades_1h?: number | null
           trades_24h?: number | null
           trades_5m?: number | null
+          universe_category?: string | null
+          universe_eligibility?: string
+          universe_reason?: string | null
           volume_1h?: number | null
           volume_24h?: number | null
           volume_5m?: number | null
@@ -658,12 +670,14 @@ export type Database = {
           provider_telemetry: Json | null
           quantitatively_ranked: number
           recurrence_diagnostics: Json | null
+          refresh_diagnostics: Json | null
           scanner_version: string | null
           started_at: string
           status: string
           survivor_limit: number | null
           tokens_discovered: number
           tokens_scanned: number
+          universe_diagnostics: Json | null
         }
         Insert: {
           actionable_count?: number
@@ -688,12 +702,14 @@ export type Database = {
           provider_telemetry?: Json | null
           quantitatively_ranked?: number
           recurrence_diagnostics?: Json | null
+          refresh_diagnostics?: Json | null
           scanner_version?: string | null
           started_at?: string
           status?: string
           survivor_limit?: number | null
           tokens_discovered?: number
           tokens_scanned?: number
+          universe_diagnostics?: Json | null
         }
         Update: {
           actionable_count?: number
@@ -718,12 +734,14 @@ export type Database = {
           provider_telemetry?: Json | null
           quantitatively_ranked?: number
           recurrence_diagnostics?: Json | null
+          refresh_diagnostics?: Json | null
           scanner_version?: string | null
           started_at?: string
           status?: string
           survivor_limit?: number | null
           tokens_discovered?: number
           tokens_scanned?: number
+          universe_diagnostics?: Json | null
         }
         Relationships: []
       }
