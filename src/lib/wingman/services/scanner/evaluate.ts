@@ -30,6 +30,11 @@ import {
   type ScannerSignals,
   type SetupType,
 } from "./types";
+import {
+  OUT_OF_SCOPE_REASON,
+  UNKNOWN_ASSESSMENT,
+  type UniverseAssessment,
+} from "./universe";
 
 
 /**
@@ -74,7 +79,15 @@ export interface EvaluateOptions {
    */
   requireMarket?: boolean;
   market?: MarketResolution | null;
+  /**
+   * Mandate eligibility, resolved AFTER identity and market resolution.
+   * OUT_OF_SCOPE excludes the candidate from setup qualification and survivor
+   * selection. UNKNOWN stays fully eligible.
+   */
+  universe?: UniverseAssessment | null;
 }
+
+
 
 
 export function evaluateCandidate(
@@ -108,6 +121,7 @@ export function evaluateCandidate(
     structuralSafety: "UNKNOWN" as const,
     tokenSecurity: "NOT_CHECKED" as const,
     historySnapshotCount: history.length,
+    universe: options.universe ?? UNKNOWN_ASSESSMENT,
   };
 
   const rejection = applyHardFilters(token, metrics);
@@ -132,6 +146,33 @@ export function evaluateCandidate(
       laneRejections: {},
       passedHardFilters: false,
       rejection: marketRejection(token.contractAddress, options.market ?? null),
+      quantitativePriority: null,
+      priority: null,
+      stageReached: "hard_filters",
+      enriched: false,
+    };
+  }
+
+  // Mandate gate: runs AFTER identity + market resolution and BEFORE setup
+  // qualification. Quantitative metrics stay computed and persisted so the
+  // exclusion is fully inspectable; the candidate simply never qualifies for a
+  // setup or a survivor slot. Never affects priority weights.
+  const universe = options.universe ?? UNKNOWN_ASSESSMENT;
+  if (universe.eligibility === "OUT_OF_SCOPE") {
+    return {
+      ...base,
+      lanes: [],
+      laneRejections: {},
+      passedHardFilters: false,
+      rejection: {
+        reason: OUT_OF_SCOPE_REASON,
+        detail: universe.reason,
+        values: {
+          contractAddress: token.contractAddress,
+          category: universe.category,
+          evidence: universe.evidence,
+        },
+      },
       quantitativePriority: null,
       priority: null,
       stageReached: "hard_filters",
