@@ -254,9 +254,8 @@ export async function runScannerPipeline(
       (c) => c.passedHardFilters && c.quantitativePriority !== null,
     );
     let structural: StructuralDiagnostics | null = null;
-    let structuralTargets: StructuralTarget[] = [];
     try {
-      structuralTargets = structuralPool.map((c) => ({
+      const structuralTargets: StructuralTarget[] = structuralPool.map((c) => ({
         contractAddress: c.token.contractAddress,
         chain: c.token.chain,
         tokenId: context.get(c.token.contractAddress)?.tokenId ?? null,

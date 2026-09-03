@@ -325,11 +325,12 @@ export function CandidateDrawer({
             ) : null}
           </Block>
 
-          <Block title="Structural eligibility (shadow mode)">
+          <Block title="Structural eligibility">
             <p className="mb-2 text-[11px] text-muted-foreground">
-              Deterministic structural risk only — not a thesis score, entry quality or survivor
-              gate. Shadow mode: results are recorded and displayed but never exclude candidates.
-              Missing evidence stays UNKNOWN and is never read as clean.
+              Deterministic structural risk only — not a thesis score and not entry quality. A FAIL
+              candidate cannot be selected as a Survivor or sent to expensive research. PASS,
+              CONCERN and UNKNOWN stay eligible; missing evidence stays UNKNOWN, never read as
+              clean.
             </p>
             <Row
               label="Status"
