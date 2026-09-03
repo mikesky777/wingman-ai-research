@@ -805,6 +805,160 @@ export type Database = {
         }
         Relationships: []
       }
+      token_scanner_outcomes: {
+        Row: {
+          contract_address: string | null
+          created_at: string
+          current_market_cap_usd: number | null
+          current_observed_at: string | null
+          current_price_usd: number | null
+          elapsed_minutes_since_first_call: number | null
+          elapsed_minutes_since_first_seen: number | null
+          first_call_at: string | null
+          first_call_market_cap_usd: number | null
+          first_call_price_usd: number | null
+          first_call_scan_id: string | null
+          first_seen_at: string | null
+          first_seen_market_cap_usd: number | null
+          first_seen_price_usd: number | null
+          first_seen_scan_id: string | null
+          horizons_since_first_call: Json | null
+          horizons_since_first_seen: Json | null
+          id: string
+          last_evaluated_at: string | null
+          market_cap_change_since_first_call_pct: number | null
+          market_cap_change_since_first_seen_pct: number | null
+          max_adverse_change_since_first_call_pct: number | null
+          max_adverse_change_since_first_seen_pct: number | null
+          max_gain_since_first_call_pct: number | null
+          max_gain_since_first_seen_pct: number | null
+          max_market_cap_since_first_call: number | null
+          max_market_cap_since_first_seen: number | null
+          max_peak_to_trough_drawdown_since_first_call_pct: number | null
+          max_peak_to_trough_drawdown_since_first_seen_pct: number | null
+          max_price_since_first_call: number | null
+          max_price_since_first_seen: number | null
+          min_market_cap_since_first_call: number | null
+          min_market_cap_since_first_seen: number | null
+          min_price_since_first_call: number | null
+          min_price_since_first_seen: number | null
+          observation_count: number
+          outcome_version: string | null
+          price_change_since_first_call_pct: number | null
+          price_change_since_first_seen_pct: number | null
+          token_id: string
+          updated_at: string
+        }
+        Insert: {
+          contract_address?: string | null
+          created_at?: string
+          current_market_cap_usd?: number | null
+          current_observed_at?: string | null
+          current_price_usd?: number | null
+          elapsed_minutes_since_first_call?: number | null
+          elapsed_minutes_since_first_seen?: number | null
+          first_call_at?: string | null
+          first_call_market_cap_usd?: number | null
+          first_call_price_usd?: number | null
+          first_call_scan_id?: string | null
+          first_seen_at?: string | null
+          first_seen_market_cap_usd?: number | null
+          first_seen_price_usd?: number | null
+          first_seen_scan_id?: string | null
+          horizons_since_first_call?: Json | null
+          horizons_since_first_seen?: Json | null
+          id?: string
+          last_evaluated_at?: string | null
+          market_cap_change_since_first_call_pct?: number | null
+          market_cap_change_since_first_seen_pct?: number | null
+          max_adverse_change_since_first_call_pct?: number | null
+          max_adverse_change_since_first_seen_pct?: number | null
+          max_gain_since_first_call_pct?: number | null
+          max_gain_since_first_seen_pct?: number | null
+          max_market_cap_since_first_call?: number | null
+          max_market_cap_since_first_seen?: number | null
+          max_peak_to_trough_drawdown_since_first_call_pct?: number | null
+          max_peak_to_trough_drawdown_since_first_seen_pct?: number | null
+          max_price_since_first_call?: number | null
+          max_price_since_first_seen?: number | null
+          min_market_cap_since_first_call?: number | null
+          min_market_cap_since_first_seen?: number | null
+          min_price_since_first_call?: number | null
+          min_price_since_first_seen?: number | null
+          observation_count?: number
+          outcome_version?: string | null
+          price_change_since_first_call_pct?: number | null
+          price_change_since_first_seen_pct?: number | null
+          token_id: string
+          updated_at?: string
+        }
+        Update: {
+          contract_address?: string | null
+          created_at?: string
+          current_market_cap_usd?: number | null
+          current_observed_at?: string | null
+          current_price_usd?: number | null
+          elapsed_minutes_since_first_call?: number | null
+          elapsed_minutes_since_first_seen?: number | null
+          first_call_at?: string | null
+          first_call_market_cap_usd?: number | null
+          first_call_price_usd?: number | null
+          first_call_scan_id?: string | null
+          first_seen_at?: string | null
+          first_seen_market_cap_usd?: number | null
+          first_seen_price_usd?: number | null
+          first_seen_scan_id?: string | null
+          horizons_since_first_call?: Json | null
+          horizons_since_first_seen?: Json | null
+          id?: string
+          last_evaluated_at?: string | null
+          market_cap_change_since_first_call_pct?: number | null
+          market_cap_change_since_first_seen_pct?: number | null
+          max_adverse_change_since_first_call_pct?: number | null
+          max_adverse_change_since_first_seen_pct?: number | null
+          max_gain_since_first_call_pct?: number | null
+          max_gain_since_first_seen_pct?: number | null
+          max_market_cap_since_first_call?: number | null
+          max_market_cap_since_first_seen?: number | null
+          max_peak_to_trough_drawdown_since_first_call_pct?: number | null
+          max_peak_to_trough_drawdown_since_first_seen_pct?: number | null
+          max_price_since_first_call?: number | null
+          max_price_since_first_seen?: number | null
+          min_market_cap_since_first_call?: number | null
+          min_market_cap_since_first_seen?: number | null
+          min_price_since_first_call?: number | null
+          min_price_since_first_seen?: number | null
+          observation_count?: number
+          outcome_version?: string | null
+          price_change_since_first_call_pct?: number | null
+          price_change_since_first_seen_pct?: number | null
+          token_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "token_scanner_outcomes_first_call_scan_id_fkey"
+            columns: ["first_call_scan_id"]
+            isOneToOne: false
+            referencedRelation: "scan_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "token_scanner_outcomes_first_seen_scan_id_fkey"
+            columns: ["first_seen_scan_id"]
+            isOneToOne: false
+            referencedRelation: "scan_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "token_scanner_outcomes_token_id_fkey"
+            columns: ["token_id"]
+            isOneToOne: true
+            referencedRelation: "tokens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       token_snapshots: {
         Row: {
           active_boost_count: number | null

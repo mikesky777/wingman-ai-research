@@ -158,3 +158,29 @@ export function formatEvidenceAge(minutes: number | null | undefined): string {
   if (minutes === null || minutes === undefined) return "—";
   return formatAge(minutes);
 }
+
+/**
+ * Outcome display helpers. Historical market behavior after Wingman observed
+ * or selected a token — never a simulated or backtested trade return.
+ */
+export function outcomeTone(value: number | null | undefined): string {
+  if (value === null || value === undefined) return "text-muted-foreground";
+  if (value > 0) return "text-positive";
+  if (value < 0) return "text-destructive";
+  return "text-muted-foreground";
+}
+
+/** Signed percentage, `—` when the observation is unavailable (never 0%). */
+export function formatOutcomePct(value: number | null | undefined): string {
+  if (value === null || value === undefined) return "—";
+  const abs = Math.abs(value);
+  const digits = abs > 0 && abs < 1 ? 2 : 0;
+  return `${value >= 0 ? "+" : ""}${value.toFixed(digits)}%`;
+}
+
+export function formatOutcomeTime(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const parsed = Date.parse(iso);
+  if (Number.isNaN(parsed)) return "—";
+  return new Date(parsed).toLocaleString();
+}

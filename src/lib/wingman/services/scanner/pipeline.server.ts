@@ -43,6 +43,7 @@ import {
   resolveTokenIds,
   startScanRun,
 } from "./persistence.server";
+import { refreshOutcomes } from "../outcomes/outcome-persistence.server";
 import { loadActiveStrategy } from "./settings.server";
 import { TelemetryRecorder } from "./telemetry";
 import {
@@ -332,6 +333,24 @@ export async function runScannerPipeline(
       recurrenceDiagnostics: refreshDiagnostics,
       notes: `${SCANNER_VERSION} · ${DISCOVERY_CONFIG_VERSION}`,
     });
+
+    // Outcome tracking runs LAST, once the run is completed, and is purely
+    // observational: nothing it writes is ever read back into ranking,
+    // filtering, setup classification or survivor selection.
+    try {
+      const addressByTokenId = new Map<string, string>();
+      for (const candidate of toPersist) {
+        const id = tokenIds.get(candidate.token.contractAddress);
+        if (id) addressByTokenId.set(id, candidate.token.contractAddress);
+      }
+      await refreshOutcomes([...addressByTokenId.keys()], addressByTokenId);
+    } catch (outcomeError) {
+      // Outcome bookkeeping never fails a completed scan.
+      console.error(
+        "refreshOutcomes failed",
+        outcomeError instanceof Error ? outcomeError.message : outcomeError,
+      );
+    }
 
     return { ok: true, summary, message: null };
   } catch (error) {

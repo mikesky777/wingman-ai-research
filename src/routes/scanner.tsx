@@ -35,6 +35,8 @@ import {
   formatAge,
   formatRatioPct,
   laneLabel,
+  formatOutcomePct,
+  outcomeTone,
 } from "@/components/wingman/scanner/shared";
 import type { WorkbenchCandidate } from "@/lib/wingman/services/scanner-service";
 import { cn } from "@/lib/utils";
@@ -405,6 +407,12 @@ function ScannerPage() {
                     <th className="text-right">Turnover</th>
                     <th>Primary lane</th>
                     <th>Seen</th>
+                    <th className="text-right" title="Market-cap change since Wingman first observed this token.">
+                      Since seen
+                    </th>
+                    <th className="text-right" title="Market-cap change since Wingman first selected this token as a Survivor.">
+                      Since call
+                    </th>
                     <th className="text-right">Priority</th>
                   </tr>
                 </thead>
@@ -494,6 +502,22 @@ function ScannerPage() {
                             ×{c.scansSeenCount}
                           </span>
                         ) : null}
+                      </td>
+                      <td
+                        className={cn(
+                          "tabular text-right text-sm",
+                          outcomeTone(c.outcome?.sinceSeenPct),
+                        )}
+                      >
+                        {formatOutcomePct(c.outcome?.sinceSeenPct)}
+                      </td>
+                      <td
+                        className={cn(
+                          "tabular text-right text-sm",
+                          outcomeTone(c.outcome?.sinceCallPct),
+                        )}
+                      >
+                        {c.outcome?.firstCallAt ? formatOutcomePct(c.outcome.sinceCallPct) : "—"}
                       </td>
                       <td className="tabular text-right text-sm font-semibold">
                         {c.quantitativePriority ?? "—"}
