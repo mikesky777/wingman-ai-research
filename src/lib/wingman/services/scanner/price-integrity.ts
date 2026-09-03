@@ -52,10 +52,31 @@ export const PRICE_INTEGRITY_CALIBRATION = {
   poorLiquidityRetention: 0.25,
   /** Window (minutes from first observation) counted as launch-era volume. */
   earlyVolumeWindowMinutes: 6 * 60,
-  /** Launch-era share of observed volume above this is concentrated. */
+  /** Launch-era share of observed volume above this is concentrated (context only in v1.1). */
   concentratedEarlyVolumeShare: 0.6,
+  /** Fixed short launch windows, in minutes, measured from the first observation. */
+  fixedVolumeWindowsMinutes: [30, 60, 180] as number[],
+  /** Window used for the launch volume RATE (USD/min). */
+  launchRateWindowMinutes: 60,
+  /**
+   * Age-normalized concentration: launch USD/min divided by later USD/min.
+   * This, not the 12h share, is what may contribute to classification.
+   */
+  concentratedVolumeRateRatio: 6,
+  /** Volume traded within +/- this many minutes of the peak counts as peak-window volume. */
+  peakVolumeWindowMinutes: 30,
   /** Peak / stabilized value above this is an extreme spike (context only). */
   extremePeakToStabilizedRatio: 15,
+  /** Normalized repair: fraction of peak→low damage reclaimed. */
+  repairedPeakFraction: 0.25,
+  /** Below this, the reclaim of the original peak is weak (normalized). */
+  weakPeakRepairFraction: 0.15,
+  /** Current value at or above this fraction of the original peak = repaired. */
+  repairedCurrentToPeakRatio: 0.5,
+  /** A late peak this many times the pre-peak baseline is a blowoff candidate. */
+  blowoffPeakToBaselineRatio: 5,
+  /** Minutes before the peak used to compute the pre-peak baseline. */
+  prePeakBaselineMinutes: 120,
   /** Damage requires at least this many independent damage signals. */
   minDamageSignals: 4,
   /** Concern requires at least this many. */
