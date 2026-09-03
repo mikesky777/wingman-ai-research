@@ -302,7 +302,11 @@ export async function persistCandidates(
         structural_status: c.structural?.status ?? null,
         structural_policy_version: c.structural?.policyVersion ?? null,
         structural_detail: c.structural
-          ? { rules: c.structural.rules, context: c.structural.context, shadowMode: true }
+          ? {
+              rules: c.structural.rules,
+              context: c.structural.context,
+              shadowMode: c.structural.shadowMode,
+            }
           : null,
         // Mandate eligibility. Never a quality or safety judgement.
         universe_eligibility: c.universe?.eligibility ?? "UNKNOWN",

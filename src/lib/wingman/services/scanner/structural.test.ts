@@ -121,12 +121,15 @@ describe("structural rules", () => {
     expect(aggregateStructuralStatus([])).toBe("UNKNOWN");
   });
 
-  it("stays in shadow mode and reports diagnostics", () => {
-    expect(STRUCTURAL_SHADOW_MODE).toBe(true);
+  it("is operational (veto on) and reports diagnostics", () => {
+    expect(STRUCTURAL_SHADOW_MODE).toBe(false);
     const e = evaluateStructural({ evaluatedAt: AT, mint: mint(), market: okMarket, holders: null });
-    expect(e.shadowMode).toBe(true);
-    expect(structuralDiagnostics([e]).pass).toBe(1);
+    expect(e.shadowMode).toBe(false);
+    const d = structuralDiagnostics([e]);
+    expect(d.pass).toBe(1);
+    expect(d.vetoEnabled).toBe(true);
   });
+
 });
 
 describe("mint account parsing", () => {

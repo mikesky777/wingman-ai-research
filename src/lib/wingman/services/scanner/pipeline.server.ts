@@ -246,6 +246,49 @@ export async function runScannerPipeline(
     });
 
     const ranked = assignRanks(rankCandidates(evaluated));
+
+    // Structural Eligibility v1 — evaluated BEFORE survivor allocation so a
+    // structural FAIL can veto selection. It never touches ranking, priority,
+    // setup classification, recurrence or outcomes.
+    const structuralPool = ranked.filter(
+      (c) => c.passedHardFilters && c.quantitativePriority !== null,
+    );
+    let structural: StructuralDiagnostics | null = null;
+    try {
+      const structuralTargets: StructuralTarget[] = structuralPool.map((c) => ({
+        contractAddress: c.token.contractAddress,
+        chain: c.token.chain,
+        tokenId: context.get(c.token.contractAddress)?.tokenId ?? null,
+        market: markets.get(c.token.contractAddress) ?? null,
+      }));
+      const evaluations = await evaluateStructuralForTargets(structuralTargets, {
+        evaluatedAt: new Date().toISOString(),
+      });
+      for (const candidate of structuralPool) {
+        candidate.structural = evaluations.get(candidate.token.contractAddress) ?? null;
+      }
+      structural = structuralDiagnostics([...evaluations.values()]);
+      await persistStructuralEvaluations(runId, structuralTargets, evaluations);
+    } catch (structuralError) {
+      // A structural bookkeeping failure never fails a scan. With no evaluation
+      // there is no FAIL, so nothing is vetoed — never a silent exclusion.
+      console.error(
+        "structural evaluation failed",
+        structuralError instanceof Error ? structuralError.message : structuralError,
+      );
+    }
+
+    // Counterfactual allocation used only for diagnostics; the real selection
+    // below runs last and owns the persisted membership flags.
+    const baseline = selectSurvivorsWithReservations(
+      ranked,
+      config.survivorEnrichmentLimit,
+      config.strategy.reservations,
+      config.strategy,
+      { structuralVeto: false },
+    );
+    const baselineSet = new Set(baseline.survivors.map((s) => s.token.contractAddress));
+
     const selection = selectSurvivorsWithReservations(
       ranked,
       config.survivorEnrichmentLimit,
@@ -253,6 +296,7 @@ export async function runScannerPipeline(
       config.strategy,
     );
     const survivors = selection.survivors;
+
 
     // Persist survivors first, then rejected candidates up to the cap.
     const survivorSet = new Set(survivors.map((s) => s.token.contractAddress));
@@ -372,35 +416,32 @@ export async function runScannerPipeline(
       })),
     );
 
-    const tokenIds = await resolveTokenIds(toPersist.map((c) => c.token));
-
-    // Structural Eligibility v1 — SHADOW MODE. Derived AFTER every ranking,
-    // setup and survivor decision, so it cannot influence any of them.
-    let structural: StructuralDiagnostics | null = null;
-    try {
-      const targets: StructuralTarget[] = toPersist.map((c) => ({
-        contractAddress: c.token.contractAddress,
-        chain: c.token.chain,
-        tokenId: tokenIds.get(c.token.contractAddress) ?? null,
-        market: markets.get(c.token.contractAddress) ?? null,
-      }));
-      const evaluations = await evaluateStructuralForTargets(targets, {
-        evaluatedAt: new Date().toISOString(),
-      });
-      for (const candidate of toPersist) {
-        candidate.structural = evaluations.get(candidate.token.contractAddress) ?? null;
-      }
-      structural = structuralDiagnostics([...evaluations.values()]);
-      await persistStructuralEvaluations(runId, targets, evaluations);
-    } catch (structuralError) {
-      // Structural bookkeeping never fails a scan and never blocks survivors.
-      console.error(
-        "structural evaluation failed",
-        structuralError instanceof Error ? structuralError.message : structuralError,
-      );
+    // Selection effects of the structural veto. OUT_OF_SCOPE candidates were
+    // already removed by Universe Eligibility before structural evaluation ran,
+    // so the two exclusion counts are disjoint by construction.
+    if (structural) {
+      const status = (c: EvaluatedCandidate) => c.structural?.status ?? "UNKNOWN";
+      structural = {
+        ...structural,
+        selection: {
+          failRemovedBeforeSelection: selection.structurallyVetoed.length,
+          failWouldHaveBeenSurvivors: baseline.survivors.filter((s) => status(s) === "FAIL").length,
+          slotsBackfilled: survivors.filter((s) => !baselineSet.has(s.token.contractAddress)).length,
+          survivorsByStatus: {
+            pass: survivors.filter((s) => status(s) === "PASS").length,
+            concern: survivors.filter((s) => status(s) === "CONCERN").length,
+            unknown: survivors.filter((s) => status(s) === "UNKNOWN").length,
+            fail: survivors.filter((s) => status(s) === "FAIL").length,
+          },
+          outOfScopeRemoved: universe.outOfScope,
+        },
+      };
     }
 
+    const tokenIds = await resolveTokenIds(toPersist.map((c) => c.token));
+
     await persistCandidates(runId, toPersist, tokenIds);
+
 
 
 
