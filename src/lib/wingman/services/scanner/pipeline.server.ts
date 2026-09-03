@@ -32,6 +32,7 @@ import { resolveMarkets } from "./market-eligibility.server";
 import type { MarketResolution } from "./market-eligibility";
 import { bucketDiagnostics, laneDiagnostics } from "./diagnostics";
 import { deriveRecurrence } from "./recurrence";
+import { deriveRefreshState, type RefreshDiagnostics } from "./refresh";
 import {
   ConcurrentScanError,
   completeScanRun,
@@ -73,6 +74,7 @@ export interface ScanRunSummary {
   laneReservationUsage: Record<string, number>;
   selectedByReservation: number;
   selectedByGlobalRanking: number;
+  refresh: RefreshDiagnostics;
 }
 
 export interface RunScanResult {
@@ -313,6 +315,7 @@ export async function runScannerPipeline(
       laneReservationUsage: selection.laneUsage,
       selectedByReservation: selection.reservedCount,
       selectedByGlobalRanking: selection.globalCount,
+      refresh: refreshDiagnostics,
     };
 
     await completeScanRun({
@@ -326,6 +329,7 @@ export async function runScannerPipeline(
       laneDiagnostics: lanes,
       durationMs: summary.durationMs,
       survivorLimit: config.survivorEnrichmentLimit,
+      recurrenceDiagnostics: refreshDiagnostics,
       notes: `${SCANNER_VERSION} · ${DISCOVERY_CONFIG_VERSION}`,
     });
 
