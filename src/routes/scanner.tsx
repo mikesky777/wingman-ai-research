@@ -23,6 +23,10 @@ import { StrategySettingsPanel } from "@/components/wingman/scanner/StrategySett
 import {
   LANES,
   LANE_TONE,
+  RECURRENCE_HINT,
+  RECURRENCE_STATES,
+  RECURRENCE_TONE,
+  type RecurrenceFilter,
   disabledSetups,
   enabledSetups,
   formatAge,
@@ -81,6 +85,12 @@ function calibrationFilters(strategy: StrategyShape): { key: Filter; label: stri
 
 type Row = WorkbenchCandidate & { passedNearMiss: boolean };
 
+/** Recurrence view: descriptive history only, never a scanner behavior change. */
+function applyRecurrenceFilter(candidates: Row[], filter: RecurrenceFilter): Row[] {
+  if (filter === "ALL") return candidates;
+  return candidates.filter((c) => c.recurrenceState === filter);
+}
+
 function applyFilter(candidates: Row[], filter: Filter): Row[] {
   switch (filter) {
     case "ALL":
@@ -106,6 +116,7 @@ function ScannerPage() {
   const { data: diagnostics } = useRunDiagnostics(funnel?.runId);
   const [message, setMessage] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("SURVIVORS");
+  const [recurrence, setRecurrence] = useState<RecurrenceFilter>("ALL");
   const [selected, setSelected] = useState<string | null>(null);
   const scan = useServerFn(runScan);
   const loadStrategy = useServerFn(getStrategySettings);
@@ -146,7 +157,7 @@ function ScannerPage() {
     deep: null,
   };
   const maxCount = Math.max(funnel?.discovered ?? 1, 1);
-  const rows = applyFilter(candidates, filter);
+  const rows = applyRecurrenceFilter(applyFilter(candidates, filter), recurrence);
   const active = candidates.find((c) => c.id === selected) ?? null;
 
   const runState = mutation.isPending
@@ -338,7 +349,7 @@ function ScannerPage() {
           title="Candidates"
           description="Every column is labelled and read from the stored scan. Quantitative priority ranks research effort — it is not a thesis score."
           actions={
-            <div className="flex flex-wrap gap-1">
+            <div className="flex flex-wrap items-center gap-1">
               {normalFilters(strategy).map((f) => (
                 <button
                   key={f.key}
@@ -351,6 +362,22 @@ function ScannerPage() {
                   )}
                 >
                   {f.label}
+                </button>
+              ))}
+              <span className="mx-1 h-4 w-px bg-border" />
+              {(["ALL", ...RECURRENCE_STATES] as RecurrenceFilter[]).map((r) => (
+                <button
+                  key={r}
+                  onClick={() => setRecurrence(r)}
+                  title={RECURRENCE_HINT[r] ?? "All candidates, any scan history."}
+                  className={cn(
+                    "rounded border px-2 py-1 font-mono text-[10px] tracking-wide transition-colors",
+                    recurrence === r
+                      ? "border-primary/50 bg-primary/10 text-primary"
+                      : "border-border-strong text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {r === "ALL" ? "All history" : r}
                 </button>
               ))}
             </div>
@@ -374,6 +401,7 @@ function ScannerPage() {
                     <th className="text-right">24h volume</th>
                     <th className="text-right">Turnover</th>
                     <th>Primary lane</th>
+                    <th>Seen</th>
                     <th className="text-right">Priority</th>
                   </tr>
                 </thead>
@@ -438,6 +466,22 @@ function ScannerPage() {
                             ) : null}
                           </div>
                         )}
+                      </td>
+                      <td className="px-3">
+                        <span
+                          className={cn(
+                            "rounded border px-1.5 py-0.5 font-mono text-[10px] tracking-wide",
+                            RECURRENCE_TONE[c.recurrenceState] ?? "border-border-strong",
+                          )}
+                          title={RECURRENCE_HINT[c.recurrenceState] ?? ""}
+                        >
+                          {c.recurrenceState}
+                        </span>
+                        {c.scansSeenCount > 1 ? (
+                          <span className="ml-1 font-mono text-[10px] text-muted-foreground">
+                            ×{c.scansSeenCount}
+                          </span>
+                        ) : null}
                       </td>
                       <td className="tabular text-right text-sm font-semibold">
                         {c.quantitativePriority ?? "—"}

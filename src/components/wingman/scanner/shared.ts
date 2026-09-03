@@ -109,3 +109,28 @@ export function laneLabel(lane: string): string {
   };
   return labels[lane] ?? lane.replace(/_/g, " ");
 }
+
+/** Recurrence is descriptive scan history only — never a quality verdict. */
+export const RECURRENCE_TONE: Record<string, string> = {
+  NEW: "border-primary/40 bg-primary/10 text-primary",
+  REPEAT: "border-border-strong text-muted-foreground",
+  CHANGED: "border-positive/40 bg-positive/10 text-positive",
+  RETURNING: "border-warning/40 bg-warning/10 text-warning",
+};
+
+export const RECURRENCE_STATES = ["NEW", "CHANGED", "RETURNING", "REPEAT"] as const;
+export type RecurrenceFilter = "ALL" | (typeof RECURRENCE_STATES)[number];
+
+export const RECURRENCE_HINT: Record<string, string> = {
+  NEW: "First time Wingman Scanner has seen this token.",
+  REPEAT: "Seen in the previous scan with no meaningful scanner-level change.",
+  CHANGED: "Seen before; setup, priority or a signal state moved meaningfully.",
+  RETURNING: "Seen before, absent from recent scans, now back.",
+};
+
+export function formatScanTime(value: string | null): string {
+  if (!value) return "—";
+  const ms = Date.parse(value);
+  if (Number.isNaN(ms)) return "—";
+  return new Date(ms).toLocaleString();
+}

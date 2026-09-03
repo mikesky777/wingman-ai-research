@@ -12,6 +12,7 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { SCANNER_VERSION, type StrategySettings } from "./config";
 import { marketCapBucket } from "./diagnostics";
+import { RECURRENCE_CONFIG, type RecurrenceAppearance } from "./recurrence";
 import type {
   DiscoveredToken,
   EvaluatedCandidate,
@@ -266,6 +267,21 @@ export async function persistCandidates(
         structural_safety: c.structuralSafety,
         token_security: c.tokenSecurity,
         history_snapshot_count: c.historySnapshotCount,
+        // Recurrence is descriptive metadata only — it changes no decision.
+        recurrence_state: c.recurrence?.state ?? "NEW",
+        first_seen_scan_at: c.recurrence?.firstSeenScanAt ?? null,
+        previous_seen_scan_at: c.recurrence?.previousSeenScanAt ?? null,
+        scans_seen_count: c.recurrence?.scansSeenCount ?? 1,
+        consecutive_scans_seen: c.recurrence?.consecutiveScansSeen ?? 1,
+        previous_quantitative_priority: c.recurrence?.previousQuantitativePriority ?? null,
+        priority_delta: c.recurrence?.priorityDelta ?? null,
+        previous_setups: c.recurrence?.previousSetups ?? [],
+        setup_changed: c.recurrence?.setupChanged ?? false,
+        previous_selected_as_survivor: c.recurrence?.previousSelectedAsSurvivor ?? false,
+        last_selected_as_survivor_at: c.recurrence?.lastSelectedAsSurvivorAt ?? null,
+        recurrence_detail: c.recurrence
+          ? { missedScans: c.recurrence.missedScans, changeReasons: c.recurrence.changeReasons }
+          : null,
         market_cap_bucket: marketCapBucket(c.token.marketCap),
         price_usd: c.token.priceUsd,
         price_change_1h: c.token.priceChange1h,
@@ -304,4 +320,84 @@ export async function persistCandidates(
     inserted += count ?? chunk.length;
   }
   return inserted;
+}
+
+// ---------------------------------------------------------------------------
+// Scan recurrence history (read-only over completed runs)
+// ---------------------------------------------------------------------------
+
+export interface RecurrenceHistory {
+  /** Completed run ids BEFORE the current run, newest → oldest. */
+  recentRunIds: string[];
+  /** Prior appearances keyed by contract address. */
+  byAddress: Map<string, RecurrenceAppearance[]>;
+}
+
+/**
+ * Derive recurrence inputs from EXISTING persisted scan history. Nothing here
+ * writes; historical runs and candidates stay immutable.
+ */
+export async function loadRecurrenceHistory(
+  addresses: string[],
+  currentRunId: string | null,
+  lookback: number = RECURRENCE_CONFIG.historyRunLookback,
+): Promise<RecurrenceHistory> {
+  const empty: RecurrenceHistory = { recentRunIds: [], byAddress: new Map() };
+  if (addresses.length === 0) return empty;
+
+  const { data: runRows, error: runError } = await supabaseAdmin
+    .from("scan_runs")
+    .select("id, started_at, completed_at")
+    .eq("status", "completed")
+    .order("completed_at", { ascending: false })
+    .limit(lookback);
+  if (runError) return empty;
+
+  const runs = ((runRows ?? []) as Row[])
+    .filter((r) => (r["id"] as string) !== currentRunId)
+    .map((r) => ({
+      id: r["id"] as string,
+      at: ((r["completed_at"] as string | null) ?? (r["started_at"] as string)) as string,
+    }));
+  if (runs.length === 0) return empty;
+
+  const runAt = new Map(runs.map((r) => [r.id, r.at]));
+  const runIds = runs.map((r) => r.id);
+  const byAddress = new Map<string, RecurrenceAppearance[]>();
+
+  for (let i = 0; i < addresses.length; i += 150) {
+    const chunk = addresses.slice(i, i + 150);
+    const { data, error } = await supabaseAdmin
+      .from("scan_candidates")
+      .select(
+        "scan_run_id, contract_address, discovery_lanes, quantitative_priority, activity_state, persistence_signal, reacceleration_signal, selected_by_lane_reservation, selected_by_global_ranking, enriched",
+      )
+      .in("scan_run_id", runIds)
+      .in("contract_address", chunk);
+    if (error) continue; // History is optional; candidates degrade to NEW.
+
+    for (const row of (data ?? []) as Row[]) {
+      const address = row["contract_address"] as string | null;
+      const runId = row["scan_run_id"] as string;
+      if (!address || !runAt.has(runId)) continue;
+      const entry: RecurrenceAppearance = {
+        runId,
+        runAt: runAt.get(runId)!,
+        setups: (row["discovery_lanes"] as string[] | null) ?? [],
+        quantitativePriority: (row["quantitative_priority"] as number | null) ?? null,
+        activityState: (row["activity_state"] as string | null) ?? null,
+        persistenceSignal: (row["persistence_signal"] as string | null) ?? null,
+        reaccelerationSignal: (row["reacceleration_signal"] as string | null) ?? null,
+        selectedAsSurvivor:
+          Boolean(row["selected_by_lane_reservation"]) ||
+          Boolean(row["selected_by_global_ranking"]) ||
+          Boolean(row["enriched"]),
+      };
+      const list = byAddress.get(address);
+      if (list) list.push(entry);
+      else byAddress.set(address, [entry]);
+    }
+  }
+
+  return { recentRunIds: runIds, byAddress };
 }
