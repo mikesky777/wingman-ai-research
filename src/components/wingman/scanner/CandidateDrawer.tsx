@@ -246,6 +246,27 @@ export function CandidateDrawer({
               label="Last survivor selection"
               value={formatScanTime(c.lastSelectedAsSurvivorAt)}
             />
+            <Row
+              label="Refresh state"
+              value={
+                <span
+                  className={cn(
+                    "rounded border px-1.5 py-0.5 font-mono text-[10px] tracking-wide",
+                    REFRESH_TONE[c.refreshState] ?? "border-border-strong",
+                  )}
+                  title={REFRESH_HINT[c.refreshState] ?? ""}
+                >
+                  {c.refreshState}
+                </span>
+              }
+            />
+            <Row label="Most recent enrichment" value={formatScanTime(c.lastEnrichedAt)} />
+            <Row label="Evidence age" value={formatEvidenceAge(c.evidenceAgeMinutes)} />
+            <Row
+              label="Evidence for this scan"
+              value={c.evidenceCarriedForward ? "Carried forward" : "Fresh evidence"}
+            />
+
             {c.recurrenceChangeReasons.length > 0 ? (
               <ul className="mt-2 space-y-1">
                 {c.recurrenceChangeReasons.map((reason) => (
