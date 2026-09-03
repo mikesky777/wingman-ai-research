@@ -295,6 +295,12 @@ export async function persistCandidates(
           c.refreshPlan?.evidenceAgeMinutes ?? c.refresh?.evidenceAgeMinutes ?? null,
         // Per-domain refresh plan: every evidence domain decided independently.
         refresh_domains: c.refreshPlan ? c.refreshPlan.domains : null,
+        // Structural Eligibility (shadow mode): recorded, never enforced.
+        structural_status: c.structural?.status ?? null,
+        structural_policy_version: c.structural?.policyVersion ?? null,
+        structural_detail: c.structural
+          ? { rules: c.structural.rules, context: c.structural.context, shadowMode: true }
+          : null,
         // Mandate eligibility. Never a quality or safety judgement.
         universe_eligibility: c.universe?.eligibility ?? "UNKNOWN",
         universe_category: c.universe?.category ?? null,

@@ -12,6 +12,7 @@ import type { ChainId } from "../external/chains";
 import type { RecurrenceInfo } from "./recurrence";
 import type { RefreshDecision, RefreshPlan } from "./refresh";
 import type { UniverseAssessment } from "./universe";
+import type { StructuralEvaluation } from "./structural";
 
 export const SCANNER_VERSION = "scanner/v2";
 
@@ -301,6 +302,11 @@ export interface EvaluatedCandidate {
    * an input to Quantitative Research Priority.
    */
   universe?: UniverseAssessment | null;
+  /**
+   * Structural Eligibility v1, SHADOW MODE: descriptive only. It is never read
+   * by ranking, setup classification, reservations or survivor selection.
+   */
+  structural?: StructuralEvaluation | null;
 }
 
 
