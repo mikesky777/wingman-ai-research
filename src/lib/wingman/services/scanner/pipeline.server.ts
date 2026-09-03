@@ -246,6 +246,50 @@ export async function runScannerPipeline(
     });
 
     const ranked = assignRanks(rankCandidates(evaluated));
+
+    // Structural Eligibility v1 — evaluated BEFORE survivor allocation so a
+    // structural FAIL can veto selection. It never touches ranking, priority,
+    // setup classification, recurrence or outcomes.
+    const structuralPool = ranked.filter(
+      (c) => c.passedHardFilters && c.quantitativePriority !== null,
+    );
+    let structural: StructuralDiagnostics | null = null;
+    let structuralTargets: StructuralTarget[] = [];
+    try {
+      structuralTargets = structuralPool.map((c) => ({
+        contractAddress: c.token.contractAddress,
+        chain: c.token.chain,
+        tokenId: context.get(c.token.contractAddress)?.tokenId ?? null,
+        market: markets.get(c.token.contractAddress) ?? null,
+      }));
+      const evaluations = await evaluateStructuralForTargets(structuralTargets, {
+        evaluatedAt: new Date().toISOString(),
+      });
+      for (const candidate of structuralPool) {
+        candidate.structural = evaluations.get(candidate.token.contractAddress) ?? null;
+      }
+      structural = structuralDiagnostics([...evaluations.values()]);
+      await persistStructuralEvaluations(runId, structuralTargets, evaluations);
+    } catch (structuralError) {
+      // A structural bookkeeping failure never fails a scan. With no evaluation
+      // there is no FAIL, so nothing is vetoed — never a silent exclusion.
+      console.error(
+        "structural evaluation failed",
+        structuralError instanceof Error ? structuralError.message : structuralError,
+      );
+    }
+
+    // Counterfactual allocation used only for diagnostics; the real selection
+    // below runs last and owns the persisted membership flags.
+    const baseline = selectSurvivorsWithReservations(
+      ranked,
+      config.survivorEnrichmentLimit,
+      config.strategy.reservations,
+      config.strategy,
+      { structuralVeto: false },
+    );
+    const baselineSet = new Set(baseline.survivors.map((s) => s.token.contractAddress));
+
     const selection = selectSurvivorsWithReservations(
       ranked,
       config.survivorEnrichmentLimit,
@@ -253,6 +297,7 @@ export async function runScannerPipeline(
       config.strategy,
     );
     const survivors = selection.survivors;
+
 
     // Persist survivors first, then rejected candidates up to the cap.
     const survivorSet = new Set(survivors.map((s) => s.token.contractAddress));
