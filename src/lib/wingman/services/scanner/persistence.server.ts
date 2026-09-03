@@ -80,6 +80,10 @@ export interface CompleteRunInput {
   universeDiagnostics?: unknown;
   /** Structural Eligibility shadow-mode counts for this run. */
   structuralDiagnostics?: unknown;
+  /** BASE 24h-volume floor effect for this run. */
+  baseVolumeFloorDiagnostics?: unknown;
+  /** Price / Launch Integrity shadow-mode counts and history cost. */
+  priceIntegrityDiagnostics?: unknown;
 }
 
 export async function completeScanRun(input: CompleteRunInput): Promise<void> {
@@ -107,6 +111,8 @@ export async function completeScanRun(input: CompleteRunInput): Promise<void> {
       refresh_diagnostics: (input.refreshDiagnostics ?? null) as never,
       universe_diagnostics: (input.universeDiagnostics ?? null) as never,
       structural_diagnostics: (input.structuralDiagnostics ?? null) as never,
+      base_volume_floor_diagnostics: (input.baseVolumeFloorDiagnostics ?? null) as never,
+      price_integrity_diagnostics: (input.priceIntegrityDiagnostics ?? null) as never,
       notes: input.notes ?? null,
     } as never)
     .eq("id", input.runId);

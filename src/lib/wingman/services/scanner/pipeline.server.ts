@@ -569,6 +569,8 @@ export async function runScannerPipeline(
       refreshDiagnostics,
       universeDiagnostics: universe,
       structuralDiagnostics: structural,
+      baseVolumeFloorDiagnostics: summary.baseVolumeFloor,
+      priceIntegrityDiagnostics: priceIntegrity,
       notes: `${SCANNER_VERSION} · ${DISCOVERY_CONFIG_VERSION}`,
     });
 
