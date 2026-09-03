@@ -5,43 +5,71 @@
  * Price Integrity stays shadow-only and must never change any of it.
  */
 import { describe, expect, it } from "vitest";
-import { evaluateSetups, WINGMAN_DEFAULT_SETTINGS, normalizeStrategySettings } from "./index";
-import type { ScannerMetrics, ScannerSignals } from "./types";
+import {
+  evaluateCandidate,
+  WINGMAN_DEFAULT_SETTINGS,
+  type DiscoveredToken,
+  type DiscoveryHit,
+} from "./index";
 import {
   candlesToInput,
   evaluateFromCandles,
   type IntegrityCandle,
 } from "./price-integrity";
 
-const NOW = Date.parse("2026-04-01T12:00:00.000Z");
+const NOW_ISO = "2026-04-01T12:00:00.000Z";
+const NOW = Date.parse(NOW_ISO);
 const LAUNCH = new Date(NOW - 48 * 60 * 60_000).toISOString();
 
-/** Metrics of a healthy post-bond BASE survivor. */
-const METRICS: ScannerMetrics = {
-  ageMinutes: 60 * 24 * 3,
-  ageBasis: "listed",
-  minutesSinceLastTrade: 3,
-  volumeToMarketCap24h: 1.14,
-  volumeToLiquidity24h: 5.6,
-  volumeAcceleration1hVs6h: 1.2,
-  tradeAcceleration1hVs6h: 1.1,
-  buySellRatio24h: 1.05,
-  liquidityToMarketCap: 0.2,
-  tradesPerHour1h: 420,
-  volumePerHour1h: 26_000,
+function minutesAgo(minutes: number): string {
+  return new Date(NOW - minutes * 60_000).toISOString();
+}
+
+const HIT: DiscoveryHit = {
+  source: "birdeye",
+  queryId: "volume_1h_lowcap",
+  family: "volume",
+  rank: 0,
+  laneHints: ["BASE"],
 };
 
-const SIGNALS: ScannerSignals = {
-  activityState: "ACTIVE",
-  persistenceSignal: true,
-  reaccelerationSignal: false,
-  extensionRisk: "NONE",
-  extensionReasons: [],
-  attentionPriceDivergence: false,
-};
+/** A post-bond BASE survivor; only 24h volume varies across these cases. */
+function buddy(volume24h: number | null): DiscoveredToken {
+  return {
+    chain: "solana",
+    contractAddress: "Buddy22222222222222222222222222222222222222",
+    symbol: "BUDDY",
+    name: "Buddy",
+    imageUrl: null,
+    priceUsd: 0.001,
+    marketCap: 420_000,
+    fdv: 430_000,
+    liquidityUsd: 85_000,
+    volume5m: 3_000,
+    volume1h: 26_000,
+    volume6h: 130_000,
+    volume24h,
+    trades5m: 45,
+    trades1h: 420,
+    trades6h: 2_300,
+    trades24h: 8_600,
+    buys24h: 4_400,
+    sells24h: 4_200,
+    priceChange5m: 0.4,
+    priceChange1h: 1.5,
+    priceChange6h: 4,
+    priceChange24h: 9,
+    holderCount: 3_400,
+    uniqueWallets24h: 1_900,
+    listedAt: minutesAgo(60 * 24 * 3),
+    lastTradeAt: minutesAgo(3),
+    discovery: [HIT],
+  };
+}
 
 function base(volume24h: number | null) {
-  return evaluateSetups(420_000, METRICS, SIGNALS, WINGMAN_DEFAULT_SETTINGS, volume24h);
+  const c = evaluateCandidate(buddy(volume24h), { nowIso: NOW_ISO });
+  return { lanes: c.lanes, rejections: c.laneRejections };
 }
 
 describe("BASE 24h volume floor", () => {
@@ -66,10 +94,8 @@ describe("BASE 24h volume floor", () => {
   });
 
   it("leaves REACCEL untouched by the floor", () => {
-    const strategy = normalizeStrategySettings(WINGMAN_DEFAULT_SETTINGS);
-    const reaccelSignals: ScannerSignals = { ...SIGNALS, reaccelerationSignal: true };
-    const withVolume = evaluateSetups(420_000, METRICS, reaccelSignals, strategy, 1_000);
-    expect(withVolume.rejections["REACCEL"] ?? "").not.toContain("VOLUME_24H");
+    expect(base(1_000).rejections["REACCEL"] ?? "").not.toContain("VOLUME_24H");
+    expect(base(null).rejections["REACCEL"] ?? "").not.toContain("VOLUME_24H");
   });
 });
 
