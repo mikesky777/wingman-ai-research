@@ -24,6 +24,9 @@ import {
   REFRESH_HINT,
   REFRESH_TONE,
   formatEvidenceAge,
+  formatOutcomePct,
+  formatOutcomeTime,
+  outcomeTone,
   SIGNAL_TONE,
   formatAge,
   formatNum,
@@ -279,6 +282,77 @@ export function CandidateDrawer({
                 ))}
               </ul>
             ) : null}
+          </Block>
+
+          <Block title="Outcome since Wingman observation">
+            <p className="mb-2 text-[11px] text-muted-foreground">
+              Historical market behavior after Wingman observation/selection — not a simulated or
+              backtested trade return. Derived from stored observations only.
+            </p>
+            <Row label="First seen" value={formatOutcomeTime(c.outcome?.firstSeenAt ?? null)} />
+            <Row
+              label="First-seen MC"
+              value={
+                c.outcome?.firstSeenMarketCap == null
+                  ? "—"
+                  : formatUsd(c.outcome.firstSeenMarketCap)
+              }
+            />
+            <Row
+              label="Since seen"
+              value={
+                <span className={outcomeTone(c.outcome?.sinceSeenPct)}>
+                  {formatOutcomePct(c.outcome?.sinceSeenPct)}
+                </span>
+              }
+            />
+            <Row
+              label="First Wingman call"
+              value={
+                c.outcome?.firstCallAt ? formatOutcomeTime(c.outcome.firstCallAt) : "Never selected"
+              }
+            />
+            <Row
+              label="First-call MC"
+              value={
+                c.outcome?.firstCallMarketCap == null
+                  ? "—"
+                  : formatUsd(c.outcome.firstCallMarketCap)
+              }
+            />
+            <Row
+              label="Since call"
+              value={
+                <span className={outcomeTone(c.outcome?.sinceCallPct)}>
+                  {c.outcome?.firstCallAt ? formatOutcomePct(c.outcome.sinceCallPct) : "—"}
+                </span>
+              }
+            />
+            <Row
+              label="Current MC"
+              value={
+                c.outcome?.currentMarketCap == null ? "—" : formatUsd(c.outcome.currentMarketCap)
+              }
+            />
+            <Row
+              label="Max gain (seen / call)"
+              value={`${formatOutcomePct(c.outcome?.maxGainSinceSeenPct)} / ${
+                c.outcome?.firstCallAt ? formatOutcomePct(c.outcome.maxGainSinceCallPct) : "—"
+              }`}
+            />
+            <Row
+              label="Max adverse change (seen / call)"
+              value={`${formatOutcomePct(c.outcome?.maxAdverseSinceSeenPct)} / ${
+                c.outcome?.firstCallAt ? formatOutcomePct(c.outcome.maxAdverseSinceCallPct) : "—"
+              }`}
+            />
+            <Row
+              label="Peak-to-trough drawdown (seen / call)"
+              value={`${formatOutcomePct(c.outcome?.drawdownSinceSeenPct)} / ${
+                c.outcome?.firstCallAt ? formatOutcomePct(c.outcome.drawdownSinceCallPct) : "—"
+              }`}
+            />
+            <Row label="Stored observations" value={c.outcome?.observationCount ?? 0} />
           </Block>
 
           <Block title="Lifecycle signals">

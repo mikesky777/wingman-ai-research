@@ -207,7 +207,32 @@ export interface WorkbenchCandidate {
   evidenceAgeMinutes: number | null;
   label: string;
   labelNote: string | null;
+  /**
+   * Historical market behavior after Wingman observed / selected the token.
+   * Never a simulated or backtested trade return, never an input to scoring.
+   */
+  outcome: TokenOutcome | null;
 }
+
+export interface TokenOutcome {
+  firstSeenAt: string | null;
+  firstSeenMarketCap: number | null;
+  firstCallAt: string | null;
+  firstCallMarketCap: number | null;
+  currentMarketCap: number | null;
+  sinceSeenPct: number | null;
+  sinceCallPct: number | null;
+  maxGainSinceSeenPct: number | null;
+  maxGainSinceCallPct: number | null;
+  maxAdverseSinceSeenPct: number | null;
+  maxAdverseSinceCallPct: number | null;
+  drawdownSinceSeenPct: number | null;
+  drawdownSinceCallPct: number | null;
+  observationCount: number;
+}
+
+const OUTCOME_COLUMNS =
+  "token_id, first_seen_at, first_seen_market_cap_usd, first_call_at, first_call_market_cap_usd, current_market_cap_usd, market_cap_change_since_first_seen_pct, market_cap_change_since_first_call_pct, max_gain_since_first_seen_pct, max_gain_since_first_call_pct, max_adverse_change_since_first_seen_pct, max_adverse_change_since_first_call_pct, max_peak_to_trough_drawdown_since_first_seen_pct, max_peak_to_trough_drawdown_since_first_call_pct, observation_count";
 
 const WORKBENCH_COLUMNS =
   "id, token_id, contract_address, discovery_lanes, lane_rejections, discovery_queries, discovery_ranks, token_age_minutes, age_basis, market_cap, market_cap_bucket, liquidity_usd, price_usd, volume_1h, volume_24h, trades_1h, trades_24h, buys_24h, sells_24h, holder_count, price_change_1h, price_change_24h, volume_to_market_cap_24h, volume_to_liquidity_24h, activity_state, persistence_signal, reacceleration_signal, extension_risk, extension_reasons, attention_price_divergence, structural_safety, token_security, quantitative_priority, priority_breakdown, metrics_detail, global_rank, lane_ranks, selected_by_lane_reservation, selected_by_global_ranking, history_snapshot_count, stage_reached, rejection_reason, rejection_details, enriched, recurrence_state, first_seen_scan_at, previous_seen_scan_at, scans_seen_count, consecutive_scans_seen, previous_quantitative_priority, priority_delta, previous_setups, setup_changed, previous_selected_as_survivor, last_selected_as_survivor_at, recurrence_detail, refresh_state, evidence_carried_forward, last_enriched_at, evidence_age_minutes, token:tokens!inner(id, name, symbol)";
@@ -356,9 +381,12 @@ export const ScannerService = {
     if (error) throw error;
 
     const rows = (data ?? []) as unknown as Row[];
-    const [labels, previous] = await Promise.all([
+    const [labels, previous, outcomes] = await Promise.all([
       ScannerService.labels(scanRunId),
       ScannerService.previousPriorities(scanRunId),
+      ScannerService.outcomes(
+        rows.map((r) => (r["token"] as { id: string }).id),
+      ),
     ]);
 
     return rows.map((r) => {
@@ -434,8 +462,45 @@ export const ScannerService = {
           ((r["recurrence_detail"] as { changeReasons?: string[] } | null)?.changeReasons ?? []),
         label: labels[token.id]?.label ?? "UNREVIEWED",
         labelNote: labels[token.id]?.note ?? null,
+        outcome: outcomes[token.id] ?? null,
       };
     });
+  },
+
+  /**
+   * Outcome records for the given tokens. Read-only: outcomes are written by
+   * the post-scan writer and never feed back into scanner behavior.
+   */
+  async outcomes(tokenIds: string[]): Promise<Record<string, TokenOutcome>> {
+    const unique = [...new Set(tokenIds)].filter(Boolean);
+    if (unique.length === 0) return {};
+    const { data, error } = await supabase
+      .from("token_scanner_outcomes")
+      .select(OUTCOME_COLUMNS)
+      .in("token_id", unique);
+    if (error) return {};
+
+    const out: Record<string, TokenOutcome> = {};
+    for (const row of (data ?? []) as unknown as Row[]) {
+      const num = (key: string) => (row[key] as number | null) ?? null;
+      out[row["token_id"] as string] = {
+        firstSeenAt: (row["first_seen_at"] as string | null) ?? null,
+        firstSeenMarketCap: num("first_seen_market_cap_usd"),
+        firstCallAt: (row["first_call_at"] as string | null) ?? null,
+        firstCallMarketCap: num("first_call_market_cap_usd"),
+        currentMarketCap: num("current_market_cap_usd"),
+        sinceSeenPct: num("market_cap_change_since_first_seen_pct"),
+        sinceCallPct: num("market_cap_change_since_first_call_pct"),
+        maxGainSinceSeenPct: num("max_gain_since_first_seen_pct"),
+        maxGainSinceCallPct: num("max_gain_since_first_call_pct"),
+        maxAdverseSinceSeenPct: num("max_adverse_change_since_first_seen_pct"),
+        maxAdverseSinceCallPct: num("max_adverse_change_since_first_call_pct"),
+        drawdownSinceSeenPct: num("max_peak_to_trough_drawdown_since_first_seen_pct"),
+        drawdownSinceCallPct: num("max_peak_to_trough_drawdown_since_first_call_pct"),
+        observationCount: (row["observation_count"] as number | null) ?? 0,
+      };
+    }
+    return out;
   },
 
   /** Human calibration labels for a run, keyed by token id. */
