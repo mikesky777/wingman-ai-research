@@ -12,21 +12,39 @@
  *   - Only rules with an already-approved deterministic policy produce a
  *     status. Everything else is exposed as CONTEXT and cannot move the
  *     aggregate.
- *   - v1 runs in SHADOW MODE: nothing here may touch ranking, setup
- *     classification, reservations, survivor selection or outcomes.
+ *   - v1 is OPERATIONAL for a single narrow decision: a FAIL candidate can
+ *     never become a Survivor. It still never touches ranking, priority,
+ *     setup classification, recurrence or outcomes.
  */
 
 export const STRUCTURAL_POLICY_VERSION = "structural/v1";
 
-/** Shadow mode: results are calculated, persisted and displayed only. */
-export const STRUCTURAL_SHADOW_MODE = true;
+/**
+ * Shadow mode is over: FAIL now vetoes survivor selection. Everything else
+ * about structural evaluation remains observational.
+ */
+export const STRUCTURAL_SHADOW_MODE = false;
+
+/** FAIL is the only veto. PASS / CONCERN / UNKNOWN stay fully eligible. */
+export const STRUCTURAL_VETO_ENABLED = true;
 
 export type StructuralStatus = "PASS" | "CONCERN" | "FAIL" | "UNKNOWN";
+
+/**
+ * The single eligibility contract shared by Survivor selection and every
+ * future expensive stage (thesis research, opportunity creation).
+ * UNKNOWN is NOT failure.
+ */
+export function isStructurallyEligible(status: StructuralStatus | null | undefined): boolean {
+  if (!STRUCTURAL_VETO_ENABLED) return true;
+  return status !== "FAIL";
+}
 
 /** On-chain authority state. UNKNOWN is never rendered as revoked. */
 export type AuthorityState = "REVOKED" | "ACTIVE" | "UNKNOWN";
 
 export const NO_VALID_DEX_MARKET_REASON = "NO_VALID_DEX_MARKET";
+
 
 export const BUNDLER_COVERAGE_CAVEAT =
   "Birdeye bundler tagging has limited historical coverage before 2026-03-01. " +
