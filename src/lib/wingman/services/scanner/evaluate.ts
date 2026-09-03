@@ -320,7 +320,9 @@ export function selectSurvivorsWithReservations(
     laneUsage,
     reservedCount,
     globalCount: chosen.length - reservedCount,
+    structurallyVetoed: vetoed,
   };
+
 }
 
 /** Survivors chosen for expensive enrichment. Everything else stops here. */
