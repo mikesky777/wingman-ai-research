@@ -248,17 +248,38 @@ export interface SurvivorSelection {
  * list, a multi-setup token is only ever charged once, and every unused setup
  * slot returns to the global pool which is then filled strictly by priority.
  * NONE candidates are excluded from reservations but compete in that pool.
+ *
+ * Structural Eligibility acts as a pure VETO applied before any allocation: a
+ * FAIL candidate consumes no reserved and no global capacity, and the freed
+ * slot goes to the next otherwise-eligible ranked candidate. PASS, CONCERN and
+ * UNKNOWN are untouched. Ranking, priority and setups are computed upstream and
+ * are never modified here.
  */
 export function selectSurvivorsWithReservations(
   ranked: EvaluatedCandidate[],
   limit: number,
   reservations: Record<SetupType, number> = WINGMAN_DEFAULT_SETTINGS.reservations,
   strategy: StrategySettings = WINGMAN_DEFAULT_SETTINGS,
+  options: { structuralVeto?: boolean } = {},
 ): SurvivorSelection {
-  const eligible = ranked.filter((c) => c.passedHardFilters && c.quantitativePriority !== null);
+  const vetoOn = options.structuralVeto ?? true;
+  // Selection is re-runnable (diagnostics compare vetoed vs unvetoed), so
+  // membership flags always start from a clean slate.
+  for (const candidate of ranked) {
+    candidate.selectedByLaneReservation = false;
+    candidate.selectedByGlobalRanking = false;
+  }
+  const qualified = ranked.filter((c) => c.passedHardFilters && c.quantitativePriority !== null);
+  const vetoed = vetoOn
+    ? qualified.filter((c) => !isStructurallyEligible(c.structural?.status ?? null))
+    : [];
+  const eligible = vetoOn
+    ? qualified.filter((c) => isStructurallyEligible(c.structural?.status ?? null))
+    : qualified;
   const chosen: EvaluatedCandidate[] = [];
   const seen = new Set<string>();
   const laneUsage: Record<string, number> = {};
+
 
   for (const setup of SETUP_RESERVATION_ORDER) {
     // A disabled setup never holds reserved capacity.
