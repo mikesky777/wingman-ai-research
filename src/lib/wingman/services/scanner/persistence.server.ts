@@ -78,6 +78,8 @@ export interface CompleteRunInput {
   refreshDiagnostics?: unknown;
   /** Mandate eligibility counts for this run. */
   universeDiagnostics?: unknown;
+  /** Structural Eligibility shadow-mode counts for this run. */
+  structuralDiagnostics?: unknown;
 }
 
 export async function completeScanRun(input: CompleteRunInput): Promise<void> {
@@ -104,6 +106,7 @@ export async function completeScanRun(input: CompleteRunInput): Promise<void> {
       recurrence_diagnostics: (input.recurrenceDiagnostics ?? null) as never,
       refresh_diagnostics: (input.refreshDiagnostics ?? null) as never,
       universe_diagnostics: (input.universeDiagnostics ?? null) as never,
+      structural_diagnostics: (input.structuralDiagnostics ?? null) as never,
       notes: input.notes ?? null,
     } as never)
     .eq("id", input.runId);
@@ -295,6 +298,12 @@ export async function persistCandidates(
           c.refreshPlan?.evidenceAgeMinutes ?? c.refresh?.evidenceAgeMinutes ?? null,
         // Per-domain refresh plan: every evidence domain decided independently.
         refresh_domains: c.refreshPlan ? c.refreshPlan.domains : null,
+        // Structural Eligibility (shadow mode): recorded, never enforced.
+        structural_status: c.structural?.status ?? null,
+        structural_policy_version: c.structural?.policyVersion ?? null,
+        structural_detail: c.structural
+          ? { rules: c.structural.rules, context: c.structural.context, shadowMode: true }
+          : null,
         // Mandate eligibility. Never a quality or safety judgement.
         universe_eligibility: c.universe?.eligibility ?? "UNKNOWN",
         universe_category: c.universe?.category ?? null,

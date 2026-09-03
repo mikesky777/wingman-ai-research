@@ -53,6 +53,8 @@ export async function resolveMarkets(
           pairAddress: null,
           liquidityUsd: null,
           reasonDetail: "DexScreener market lookup was unavailable for this candidate.",
+          // Distinguishes provider failure from a confirmed absent market.
+          providerFailure: true,
         });
       }
       continue;

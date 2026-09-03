@@ -454,7 +454,10 @@ export type Database = {
           sells_24h: number | null
           setup_changed: boolean
           stage_reached: string
+          structural_detail: Json | null
+          structural_policy_version: string | null
           structural_safety: string
+          structural_status: string | null
           token_age_minutes: number | null
           token_id: string
           token_security: string
@@ -533,7 +536,10 @@ export type Database = {
           sells_24h?: number | null
           setup_changed?: boolean
           stage_reached: string
+          structural_detail?: Json | null
+          structural_policy_version?: string | null
           structural_safety?: string
+          structural_status?: string | null
           token_age_minutes?: number | null
           token_id: string
           token_security?: string
@@ -612,7 +618,10 @@ export type Database = {
           sells_24h?: number | null
           setup_changed?: boolean
           stage_reached?: string
+          structural_detail?: Json | null
+          structural_policy_version?: string | null
           structural_safety?: string
+          structural_status?: string | null
           token_age_minutes?: number | null
           token_id?: string
           token_security?: string
@@ -674,6 +683,7 @@ export type Database = {
           scanner_version: string | null
           started_at: string
           status: string
+          structural_diagnostics: Json | null
           survivor_limit: number | null
           tokens_discovered: number
           tokens_scanned: number
@@ -706,6 +716,7 @@ export type Database = {
           scanner_version?: string | null
           started_at?: string
           status?: string
+          structural_diagnostics?: Json | null
           survivor_limit?: number | null
           tokens_discovered?: number
           tokens_scanned?: number
@@ -738,6 +749,7 @@ export type Database = {
           scanner_version?: string | null
           started_at?: string
           status?: string
+          structural_diagnostics?: Json | null
           survivor_limit?: number | null
           tokens_discovered?: number
           tokens_scanned?: number
@@ -822,6 +834,66 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      structural_evaluations: {
+        Row: {
+          chain: string
+          context: Json
+          contract_address: string
+          created_at: string
+          evaluated_at: string
+          evidence: Json | null
+          id: string
+          policy_version: string
+          rules: Json
+          scan_run_id: string | null
+          status: string
+          token_id: string | null
+        }
+        Insert: {
+          chain?: string
+          context?: Json
+          contract_address: string
+          created_at?: string
+          evaluated_at?: string
+          evidence?: Json | null
+          id?: string
+          policy_version: string
+          rules?: Json
+          scan_run_id?: string | null
+          status: string
+          token_id?: string | null
+        }
+        Update: {
+          chain?: string
+          context?: Json
+          contract_address?: string
+          created_at?: string
+          evaluated_at?: string
+          evidence?: Json | null
+          id?: string
+          policy_version?: string
+          rules?: Json
+          scan_run_id?: string | null
+          status?: string
+          token_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "structural_evaluations_scan_run_id_fkey"
+            columns: ["scan_run_id"]
+            isOneToOne: false
+            referencedRelation: "scan_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "structural_evaluations_token_id_fkey"
+            columns: ["token_id"]
+            isOneToOne: false
+            referencedRelation: "tokens"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       token_scanner_outcomes: {
         Row: {

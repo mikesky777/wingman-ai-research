@@ -41,6 +41,15 @@ import {
   type RefreshDiagnostics,
 } from "./refresh";
 import {
+  structuralDiagnostics,
+  type StructuralDiagnostics,
+} from "./structural";
+import {
+  evaluateStructuralForTargets,
+  persistStructuralEvaluations,
+  type StructuralTarget,
+} from "./structural.server";
+import {
   classifyUniverse,
   universeDiagnostics,
   type UniverseAssessment,
@@ -91,6 +100,8 @@ export interface ScanRunSummary {
   selectedByGlobalRanking: number;
   refresh: RefreshDiagnostics;
   universe: UniverseDiagnostics;
+  /** Shadow-mode structural counts. Never affects selection. */
+  structural: StructuralDiagnostics | null;
 }
 
 export interface RunScanResult {
@@ -362,7 +373,36 @@ export async function runScannerPipeline(
     );
 
     const tokenIds = await resolveTokenIds(toPersist.map((c) => c.token));
+
+    // Structural Eligibility v1 — SHADOW MODE. Derived AFTER every ranking,
+    // setup and survivor decision, so it cannot influence any of them.
+    let structural: StructuralDiagnostics | null = null;
+    try {
+      const targets: StructuralTarget[] = toPersist.map((c) => ({
+        contractAddress: c.token.contractAddress,
+        chain: c.token.chain,
+        tokenId: tokenIds.get(c.token.contractAddress) ?? null,
+        market: markets.get(c.token.contractAddress) ?? null,
+      }));
+      const evaluations = await evaluateStructuralForTargets(targets, {
+        evaluatedAt: new Date().toISOString(),
+      });
+      for (const candidate of toPersist) {
+        candidate.structural = evaluations.get(candidate.token.contractAddress) ?? null;
+      }
+      structural = structuralDiagnostics([...evaluations.values()]);
+      await persistStructuralEvaluations(runId, targets, evaluations);
+    } catch (structuralError) {
+      // Structural bookkeeping never fails a scan and never blocks survivors.
+      console.error(
+        "structural evaluation failed",
+        structuralError instanceof Error ? structuralError.message : structuralError,
+      );
+    }
+
     await persistCandidates(runId, toPersist, tokenIds);
+
+
 
 
     const passedHardFilters = evaluated.filter((c) => c.passedHardFilters).length;
@@ -397,6 +437,7 @@ export async function runScannerPipeline(
       selectedByGlobalRanking: selection.globalCount,
       refresh: refreshDiagnostics,
       universe,
+      structural,
     };
 
     await completeScanRun({
@@ -413,6 +454,7 @@ export async function runScannerPipeline(
       recurrenceDiagnostics: refreshDiagnostics,
       refreshDiagnostics,
       universeDiagnostics: universe,
+      structuralDiagnostics: structural,
       notes: `${SCANNER_VERSION} · ${DISCOVERY_CONFIG_VERSION}`,
     });
 

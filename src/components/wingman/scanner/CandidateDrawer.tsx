@@ -23,6 +23,7 @@ import {
   RECURRENCE_TONE,
   REFRESH_HINT,
   REFRESH_TONE,
+  STRUCTURAL_TONE,
   formatEvidenceAge,
   formatOutcomePct,
   formatOutcomeTime,
@@ -323,6 +324,59 @@ export function CandidateDrawer({
               </ul>
             ) : null}
           </Block>
+
+          <Block title="Structural eligibility (shadow mode)">
+            <p className="mb-2 text-[11px] text-muted-foreground">
+              Deterministic structural risk only — not a thesis score, entry quality or survivor
+              gate. Shadow mode: results are recorded and displayed but never exclude candidates.
+              Missing evidence stays UNKNOWN and is never read as clean.
+            </p>
+            <Row
+              label="Status"
+              value={
+                <span
+                  className={cn(
+                    "rounded border px-1 py-0.5 font-mono text-[10px]",
+                    STRUCTURAL_TONE[c.structuralStatus ?? "UNKNOWN"],
+                  )}
+                >
+                  {c.structuralStatus ?? "UNKNOWN"}
+                </span>
+              }
+            />
+            <Row label="Policy" value={c.structuralPolicyVersion ?? "—"} />
+            {(c.structuralDetail?.rules ?? []).map((rule) => (
+              <div key={rule.id} className="mt-1 text-[11px]">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="font-mono uppercase text-muted-foreground">{rule.label}</span>
+                  <span
+                    className={cn(
+                      "rounded border px-1 py-0.5 font-mono text-[10px]",
+                      STRUCTURAL_TONE[rule.status],
+                    )}
+                  >
+                    {rule.status}
+                  </span>
+                </div>
+                <p className="text-muted-foreground">
+                  {rule.detail ?? rule.fact} · {rule.source}
+                  {rule.observedAt ? ` · ${formatOutcomeTime(rule.observedAt)}` : ""}
+                </p>
+              </div>
+            ))}
+            {(c.structuralDetail?.context ?? []).length > 0 ? (
+              <div className="mt-2 border-t border-border pt-2">
+                <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                  Holder context (descriptive, not scored)
+                </div>
+                {(c.structuralDetail?.context ?? []).map((item) => (
+                  <Row key={item.id} label={item.label} value={item.value} />
+                ))}
+              </div>
+            ) : null}
+          </Block>
+
+
 
           <Block title="Outcome since Wingman observation">
             <p className="mb-2 text-[11px] text-muted-foreground">
