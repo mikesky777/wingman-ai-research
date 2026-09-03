@@ -146,10 +146,40 @@ export interface PriceIntegrityFeatures {
   liquidityRetention: number | null;
   /** Early peak / current (stabilized) value. Never damage on its own. */
   peakToStabilizedRatio: number | null;
-  /** Share of observed USD volume traded inside the launch window. */
+  /** Share of observed USD volume traded inside the 12h fetch window (context only). */
   earlyVolumeShare: number | null;
   earlyVolumeUsd: number | null;
   laterVolumeUsd: number | null;
+
+  // --- v1.1 normalized post-collapse repair (peak-relative, never low-relative) ---
+  /** Best value observed after the collapse (or after the post-peak low). */
+  postCollapseMaxHigh: number | null;
+  /** postCollapseMaxHigh / original peak. */
+  postCollapseHighToOriginalPeakRatio: number | null;
+  /** current / original peak. */
+  currentToOriginalPeakRatio: number | null;
+  /** (postCollapseMaxHigh − postPeakLow) / (peak − postPeakLow). */
+  peakRepairFraction: number | null;
+
+  // --- v1.1 fixed-window volume concentration (age-normalized) ---
+  first30mVolumeShare: number | null;
+  first1hVolumeShare: number | null;
+  first3hVolumeShare: number | null;
+  /** USD/min traded inside the launch rate window. */
+  launchVolumeRateUsdPerMin: number | null;
+  /** USD/min traded across the remaining observed lifecycle. */
+  laterVolumeRateUsdPerMin: number | null;
+  /** launch rate / later rate. Age-normalized, unlike a raw share. */
+  launchToLaterVolumeRateRatio: number | null;
+  /** Share of observed USD volume traded within ±window of the peak. */
+  peakWindowVolumeShare: number | null;
+
+  // --- v1.1 lifecycle blowoff context ---
+  /** Median value in the window preceding the peak. */
+  prePeakBaselineValue: number | null;
+  /** peak / pre-peak baseline. */
+  peakToPrePeakBaselineRatio: number | null;
+
   basis: "market_cap" | "price" | "none";
 }
 
