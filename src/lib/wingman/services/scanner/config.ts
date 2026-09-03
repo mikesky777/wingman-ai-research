@@ -113,7 +113,7 @@ export const WINGMAN_DEFAULT_SETTINGS: StrategySettings = {
       description: "Older token showing genuinely renewed interest versus its own baseline.",
     },
   },
-  reservations: { BASE: 10, MOMENTUM: 0, REACCEL: 8 },
+  reservations: { BASE: 15, MOMENTUM: 0, REACCEL: 8 },
   survivorLimit: 50,
 };
 

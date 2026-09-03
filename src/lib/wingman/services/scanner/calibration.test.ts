@@ -86,7 +86,7 @@ describe("MOMENTUM disabled in Wingman Default v1", () => {
   it("ships disabled with a zero reservation", () => {
     expect(WINGMAN_DEFAULT_SETTINGS.setups.MOMENTUM.enabled).toBe(false);
     expect(WINGMAN_DEFAULT_SETTINGS.reservations.MOMENTUM).toBe(0);
-    expect(WINGMAN_DEFAULT_SETTINGS.reservations.BASE).toBe(10);
+    expect(WINGMAN_DEFAULT_SETTINGS.reservations.BASE).toBe(15);
     expect(WINGMAN_DEFAULT_SETTINGS.reservations.REACCEL).toBe(8);
   });
 
@@ -98,14 +98,48 @@ describe("MOMENTUM disabled in Wingman Default v1", () => {
     expect(settings.reservations.MOMENTUM).toBe(0);
   });
 
-  it("never classifies a new scan into a disabled MOMENTUM", () => {
+  it("still computes the MOMENTUM tag while the standalone lane is disabled", () => {
+    // 6h old: too young for BASE (12h) but inside the MOMENTUM window.
     const young = token({ listedAt: minutesAgo(60 * 6), lastTradeAt: minutesAgo(1) });
     const c = evaluateCandidate(young, { nowIso: NOW, requireMarket: true, market: OK_MARKET });
-    expect(c.lanes).not.toContain("MOMENTUM");
-    expect(c.laneRejections["MOMENTUM"]).toMatch(/disabled/i);
+    expect(c.lanes).toEqual(["MOMENTUM"]);
+    expect(c.laneRejections["MOMENTUM"]).toBeUndefined();
     // Still a fully ranked candidate, never a rejection.
     expect(c.passedHardFilters).toBe(true);
     expect(c.quantitativePriority).not.toBeNull();
+  });
+
+  it("keeps a BASE + MOMENTUM candidate classified as both while standalone MOMENTUM is disabled", () => {
+    // 24h old: inside both the BASE (12h–10d) and MOMENTUM (3h–72h) windows.
+    const c = evaluateCandidate(token({ listedAt: minutesAgo(60 * 24), lastTradeAt: minutesAgo(1) }), {
+      nowIso: NOW,
+      requireMarket: true,
+      market: OK_MARKET,
+    });
+    // Disabling standalone MOMENTUM selection never costs the BASE classification.
+    expect(c.lanes).toContain("BASE");
+    expect(c.lanes).toContain("MOMENTUM");
+    // BASE remains the primary lane for display.
+    expect(c.lanes[0]).toBe("BASE");
+  });
+
+  it("lets a MOMENTUM-only candidate compete through the global pool with no reservation", () => {
+    const only = evaluateCandidate(
+      token({ listedAt: minutesAgo(60 * 6), lastTradeAt: minutesAgo(1) }),
+      { nowIso: NOW, requireMarket: true, market: OK_MARKET },
+    );
+    expect(only.lanes).toEqual(["MOMENTUM"]);
+    const ranked = assignRanks(rankCandidates([only]));
+    const selection = selectSurvivorsWithReservations(
+      ranked,
+      10,
+      WINGMAN_DEFAULT_SETTINGS.reservations,
+      WINGMAN_DEFAULT_SETTINGS,
+    );
+    expect(selection.laneUsage["MOMENTUM"]).toBe(0);
+    expect(selection.survivors).toHaveLength(1);
+    expect(selection.survivors[0]!.selectedByGlobalRanking).toBe(true);
+    expect(selection.survivors[0]!.selectedByLaneReservation).toBe(false);
   });
 
   it("grants a disabled setup no reserved survivor slots", () => {

@@ -416,7 +416,7 @@ describe("setup taxonomy v2", () => {
       WINGMAN_DEFAULT_SETTINGS.setups.BASE.marketCapMin,
     );
     expect(settings.configVersion).toBe(WINGMAN_DEFAULT_SETTINGS.configVersion);
-    expect(settings.reservations).toEqual({ BASE: 10, MOMENTUM: 0, REACCEL: 8 });
+    expect(settings.reservations).toEqual({ BASE: 15, MOMENTUM: 0, REACCEL: 8 });
   });
 
   it("keeps a saved strategy snapshot immutable against later edits", () => {
