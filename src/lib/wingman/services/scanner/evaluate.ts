@@ -22,6 +22,8 @@ import {
   persistenceSignal,
   reaccelerationSignal,
 } from "./signals";
+import { isStructurallyEligible } from "./structural";
+
 import {
   SETUP_TYPES,
   type DiscoveredToken,
