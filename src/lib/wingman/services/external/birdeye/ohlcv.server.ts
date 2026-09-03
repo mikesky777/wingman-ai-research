@@ -108,7 +108,7 @@ export async function fetchOhlcvRange(
   const chain = options.chain ?? DEFAULT_CHAIN;
   if (!isBirdeyeConfigured()) throw new BirdeyeError("NOT_CONFIGURED");
   if (!SOLANA_ADDRESS_RE.test(address.trim())) throw new BirdeyeError("INVALID_ADDRESS");
-  if (!supportsChain("birdeye", "holder_distribution", chain)) {
+  if (!supportsChain("birdeye", "price_history", chain)) {
     throw new BirdeyeError("UNSUPPORTED_CHAIN");
   }
 
