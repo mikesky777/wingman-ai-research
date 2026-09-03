@@ -113,11 +113,22 @@ describe("price integrity v1", () => {
     expect(bad.reasons.join(" ")).toContain("never invalidates");
   });
 
-  it("cannot be read by priority, selection or persistence", () => {
-    for (const file of ["priority.ts", "evaluate.ts", "pipeline.server.ts", "persistence.server.ts"]) {
+  it("cannot be read by priority or setup qualification", () => {
+    for (const file of ["priority.ts", "evaluate.ts", "lanes.ts", "structural.ts"]) {
       const source = readFileSync(`src/lib/wingman/services/scanner/${file}`, "utf8");
       expect(source).not.toContain("price-integrity");
       expect(source).not.toContain("priceIntegrity");
     }
   });
+
+  it("runs only after survivor selection in the pipeline", () => {
+    const source = readFileSync("src/lib/wingman/services/scanner/pipeline.server.ts", "utf8");
+    // Selection must already be resolved before any integrity work happens.
+    expect(source.indexOf("selectSurvivorsWithReservations")).toBeLessThan(
+      source.indexOf("evaluatePriceIntegrityForTargets"),
+    );
+    // And it is never used as a filter/veto.
+    expect(source).not.toMatch(/filter\([^)]*priceIntegrity/);
+  });
+
 });
