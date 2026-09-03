@@ -58,6 +58,11 @@ function Block({ title, children }: { title: string; children: React.ReactNode }
   );
 }
 
+/** Ratio → percent, preserving "unavailable" rather than inventing a zero. */
+function fmtPct(v: number | null | undefined): string {
+  return v == null ? "unavailable" : `${(v * 100).toFixed(1)}%`;
+}
+
 export function CandidateDrawer({
   candidate,
   scanRunId,
