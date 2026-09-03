@@ -78,6 +78,8 @@ export interface CompleteRunInput {
   refreshDiagnostics?: unknown;
   /** Mandate eligibility counts for this run. */
   universeDiagnostics?: unknown;
+  /** Structural Eligibility shadow-mode counts for this run. */
+  structuralDiagnostics?: unknown;
 }
 
 export async function completeScanRun(input: CompleteRunInput): Promise<void> {
@@ -104,6 +106,7 @@ export async function completeScanRun(input: CompleteRunInput): Promise<void> {
       recurrence_diagnostics: (input.recurrenceDiagnostics ?? null) as never,
       refresh_diagnostics: (input.refreshDiagnostics ?? null) as never,
       universe_diagnostics: (input.universeDiagnostics ?? null) as never,
+      structural_diagnostics: (input.structuralDiagnostics ?? null) as never,
       notes: input.notes ?? null,
     } as never)
     .eq("id", input.runId);
