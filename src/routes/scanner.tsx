@@ -26,6 +26,9 @@ import {
   RECURRENCE_HINT,
   RECURRENCE_STATES,
   RECURRENCE_TONE,
+  REFRESH_LABEL,
+  REFRESH_HINT,
+  REFRESH_TONE,
   type RecurrenceFilter,
   disabledSetups,
   enabledSetups,
@@ -476,6 +479,15 @@ function ScannerPage() {
                           title={RECURRENCE_HINT[c.recurrenceState] ?? ""}
                         >
                           {c.recurrenceState}
+                        </span>
+                        <span
+                          className={cn(
+                            "ml-1 rounded border px-1 py-0.5 font-mono text-[9px] tracking-wide",
+                            REFRESH_TONE[c.refreshState] ?? "border-border-strong",
+                          )}
+                          title={REFRESH_HINT[c.refreshState] ?? ""}
+                        >
+                          {REFRESH_LABEL[c.refreshState] ?? "—"}
                         </span>
                         {c.scansSeenCount > 1 ? (
                           <span className="ml-1 font-mono text-[10px] text-muted-foreground">
