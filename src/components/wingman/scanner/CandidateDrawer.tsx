@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { formatUsd } from "@/lib/wingman/format";
 import { checkTokenHolders, setCandidateLabel } from "@/lib/wingman/workbench.functions";
 import type { WorkbenchCandidate } from "@/lib/wingman/services/scanner-service";
+import { evaluateFromCandidateRowSummary } from "@/lib/wingman/services/scanner/price-integrity";
 import {
   COMPONENT_LABELS,
   EXTENSION_TONE,
