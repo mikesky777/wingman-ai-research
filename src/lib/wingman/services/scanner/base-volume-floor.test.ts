@@ -7,6 +7,7 @@
 import { describe, expect, it } from "vitest";
 import {
   evaluateCandidate,
+  normalizeStrategySettings,
   WINGMAN_DEFAULT_SETTINGS,
   type DiscoveredToken,
   type DiscoveryHit,
@@ -67,8 +68,18 @@ function buddy(volume24h: number | null): DiscoveredToken {
   };
 }
 
-function base(volume24h: number | null) {
-  const c = evaluateCandidate(buddy(volume24h), { nowIso: NOW_ISO });
+/** Buddy's real 24h volume; the floor is varied around it. */
+const BUDDY_VOLUME_24H = 480_000;
+
+function base(volume24h: number | null, floor = 10_000) {
+  const strategy = normalizeStrategySettings({
+    ...WINGMAN_DEFAULT_SETTINGS,
+    setups: {
+      ...WINGMAN_DEFAULT_SETTINGS.setups,
+      BASE: { ...WINGMAN_DEFAULT_SETTINGS.setups.BASE, minVolume24hUsd: floor },
+    },
+  });
+  const c = evaluateCandidate(buddy(volume24h), { nowIso: NOW_ISO, strategy });
   return { lanes: c.lanes, rejections: c.laneRejections };
 }
 
@@ -80,18 +91,16 @@ describe("BASE 24h volume floor", () => {
   });
 
   it("rejects $9,999 and accepts exactly $10,000", () => {
-    const below = base(9_999);
+    // One dollar below the floor is rejected; exactly at the floor qualifies.
+    const below = base(BUDDY_VOLUME_24H, BUDDY_VOLUME_24H + 1);
     expect(below.lanes).not.toContain("BASE");
-    // Either the global activity floor or the BASE floor removes it; the BASE
-    // floor is what fires whenever the candidate still reaches setup checks.
-    if (below.rejections["BASE"]) {
-      expect(below.rejections["BASE"]).toContain("BASE_VOLUME_24H_TOO_LOW");
-    }
-    expect(base(10_000).lanes).toContain("BASE");
+    expect(below.rejections["BASE"]).toContain("BASE_VOLUME_24H_TOO_LOW");
+
+    expect(base(BUDDY_VOLUME_24H, BUDDY_VOLUME_24H).lanes).toContain("BASE");
   });
 
   it("never treats unavailable volume as zero", () => {
-    const missing = base(null);
+    const missing = base(null, 1_000);
     expect(missing.rejections["BASE"]).toContain("BASE_VOLUME_24H_UNAVAILABLE");
     expect(missing.rejections["BASE"]).not.toContain("TOO_LOW");
   });
