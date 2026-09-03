@@ -101,6 +101,9 @@ export function CandidateDrawer({
   const breakdown = c.priorityBreakdown;
   // Shadow-only coverage read. A persisted row carries no price series, so this
   // reports what history exists and never classifies from it.
+  // Persisted candle-derived evaluation when the run computed one; otherwise a
+  // coverage-only read (a persisted row carries no price series).
+  const persistedIntegrity = c.priceIntegrityDetail;
   const priceIntegrity = evaluateFromCandidateRowSummary({
     historySnapshotCount: c.historySnapshotCount,
     ageMinutes: c.ageMinutes,
@@ -396,11 +399,24 @@ export function CandidateDrawer({
               label="Status"
               value={
                 <span className="rounded border border-border-strong px-1 py-0.5 font-mono text-[10px] text-muted-foreground">
-                  {priceIntegrity.status}
+                  {persistedIntegrity ? (c.priceIntegrityStatus ?? "UNKNOWN") : priceIntegrity.status}
                 </span>
               }
             />
-            <Row label="Policy" value={priceIntegrity.policyVersion} />
+            <Row
+              label="Policy"
+              value={c.priceIntegrityPolicyVersion ?? priceIntegrity.policyVersion}
+            />
+            <Row
+              label="Historical candles"
+              value={
+                persistedIntegrity
+                  ? `${persistedIntegrity.coverage.observationCount} · ${
+                      persistedIntegrity.coverage.resolutions?.join(", ") || "n/a"
+                    }`
+                  : "none fetched"
+              }
+            />
             <div className="mt-2 border-t border-border pt-2">
               <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
                 Measured coverage
@@ -425,14 +441,41 @@ export function CandidateDrawer({
               <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
                 Derived features
               </div>
-              <Row label="Peak → current drawdown" value="unavailable" />
-              <Row label="Early-peak timing" value="unavailable" />
-              <Row label="Recovery from low" value="unavailable" />
-              <Row label="Subsequent-high behavior" value="unavailable" />
-              <Row label="Liquidity retention" value="unavailable" />
+              <Row
+                label="Peak → current drawdown"
+                value={fmtPct(persistedIntegrity?.features.drawdownFromPeak)}
+              />
+              <Row
+                label="Peak → stabilized ratio"
+                value={
+                  persistedIntegrity?.features.peakToStabilizedRatio != null
+                    ? `${persistedIntegrity.features.peakToStabilizedRatio.toFixed(1)}x`
+                    : "unavailable"
+                }
+              />
+              <Row
+                label="Early-peak timing"
+                value={
+                  persistedIntegrity?.features.minutesFromLaunchToPeak != null
+                    ? formatAge(persistedIntegrity.features.minutesFromLaunchToPeak)
+                    : "unavailable"
+                }
+              />
+              <Row
+                label="Recovery from low"
+                value={fmtPct(persistedIntegrity?.features.recoveryFromLow)}
+              />
+              <Row
+                label="Launch-window volume share"
+                value={fmtPct(persistedIntegrity?.features.earlyVolumeShare)}
+              />
+              <Row
+                label="Liquidity retention"
+                value={fmtPct(persistedIntegrity?.features.liquidityRetention)}
+              />
             </div>
             <ul className="mt-2 space-y-1">
-              {priceIntegrity.reasons.map((reason) => (
+              {(persistedIntegrity?.reasons ?? priceIntegrity.reasons).map((reason) => (
                 <li key={reason} className="text-[11px] text-muted-foreground">
                   · {reason}
                 </li>
