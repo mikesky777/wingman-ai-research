@@ -37,6 +37,9 @@ Replace the single candidate-wide decision with a per-domain plan over `market`,
 
 Domain states: `REFRESH_REQUIRED`, `REFRESH_OPTIONAL`, `CARRY_FORWARD`, `NO_EVIDENCE`. A domain with no stored evidence reports `NO_EVIDENCE` — never `CARRY_FORWARD`. Candidate-level state stays for compact UI and is derived as the most urgent applicable domain state. Machine-readable reasons: stale evidence, no prior evidence, recurrence requires refresh, within freshness window, approaching expiry.
 
+Recurrence state must not automatically force every evidence domain to refresh. NEW / CHANGED / RETURNING may contribute to a domain's refresh decision only where relevant; still-valid unrelated domain evidence may remain CARRY_FORWARD. For example, a market-driven CHANGED state must not by itself invalidate fresh holder evidence.
+
+
 ## 4. Carry-forward and enrichment
 
 Carried evidence reuses the original persisted observation with its original `captured_at`, `observed_at` and source; no duplicate rows, no fabricated observation time, and carried evidence stays visibly distinguishable from freshly observed evidence.
