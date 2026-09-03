@@ -98,6 +98,14 @@ export function CandidateDrawer({
   if (!candidate) return null;
   const c = candidate;
   const breakdown = c.priorityBreakdown;
+  // Shadow-only coverage read. A persisted row carries no price series, so this
+  // reports what history exists and never classifies from it.
+  const priceIntegrity = evaluateFromCandidateRowSummary({
+    historySnapshotCount: c.historySnapshotCount,
+    ageMinutes: c.ageMinutes,
+    firstSeenScanAt: c.firstSeenScanAt,
+    scanAt: c.lastEnrichedAt,
+  });
 
   return (
     <Sheet open onOpenChange={(open) => (!open ? onClose() : undefined)}>
