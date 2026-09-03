@@ -393,6 +393,82 @@ export function deriveFeatures(input: PriceIntegrityInput): PriceIntegrityFeatur
       ? currentLiquidity / peakEraLiquidity
       : null;
 
+  // --- v1.1: repair normalized against the ORIGINAL peak, never the crash low.
+  // A 20x off a near-zero low is not repair; reclaiming the peak is.
+  const repairWindow = collapseAt
+    ? afterCollapse
+    : lowIndex >= 0
+      ? after.slice(lowIndex + 1)
+      : [];
+  const postCollapseMaxHigh =
+    repairWindow.length > 0 ? repairWindow.reduce((m, p) => (p.high > m ? p.high : m), repairWindow[0]!.high) : null;
+  const postCollapseHighToOriginalPeakRatio =
+    postCollapseMaxHigh !== null && peak.value > 0 ? postCollapseMaxHigh / peak.value : null;
+  const currentToOriginalPeakRatio = peak.value > 0 ? lastPoint.value / peak.value : null;
+  const damageSpan = low ? peak.value - low.value : null;
+  const peakRepairFraction =
+    postCollapseMaxHigh !== null && low && damageSpan !== null && damageSpan > 0
+      ? Math.max(0, Math.min(1, (postCollapseMaxHigh - low.value) / damageSpan))
+      : null;
+
+  // --- v1.1: fixed short launch windows + age-normalized volume RATES.
+  // The 12h high-resolution fetch window is a data strategy, not a behaviour.
+  const firstMs = new Date(firstPoint.at).getTime();
+  const lastMs = new Date(lastPoint.at).getTime();
+  const volumeInFirst = (minutes: number): number | null => {
+    if (volumePoints.length === 0) return null;
+    const end = firstMs + minutes * 60_000;
+    return volumePoints
+      .filter((p) => new Date(p.at).getTime() <= end)
+      .reduce((s, p) => s + p.volumeUsd!, 0);
+  };
+  const shareOfTotal = (usd: number | null): number | null =>
+    usd !== null && totalVolume !== null && totalVolume > 0 ? usd / totalVolume : null;
+  const first30mVolumeShare = shareOfTotal(volumeInFirst(30));
+  const first1hVolumeShare = shareOfTotal(volumeInFirst(60));
+  const first3hVolumeShare = shareOfTotal(volumeInFirst(180));
+
+  const rateWindow = PRICE_INTEGRITY_CALIBRATION.launchRateWindowMinutes;
+  const observedMinutes = (lastMs - firstMs) / 60_000;
+  const launchUsd = volumeInFirst(rateWindow);
+  const launchMinutes = Math.min(rateWindow, Math.max(1, observedMinutes));
+  const laterMinutes = observedMinutes - launchMinutes;
+  const launchVolumeRateUsdPerMin = launchUsd !== null ? launchUsd / launchMinutes : null;
+  const laterVolumeRateUsdPerMin =
+    launchUsd !== null && totalVolume !== null && laterMinutes >= 1
+      ? Math.max(0, totalVolume - launchUsd) / laterMinutes
+      : null;
+  const launchToLaterVolumeRateRatio =
+    launchVolumeRateUsdPerMin !== null &&
+    laterVolumeRateUsdPerMin !== null &&
+    laterVolumeRateUsdPerMin > 0
+      ? launchVolumeRateUsdPerMin / laterVolumeRateUsdPerMin
+      : null;
+
+  const peakWindowMs = PRICE_INTEGRITY_CALIBRATION.peakVolumeWindowMinutes * 60_000;
+  const peakMs = new Date(peak.at).getTime();
+  const peakWindowUsd =
+    volumePoints.length > 0
+      ? volumePoints
+          .filter((p) => Math.abs(new Date(p.at).getTime() - peakMs) <= peakWindowMs)
+          .reduce((s, p) => s + p.volumeUsd!, 0)
+      : null;
+  const peakWindowVolumeShare = shareOfTotal(peakWindowUsd);
+
+  // --- v1.1: pre-peak baseline, so a LATE blowoff is visible as a blowoff.
+  const baselineStartMs = peakMs - PRICE_INTEGRITY_CALIBRATION.prePeakBaselineMinutes * 60_000;
+  const baselineValues = series
+    .slice(0, peakIndex)
+    .filter((p) => new Date(p.at).getTime() >= baselineStartMs)
+    .map((p) => p.value)
+    .sort((a, b) => a - b);
+  const prePeakBaselineValue =
+    baselineValues.length > 0 ? baselineValues[Math.floor(baselineValues.length / 2)]! : null;
+  const peakToPrePeakBaselineRatio =
+    prePeakBaselineValue !== null && prePeakBaselineValue > 0
+      ? peak.value / prePeakBaselineValue
+      : null;
+
   return {
     earliestValue: firstPoint.value,
     peakValue: peak.value,
