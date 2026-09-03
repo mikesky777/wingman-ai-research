@@ -67,3 +67,12 @@ export {
   type RecurrenceInfo,
   type RecurrenceState,
 } from "./recurrence";
+export {
+  REFRESH_CONFIG,
+  deriveRefreshState,
+  evidenceAgeMinutes,
+  type RefreshConfig,
+  type RefreshDecision,
+  type RefreshDiagnostics,
+  type RefreshState,
+} from "./refresh";
