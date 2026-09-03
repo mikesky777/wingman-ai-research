@@ -118,7 +118,14 @@ export function assessMarket(address: string, pairs: DsPair[] | undefined | null
     };
   }
 
-  return { ok: true, pairAddress: primary.pairAddress ?? null, liquidityUsd, reasonDetail: null };
+  return {
+    ok: true,
+    pairAddress: primary.pairAddress ?? null,
+    liquidityUsd,
+    reasonDetail: null,
+    dexId: primary.dexId ?? null,
+    quoteTokenSymbol: primary.quoteToken?.symbol ?? null,
+  };
 }
 
 /** Turn a failed resolution into the standard rejection record. */
