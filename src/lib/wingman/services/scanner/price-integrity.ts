@@ -15,7 +15,7 @@
  *     Eligibility, Survivor selection or outcomes.
  */
 
-export const PRICE_INTEGRITY_POLICY_VERSION = "price_integrity/v1";
+export const PRICE_INTEGRITY_POLICY_VERSION = "price_integrity/v1.1";
 
 /** Shadow mode: evaluation is observational only. Never a veto. */
 export const PRICE_INTEGRITY_SHADOW_MODE = true;
