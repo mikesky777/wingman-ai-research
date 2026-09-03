@@ -239,7 +239,10 @@ export interface SurvivorSelection {
   laneUsage: Record<string, number>;
   reservedCount: number;
   globalCount: number;
+  /** Ranked candidates removed by the structural FAIL veto before allocation. */
+  structurallyVetoed: EvaluatedCandidate[];
 }
+
 
 /**
  * Setup-aware survivor selection.
