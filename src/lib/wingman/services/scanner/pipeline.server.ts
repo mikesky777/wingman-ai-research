@@ -14,7 +14,6 @@
  * discovered universe — that decision belongs to a later stage.
  */
 import { assessDiscoveryHealth, isDiscoveryUsable } from "./discovery-health";
-import { recordDiscoveryHealth } from "./persistence.server";
 import { DEFAULT_CHAIN } from "../external/chains";
 import { runDiscovery } from "../external/birdeye/discovery.server";
 import { DexScreenerAdapter } from "../external/dexscreener";
@@ -82,6 +81,7 @@ import {
   persistCandidates,
   resolveTokenIds,
   startScanRun,
+  recordDiscoveryHealth,
 } from "./persistence.server";
 import { refreshOutcomes } from "../outcomes/outcome-persistence.server";
 import { recordScanMilestones } from "../history/milestones.server";
