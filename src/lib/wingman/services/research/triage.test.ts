@@ -35,7 +35,7 @@ function decision(
   return {
     mint,
     decision: "DEEP_RESEARCH",
-    triage_rank: rank,
+    research_priority_rank: rank,
     confidence: "MEDIUM",
     rationale: "Broad participation with liquidity that justifies deeper work.",
     strongest_positive: "Repeat appearance across scans.",
