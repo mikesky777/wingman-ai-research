@@ -346,23 +346,32 @@ export async function backfillStageMilestones(): Promise<MilestoneBackfillResult
     CURRENT_V1: 0,
     UNKNOWN_POLICY: 0,
   };
+  const pending = new Map<string, string[]>();
   for (const row of existing.values()) {
     const current = (row["policy_epoch"] as string | null) ?? "UNKNOWN_POLICY";
     if (current !== "UNKNOWN_POLICY") continue;
     const scanId = (row["source_scan_id"] as string | null) ?? null;
     const epoch = epochForMilestone(scanId, runPolicies);
     if (epoch === "UNKNOWN_POLICY") continue;
-    const { error } = await supabaseAdmin
-      .from("token_stage_milestones")
-      .update({
-        policy_epoch: epoch,
-        selection_policy_version: runPolicies.get(scanId ?? "")?.selectionPolicyVersion ?? null,
-      } as never)
-      .eq("id", row["id"] as string)
-      .eq("policy_epoch", "UNKNOWN_POLICY");
-    if (error) throw error;
-    policyBackfill[epoch] += 1;
+    const version = runPolicies.get(scanId ?? "")?.selectionPolicyVersion ?? "";
+    const key = `${epoch}|${version}`;
+    const list = pending.get(key) ?? [];
+    list.push(row["id"] as string);
+    pending.set(key, list);
   }
+  for (const [key, ids] of pending) {
+    const [epoch, version] = key.split("|") as [PolicyEpoch, string];
+    for (let i = 0; i < ids.length; i += 200) {
+      const { error } = await supabaseAdmin
+        .from("token_stage_milestones")
+        .update({ policy_epoch: epoch, selection_policy_version: version || null } as never)
+        .in("id", ids.slice(i, i + 200))
+        .eq("policy_epoch", "UNKNOWN_POLICY");
+      if (error) throw error;
+    }
+    policyBackfill[epoch] += ids.length;
+  }
+
 
   const after = await loadExistingMilestones();
   let setupTotal = 0;
