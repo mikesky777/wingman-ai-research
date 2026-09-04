@@ -977,6 +977,10 @@ export type Database = {
           current_market_cap_usd: number | null
           current_observed_at: string | null
           current_price_usd: number | null
+          drawdown_peak_market_cap_since_call: number | null
+          drawdown_peak_since_call_at: string | null
+          drawdown_trough_market_cap_since_call: number | null
+          drawdown_trough_since_call_at: string | null
           elapsed_minutes_since_first_call: number | null
           elapsed_minutes_since_first_seen: number | null
           first_call_at: string | null
@@ -995,10 +999,14 @@ export type Database = {
           market_cap_change_since_first_seen_pct: number | null
           max_adverse_change_since_first_call_pct: number | null
           max_adverse_change_since_first_seen_pct: number | null
+          max_adverse_market_cap_since_call: number | null
+          max_adverse_since_call_at: string | null
+          max_adverse_since_call_pct: number | null
           max_gain_since_first_call_pct: number | null
           max_gain_since_first_seen_pct: number | null
           max_market_cap_since_first_call: number | null
           max_market_cap_since_first_seen: number | null
+          max_peak_to_trough_drawdown_since_call_pct: number | null
           max_peak_to_trough_drawdown_since_first_call_pct: number | null
           max_peak_to_trough_drawdown_since_first_seen_pct: number | null
           max_price_since_first_call: number | null
@@ -1024,6 +1032,10 @@ export type Database = {
           current_market_cap_usd?: number | null
           current_observed_at?: string | null
           current_price_usd?: number | null
+          drawdown_peak_market_cap_since_call?: number | null
+          drawdown_peak_since_call_at?: string | null
+          drawdown_trough_market_cap_since_call?: number | null
+          drawdown_trough_since_call_at?: string | null
           elapsed_minutes_since_first_call?: number | null
           elapsed_minutes_since_first_seen?: number | null
           first_call_at?: string | null
@@ -1042,10 +1054,14 @@ export type Database = {
           market_cap_change_since_first_seen_pct?: number | null
           max_adverse_change_since_first_call_pct?: number | null
           max_adverse_change_since_first_seen_pct?: number | null
+          max_adverse_market_cap_since_call?: number | null
+          max_adverse_since_call_at?: string | null
+          max_adverse_since_call_pct?: number | null
           max_gain_since_first_call_pct?: number | null
           max_gain_since_first_seen_pct?: number | null
           max_market_cap_since_first_call?: number | null
           max_market_cap_since_first_seen?: number | null
+          max_peak_to_trough_drawdown_since_call_pct?: number | null
           max_peak_to_trough_drawdown_since_first_call_pct?: number | null
           max_peak_to_trough_drawdown_since_first_seen_pct?: number | null
           max_price_since_first_call?: number | null
@@ -1071,6 +1087,10 @@ export type Database = {
           current_market_cap_usd?: number | null
           current_observed_at?: string | null
           current_price_usd?: number | null
+          drawdown_peak_market_cap_since_call?: number | null
+          drawdown_peak_since_call_at?: string | null
+          drawdown_trough_market_cap_since_call?: number | null
+          drawdown_trough_since_call_at?: string | null
           elapsed_minutes_since_first_call?: number | null
           elapsed_minutes_since_first_seen?: number | null
           first_call_at?: string | null
@@ -1089,10 +1109,14 @@ export type Database = {
           market_cap_change_since_first_seen_pct?: number | null
           max_adverse_change_since_first_call_pct?: number | null
           max_adverse_change_since_first_seen_pct?: number | null
+          max_adverse_market_cap_since_call?: number | null
+          max_adverse_since_call_at?: string | null
+          max_adverse_since_call_pct?: number | null
           max_gain_since_first_call_pct?: number | null
           max_gain_since_first_seen_pct?: number | null
           max_market_cap_since_first_call?: number | null
           max_market_cap_since_first_seen?: number | null
+          max_peak_to_trough_drawdown_since_call_pct?: number | null
           max_peak_to_trough_drawdown_since_first_call_pct?: number | null
           max_peak_to_trough_drawdown_since_first_seen_pct?: number | null
           max_price_since_first_call?: number | null
