@@ -242,6 +242,19 @@ export interface SurvivorSelection {
   laneUsage: Record<string, number>;
   reservedCount: number;
   globalCount: number;
+  /** Global-route survivors that DO carry a recognized setup. Uncapped. */
+  recognizedGlobalCount: number;
+  /** Global-route survivors with SETUP = NONE. Never exceeds the exception cap. */
+  noneGlobalCount: number;
+  /**
+   * Otherwise-eligible NONE candidates left out only because the NONE exception
+   * capacity was already full. They stay persisted and visible in Calibration.
+   */
+  noneSkippedByCap: EvaluatedCandidate[];
+  /** The NONE exception cap this selection ran with. */
+  maxNoneGlobalSurvivors: number;
+  /** survivorLimit − survivors. Positive means the market offered no more. */
+  unusedCapacity: number;
   /** Ranked candidates removed by the structural FAIL veto before allocation. */
   structurallyVetoed: EvaluatedCandidate[];
   /**
@@ -250,6 +263,7 @@ export interface SurvivorSelection {
    */
   marketDamageVetoed: EvaluatedCandidate[];
 }
+
 
 
 
@@ -324,27 +338,51 @@ export function selectSurvivorsWithReservations(
 
   const reservedCount = chosen.length;
 
-  // Unused reservation capacity flows straight back to the global pool, which
-  // includes hard-filter-passing candidates with no recognized setup (NONE).
+  // Unused reservation capacity flows back to the global pool. Candidates with
+  // a recognized setup are unconstrained; SETUP = NONE candidates are a limited
+  // exception (the taxonomy may be incomplete) capped by configuration. The cap
+  // is never a target: capacity left over simply goes unused.
+  const maxNone = Math.max(
+    0,
+    Math.round(strategy.maxNoneGlobalSurvivors ?? WINGMAN_DEFAULT_SETTINGS.maxNoneGlobalSurvivors),
+  );
+  let noneUsed = 0;
+  const noneSkippedByCap: EvaluatedCandidate[] = [];
   for (const candidate of eligible) {
     if (chosen.length >= limit) break;
     if (seen.has(candidate.token.contractAddress)) continue;
+    const isNone = candidate.lanes.length === 0;
+    if (isNone) {
+      if (noneUsed >= maxNone) {
+        noneSkippedByCap.push(candidate);
+        continue;
+      }
+      noneUsed += 1;
+    }
     seen.add(candidate.token.contractAddress);
     candidate.selectedByLaneReservation = false;
     candidate.selectedByGlobalRanking = true;
     chosen.push(candidate);
   }
 
+  const globalCount = chosen.length - reservedCount;
+
   return {
     survivors: chosen,
     laneUsage,
     reservedCount,
-    globalCount: chosen.length - reservedCount,
+    globalCount,
+    recognizedGlobalCount: globalCount - noneUsed,
+    noneGlobalCount: noneUsed,
+    noneSkippedByCap,
+    maxNoneGlobalSurvivors: maxNone,
+    unusedCapacity: Math.max(0, limit - chosen.length),
     structurallyVetoed: vetoed,
     marketDamageVetoed: damaged,
   };
 
 }
+
 
 /** Survivors chosen for expensive enrichment. Everything else stops here. */
 export function selectSurvivors(

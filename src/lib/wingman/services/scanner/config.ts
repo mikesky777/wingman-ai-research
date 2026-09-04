@@ -53,6 +53,12 @@ export interface StrategySettings {
   /** Reserved enrichment slots per setup, filled before the global pool. */
   reservations: Record<SetupType, number>;
   survivorLimit: number;
+  /**
+   * Maximum SETUP = NONE candidates allowed in through the global route on one
+   * run. The global escape hatch stays open (the taxonomy may be incomplete)
+   * but never fills the Survivor pool. Not a target: unused capacity is fine.
+   */
+  maxNoneGlobalSurvivors: number;
 }
 
 const MIN = 1;
@@ -125,6 +131,7 @@ export const WINGMAN_DEFAULT_SETTINGS: StrategySettings = {
   },
   reservations: { BASE: 15, MOMENTUM: 0, REACCEL: 8 },
   survivorLimit: 50,
+  maxNoneGlobalSurvivors: 5,
 };
 
 /** Deterministic order in which setup reservations are filled. */
@@ -248,6 +255,15 @@ export function normalizeStrategySettings(raw: unknown): StrategySettings {
     survivorLimit: Math.min(
       200,
       Math.max(1, Math.round(num(r["survivorLimit"], WINGMAN_DEFAULT_SETTINGS.survivorLimit))),
+    ),
+    maxNoneGlobalSurvivors: Math.min(
+      200,
+      Math.max(
+        0,
+        Math.round(
+          num(r["maxNoneGlobalSurvivors"], WINGMAN_DEFAULT_SETTINGS.maxNoneGlobalSurvivors),
+        ),
+      ),
     ),
   };
 }

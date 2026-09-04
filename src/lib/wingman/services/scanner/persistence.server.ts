@@ -159,6 +159,8 @@ export interface CompleteRunInput {
   priceIntegrityDiagnostics?: unknown;
   /** Participation Quality shadow-mode counts and provider cost. */
   participationDiagnostics?: unknown;
+  /** Survivor composition: setup counts, NONE exceptions and unused capacity. */
+  survivorDiagnostics?: unknown;
 }
 
 export async function completeScanRun(input: CompleteRunInput): Promise<void> {
@@ -189,6 +191,7 @@ export async function completeScanRun(input: CompleteRunInput): Promise<void> {
       base_volume_floor_diagnostics: (input.baseVolumeFloorDiagnostics ?? null) as never,
       price_integrity_diagnostics: (input.priceIntegrityDiagnostics ?? null) as never,
       participation_diagnostics: (input.participationDiagnostics ?? null) as never,
+      survivor_diagnostics: (input.survivorDiagnostics ?? null) as never,
       notes: input.notes ?? null,
     } as never)
     .eq("id", input.runId);

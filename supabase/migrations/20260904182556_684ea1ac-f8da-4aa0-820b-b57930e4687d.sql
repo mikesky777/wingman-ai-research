@@ -1,0 +1,1 @@
+ALTER TABLE public.scan_runs ADD COLUMN IF NOT EXISTS survivor_diagnostics jsonb;
