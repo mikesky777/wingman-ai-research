@@ -1290,6 +1290,36 @@ export function CandidateDrawer({
             ) : null}
           </Block>
 
+          <Block title="AI research packet (calibration)">
+            <Row label="Packet version" value={researchPacket.packetVersion} />
+            <Row label="Serialization" value={RESEARCH_COMPACT_VERSION} />
+            <Row label="Candidate source" value={researchPacketSource} />
+            <Row label="Compact size" value={`${researchPacketBytes} bytes`} />
+            <Row
+              label="Research eligible now"
+              value={researchPacket.eligibility.researchEligibleNow ? "YES" : "NO"}
+            />
+            {researchPacket.eligibility.exclusionReasons.length > 0 ? (
+              <Row
+                label="Exclusion reasons"
+                value={researchPacket.eligibility.exclusionReasons.join(", ")}
+              />
+            ) : null}
+            <Row label="Evidence domains" value={RESEARCH_PACKET_DOMAINS.join(", ")} />
+            <Row
+              label="Evidence gaps"
+              value={
+                researchPacket.evidenceGaps.length === 0
+                  ? "none"
+                  : researchPacket.evidenceGaps.join(", ")
+              }
+            />
+            <p className="mt-1.5 text-[11px] text-muted-foreground">
+              Preview of the structured data future AI research reads. No model is called, no
+              thesis or score exists yet, and gaps are never treated as negative evidence.
+            </p>
+          </Block>
+
           <Block title="Human calibration label">
             <div className="flex flex-wrap gap-1.5">
               {LABELS.map((value) => (
