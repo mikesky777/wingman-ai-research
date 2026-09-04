@@ -129,6 +129,24 @@ export interface ScanRunSummary {
   priceIntegrity: PriceIntegrityDiagnostics;
   /** Participation Quality (shadow). Never affects selection. */
   participation: ParticipationDiagnostics;
+  /** Survivor composition: setup counts, NONE exceptions and unused capacity. */
+  survivors: SurvivorDiagnostics;
+}
+
+/** Run-level survivor composition. `survivorLimit` is a maximum, not a target. */
+export interface SurvivorDiagnostics {
+  survivorLimit: number;
+  survivorCount: number;
+  baseSurvivors: number;
+  reaccelSurvivors: number;
+  momentumSurvivors: number;
+  reservationSurvivors: number;
+  recognizedGlobalSurvivors: number;
+  noneGlobalSurvivors: number;
+  maxNoneGlobalSurvivors: number;
+  noneSkippedByCap: number;
+  unusedCapacity: number;
+  underFilled: boolean;
 }
 
 export interface RunScanResult {
@@ -609,7 +627,7 @@ export async function runScannerPipeline(
     // legitimately returns fewer survivors when the market offers no more.
     const setupSurvivors = (setup: "BASE" | "REACCEL" | "MOMENTUM") =>
       survivors.filter((s) => s.lanes.includes(setup)).length;
-    const survivorDiagnostics = {
+    const survivorDiagnostics: SurvivorDiagnostics = {
       survivorLimit: config.survivorEnrichmentLimit,
       survivorCount: survivors.length,
       baseSurvivors: setupSurvivors("BASE"),
