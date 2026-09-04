@@ -197,7 +197,7 @@ export function EntryPanel() {
 
                 {open ? (
                   <div className="mt-3 space-y-3 border-t border-border pt-3">
-                    <DexScreenerEmbed contractAddress={row.mint} height={220} />
+                    <DexScreenerEmbed pairAddress={null} contractAddress={row.mint} height={220} />
 
                     <div className="grid gap-1">
                       {ENTRY_COMPONENTS.map((c) => (

@@ -8,6 +8,7 @@ import { InspectToken } from "@/components/wingman/InspectToken";
 import { TriagePanel } from "@/components/wingman/research/TriagePanel";
 import { DeepResearchPanel } from "@/components/wingman/research/DeepResearchPanel";
 import { ThesisPanel } from "@/components/wingman/research/ThesisPanel";
+import { EntryPanel } from "@/components/wingman/research/EntryPanel";
 
 import { useOpportunities } from "@/lib/wingman/hooks";
 import { relativeTime } from "@/lib/wingman/format";
@@ -47,6 +48,8 @@ function ResearchPage() {
         <DeepResearchPanel />
 
         <ThesisPanel />
+
+        <EntryPanel />
 
         <Section title="Completed Reports">
           {reports.length === 0 ? (
