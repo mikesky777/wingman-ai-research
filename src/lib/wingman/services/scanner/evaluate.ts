@@ -271,9 +271,10 @@ export function selectSurvivorsWithReservations(
   limit: number,
   reservations: Record<SetupType, number> = WINGMAN_DEFAULT_SETTINGS.reservations,
   strategy: StrategySettings = WINGMAN_DEFAULT_SETTINGS,
-  options: { structuralVeto?: boolean } = {},
+  options: { structuralVeto?: boolean; marketDamageVeto?: boolean } = {},
 ): SurvivorSelection {
   const vetoOn = options.structuralVeto ?? true;
+  const damageVetoOn = options.marketDamageVeto ?? true;
   // Selection is re-runnable (diagnostics compare vetoed vs unvetoed), so
   // membership flags always start from a clean slate.
   for (const candidate of ranked) {
@@ -284,9 +285,19 @@ export function selectSurvivorsWithReservations(
   const vetoed = vetoOn
     ? qualified.filter((c) => !isStructurallyEligible(c.structural?.status ?? null))
     : [];
-  const eligible = vetoOn
+  const structurallyEligible = vetoOn
     ? qualified.filter((c) => isStructurallyEligible(c.structural?.status ?? null))
     : qualified;
+  // Recent Catastrophic Collapse: a CURRENT-market veto applied before any
+  // reservation or global allocation, so a vetoed candidate consumes no slot
+  // and the next otherwise-eligible ranked candidate backfills it.
+  const damaged = damageVetoOn
+    ? structurallyEligible.filter((c) => !isRecentMarketDamageEligible(c.token.priceChange1h))
+    : [];
+  const eligible = damageVetoOn
+    ? structurallyEligible.filter((c) => isRecentMarketDamageEligible(c.token.priceChange1h))
+    : structurallyEligible;
+
   const chosen: EvaluatedCandidate[] = [];
   const seen = new Set<string>();
   const laneUsage: Record<string, number> = {};
