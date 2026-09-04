@@ -274,6 +274,20 @@ export interface WorkbenchCandidate {
 /** Persisted Participation Quality detail (shadow). Descriptive only. */
 export interface ParticipationDetail {
   windows: Record<string, ParticipationWindowMetrics> | null;
+  /** v1.1 independent dimensions (absent on v1 rows). */
+  dimensions?: {
+    breadth: string;
+    repetition: string;
+    divergence: string;
+    uniqueWallets24h: number | null;
+    peakTradesPerWallet: number | null;
+    repetitiveWindows: string[];
+    divergentWindows: string[];
+    peakDivergenceRatio: number | null;
+    volumeUsdPerWallet24h: number | null;
+  } | null;
+  /** Diagnostic combinations such as "BROAD + HIGH REPETITION". */
+  subSignals?: string[];
   context: {
     liquidityUsd: number | null;
     volumeToLiquidity24h: number | null;
