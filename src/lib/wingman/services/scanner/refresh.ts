@@ -114,11 +114,7 @@ export function evidenceAgeMinutes(lastEnrichedAt: string | null, nowIso: string
  * never invalidates still-valid holder, creator or provenance evidence.
  */
 export type EvidenceRefreshDomain =
-  | "market"
-  | "participation"
-  | "holders"
-  | "creator"
-  | "provenance";
+  "market" | "participation" | "holders" | "creator" | "provenance";
 
 export const EVIDENCE_REFRESH_DOMAINS: EvidenceRefreshDomain[] = [
   "market",
@@ -339,9 +335,7 @@ export function deriveRefreshPlan(input: RefreshPlanInput): RefreshPlan {
     (d) => config[d].affectsCandidateState !== false,
   )
     .map((d) => domains[d])
-    .filter(
-    (d) => d.state !== "NO_EVIDENCE",
-  );
+    .filter((d) => d.state !== "NO_EVIDENCE");
   const most = applicable.reduce<DomainRefreshDecision | null>(
     (best, current) =>
       best === null || URGENCY[current.state] > URGENCY[best.state] ? current : best,
