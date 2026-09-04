@@ -242,6 +242,19 @@ export interface SurvivorSelection {
   laneUsage: Record<string, number>;
   reservedCount: number;
   globalCount: number;
+  /** Global-route survivors that DO carry a recognized setup. Uncapped. */
+  recognizedGlobalCount: number;
+  /** Global-route survivors with SETUP = NONE. Never exceeds the exception cap. */
+  noneGlobalCount: number;
+  /**
+   * Otherwise-eligible NONE candidates left out only because the NONE exception
+   * capacity was already full. They stay persisted and visible in Calibration.
+   */
+  noneSkippedByCap: EvaluatedCandidate[];
+  /** The NONE exception cap this selection ran with. */
+  maxNoneGlobalSurvivors: number;
+  /** survivorLimit − survivors. Positive means the market offered no more. */
+  unusedCapacity: number;
   /** Ranked candidates removed by the structural FAIL veto before allocation. */
   structurallyVetoed: EvaluatedCandidate[];
   /**
@@ -250,6 +263,7 @@ export interface SurvivorSelection {
    */
   marketDamageVetoed: EvaluatedCandidate[];
 }
+
 
 
 
