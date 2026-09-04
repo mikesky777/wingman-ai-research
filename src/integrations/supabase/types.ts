@@ -196,6 +196,7 @@ export type Database = {
           domain: string
           id: string
           observed_at: string | null
+          provenance: string
           published_at: string | null
           report_id: string | null
           status: string
@@ -211,6 +212,7 @@ export type Database = {
           domain: string
           id?: string
           observed_at?: string | null
+          provenance?: string
           published_at?: string | null
           report_id?: string | null
           status: string
@@ -226,6 +228,7 @@ export type Database = {
           domain?: string
           id?: string
           observed_at?: string | null
+          provenance?: string
           published_at?: string | null
           report_id?: string | null
           status?: string
@@ -252,6 +255,7 @@ export type Database = {
         Row: {
           chain: string
           conflicting_claim_count: number
+          corroborated_claim_count: number
           covered_domains: string[]
           created_at: string
           deep_research_run_id: string
@@ -260,22 +264,30 @@ export type Database = {
           evidence_coverage_pct: number | null
           id: string
           identity_attribution_confidence: string
+          independent_domains_covered: string[]
+          independent_source_count: number
           is_calibration: boolean
           mint: string
           narrative_resolved: boolean
           one_sentence_narrative: string | null
           primary_source_count: number
+          project_affiliated_source_count: number
+          project_claim_count: number
+          project_owned_source_count: number
           research_policy_version: string
+          search_version: string | null
           source_count: number
           source_domain_diversity: number
           status: string
           token_id: string | null
+          unknown_independence_source_count: number
           unresolved_domains: string[]
           unresolved_gap_count: number
         }
         Insert: {
           chain?: string
           conflicting_claim_count?: number
+          corroborated_claim_count?: number
           covered_domains?: string[]
           created_at?: string
           deep_research_run_id: string
@@ -284,22 +296,30 @@ export type Database = {
           evidence_coverage_pct?: number | null
           id?: string
           identity_attribution_confidence?: string
+          independent_domains_covered?: string[]
+          independent_source_count?: number
           is_calibration?: boolean
           mint: string
           narrative_resolved?: boolean
           one_sentence_narrative?: string | null
           primary_source_count?: number
+          project_affiliated_source_count?: number
+          project_claim_count?: number
+          project_owned_source_count?: number
           research_policy_version: string
+          search_version?: string | null
           source_count?: number
           source_domain_diversity?: number
           status: string
           token_id?: string | null
+          unknown_independence_source_count?: number
           unresolved_domains?: string[]
           unresolved_gap_count?: number
         }
         Update: {
           chain?: string
           conflicting_claim_count?: number
+          corroborated_claim_count?: number
           covered_domains?: string[]
           created_at?: string
           deep_research_run_id?: string
@@ -308,16 +328,23 @@ export type Database = {
           evidence_coverage_pct?: number | null
           id?: string
           identity_attribution_confidence?: string
+          independent_domains_covered?: string[]
+          independent_source_count?: number
           is_calibration?: boolean
           mint?: string
           narrative_resolved?: boolean
           one_sentence_narrative?: string | null
           primary_source_count?: number
+          project_affiliated_source_count?: number
+          project_claim_count?: number
+          project_owned_source_count?: number
           research_policy_version?: string
+          search_version?: string | null
           source_count?: number
           source_domain_diversity?: number
           status?: string
           token_id?: string | null
+          unknown_independence_source_count?: number
           unresolved_domains?: string[]
           unresolved_gap_count?: number
         }
@@ -471,11 +498,13 @@ export type Database = {
         Row: {
           account: string | null
           attribution_confidence: string
+          content_fetched: boolean
           created_at: string
           deep_research_run_id: string
           excerpt: string | null
           fetched_at: string
           id: string
+          independence: string
           mint_verified: boolean
           published_at: string | null
           query: string | null
@@ -490,11 +519,13 @@ export type Database = {
         Insert: {
           account?: string | null
           attribution_confidence?: string
+          content_fetched?: boolean
           created_at?: string
           deep_research_run_id: string
           excerpt?: string | null
           fetched_at: string
           id?: string
+          independence?: string
           mint_verified?: boolean
           published_at?: string | null
           query?: string | null
@@ -509,11 +540,13 @@ export type Database = {
         Update: {
           account?: string | null
           attribution_confidence?: string
+          content_fetched?: boolean
           created_at?: string
           deep_research_run_id?: string
           excerpt?: string | null
           fetched_at?: string
           id?: string
+          independence?: string
           mint_verified?: boolean
           published_at?: string | null
           query?: string | null

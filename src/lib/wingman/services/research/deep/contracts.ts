@@ -9,10 +9,17 @@
  * an Entry State, position sizing, or any buy/sell recommendation.
  */
 
+import {
+  EXTERNAL_SEARCH_POLICY_VERSION,
+  buildSearchVariants,
+  type SourceIndependence,
+} from "./external-search";
+
 export const DEEP_RESEARCH_POLICY_VERSION = "deep_research/v1";
 export const DEEP_RESEARCH_DOSSIER_VERSION = "deep_research_dossier/v1";
 export const DEEP_RESEARCH_PROMPT_VERSION = "deep_research_prompt/v1";
-export const DEEP_RESEARCH_SEARCH_VERSION = "deep_research_search/v1-keyless";
+/** Which search infrastructure produced the evidence in a dossier. */
+export const DEEP_RESEARCH_SEARCH_VERSION = `deep_research_search/v2-api(${EXTERNAL_SEARCH_POLICY_VERSION})`;
 
 export const RESEARCH_DOMAINS = [
   "NARRATIVE_ORIGIN",
@@ -46,8 +53,18 @@ export const SOURCE_TYPES = [
 ] as const;
 export type SourceType = (typeof SOURCE_TYPES)[number];
 
+/** Source QUALITY. Deliberately separate from ownership/independence. */
 export type ReliabilityClass = "PRIMARY" | "SECONDARY" | "UNVERIFIED";
-export type AttributionConfidence = "CONFIRMED" | "PROBABLE" | "UNRESOLVED";
+export type AttributionConfidence = "CONFIRMED" | "STRONG" | "PROBABLE" | "WEAK" | "UNRESOLVED";
+
+export const CLAIM_PROVENANCES = [
+  "PROJECT_CLAIM",
+  "INDEPENDENTLY_CORROBORATED",
+  "EXTERNAL_OBSERVATION",
+  "INFERENCE",
+  "SPECULATION",
+] as const;
+export type ClaimProvenance = (typeof CLAIM_PROVENANCES)[number];
 
 export interface ResearchSource {
   /** Stable in-dossier reference the model must cite, e.g. "S1". */
@@ -57,11 +74,15 @@ export interface ResearchSource {
   account: string | null;
   sourceType: SourceType;
   reliabilityClass: ReliabilityClass;
+  /** Ownership relative to the project. Independence is not the same as quality. */
+  independence: SourceIndependence;
   publishedAt: string | null;
   fetchedAt: string;
   relevance: string | null;
   /** True when the exact mint string was found on the source, or the source is an official token link. */
   mintVerified: boolean;
+  /** True when the source body was actually retrieved (not snippet-only). */
+  contentFetched: boolean;
   attributionConfidence: AttributionConfidence;
   query: string | null;
   excerpt: string | null;
@@ -72,6 +93,8 @@ export interface ResearchClaim {
   claim: string;
   claimType: string;
   status: ClaimStatus;
+  /** Who is asserting this: the project, an independent source, or the model. */
+  provenance: ClaimProvenance;
   confidence: Confidence;
   supportingSourceRefs: string[];
   contradictingSourceRefs: string[];
@@ -111,11 +134,19 @@ export interface ResearchDossier {
     sourceCount: number;
     primarySourceCount: number;
     /**
-     * Sources that are NOT published by the token itself. Official token links
-     * are self-published: a dossier with zero independent sources is uncorroborated,
-     * however high its domain coverage looks.
+     * Sources that are provably not the project speaking. Official links,
+     * launchpad pages and the project's own social account are excluded: a
+     * dossier with zero independent sources is uncorroborated, however high
+     * its domain coverage looks.
      */
     independentSourceCount: number;
+    projectOwnedSourceCount: number;
+    projectAffiliatedSourceCount: number;
+    unknownIndependenceSourceCount: number;
+    /** Domains supported by at least one claim citing an independent source. */
+    independentDomainsCovered: ResearchDomain[];
+    corroboratedClaimCount: number;
+    projectClaimCount: number;
     sourceDomainDiversity: number;
     conflictingClaimCount: number;
   };
@@ -174,25 +205,23 @@ export function shouldStopSearch(
   return null;
 }
 
-/** Deterministic query plan. Never invents a different mint or symbol. */
+/**
+ * Deterministic, identity-safe query plan. Every discovery query is anchored
+ * to the exact mint or to an official account/domain — never a bare ticker.
+ */
 export function buildQueryPlan(input: {
   mint: string;
   symbol: string | null;
   name: string | null;
+  officialUrls?: string[];
 }): string[] {
-  const label = [input.symbol, input.name]
-    .filter((v): v is string => Boolean(v && v.trim()))
-    .map((v) => v.trim())
-    .filter((v, i, a) => a.indexOf(v) === i);
-  const queries = [`"${input.mint}"`];
-  if (label[0]) {
-    queries.push(`"${label[0]}" solana ${input.mint}`);
-    queries.push(`"${label[0]}" solana memecoin`);
-    queries.push(`"${label[0]}" solana token twitter`);
-  }
-  if (label[1]) queries.push(`"${label[1]}" solana token`);
-  queries.push(`${input.mint} solana rug OR scam OR warning`);
-  return queries.filter((q, i, a) => a.indexOf(q) === i);
+  return buildSearchVariants({
+    mint: input.mint,
+    symbol: input.symbol,
+    name: input.name,
+    officialUrls: input.officialUrls ?? [],
+    identityEstablished: false,
+  }).map((v) => v.query);
 }
 
 const RELIABILITY_BY_TYPE: Record<SourceType, ReliabilityClass> = {
@@ -310,7 +339,15 @@ export function validateModelOutput(
       issues.push({ code: "UNGROUNDED_CLAIM_DROPPED", detail: text.slice(0, 160) });
       continue;
     }
-    if (status === "VERIFIED" && !supporting.some((ref) => byRef.get(ref)?.mintVerified)) {
+    // VERIFIED demands a mint-verified source whose CONTENT was actually
+    // retrieved. A search snippet alone can never verify a claim.
+    if (
+      status === "VERIFIED" &&
+      !supporting.some((ref) => {
+        const source = byRef.get(ref);
+        return Boolean(source?.mintVerified && source?.contentFetched);
+      })
+    ) {
       issues.push({ code: "VERIFIED_DEMOTED_TO_INFERRED", detail: text.slice(0, 160) });
       status = "INFERRED";
       if (confidence === "HIGH") confidence = "MEDIUM";
@@ -325,6 +362,7 @@ export function validateModelOutput(
       claim: text,
       claimType: asString(c["claimType"]) ?? "OBSERVATION",
       status,
+      provenance: deriveClaimProvenance(status, supporting, byRef),
       confidence,
       supportingSourceRefs: supporting,
       contradictingSourceRefs: contradicting,
@@ -384,6 +422,31 @@ export function validateModelOutput(
   };
 }
 
+/**
+ * Deterministic provenance: separates what the PROJECT says about itself from
+ * what independent sources observed. A project-owned source can never make a
+ * claim "independently corroborated".
+ */
+export function deriveClaimProvenance(
+  status: ClaimStatus,
+  supportingRefs: string[],
+  byRef: Map<string, ResearchSource>,
+): ClaimProvenance {
+  if (status === "SPECULATIVE") return "SPECULATION";
+  const supporting = supportingRefs
+    .map((ref) => byRef.get(ref))
+    .filter((s): s is ResearchSource => Boolean(s));
+  const hasIndependent = supporting.some((s) => s.independence === "INDEPENDENT");
+  const hasProject = supporting.some(
+    (s) => s.independence === "PROJECT_OWNED" || s.independence === "PROJECT_AFFILIATED",
+  );
+  if (hasIndependent) {
+    return status === "VERIFIED" ? "INDEPENDENTLY_CORROBORATED" : "EXTERNAL_OBSERVATION";
+  }
+  if (hasProject) return status === "INFERRED" ? "INFERENCE" : "PROJECT_CLAIM";
+  return "INFERENCE";
+}
+
 /** Coverage accounting derived only from validated claims and sources. */
 export function computeCoverage(
   claims: ResearchClaim[],
@@ -396,13 +459,31 @@ export function computeCoverage(
   const hosts = new Set(
     sources.map((s) => (s.url ? safeHost(s.url) : null)).filter((h): h is string => Boolean(h)),
   );
+  const byRef = new Map(sources.map((s) => [s.ref, s]));
+  const countBy = (independence: SourceIndependence) =>
+    sources.filter((s) => s.independence === independence).length;
+  const independentDomains = RESEARCH_DOMAINS.filter((domain) =>
+    claims.some(
+      (c) =>
+        c.domain === domain &&
+        c.status !== "UNAVAILABLE" &&
+        c.supportingSourceRefs.some((ref) => byRef.get(ref)?.independence === "INDEPENDENT"),
+    ),
+  );
   return {
     coveredDomains: [...covered],
     unresolvedDomains: [...unresolved],
     coveragePct: Math.round((covered.length / RESEARCH_DOMAINS.length) * 100),
     sourceCount: sources.length,
     primarySourceCount: sources.filter((s) => s.reliabilityClass === "PRIMARY").length,
-    independentSourceCount: sources.filter((s) => s.sourceType !== "OFFICIAL_TOKEN_LINK").length,
+    independentSourceCount: countBy("INDEPENDENT"),
+    projectOwnedSourceCount: countBy("PROJECT_OWNED"),
+    projectAffiliatedSourceCount: countBy("PROJECT_AFFILIATED"),
+    unknownIndependenceSourceCount: countBy("UNKNOWN"),
+    independentDomainsCovered: [...independentDomains],
+    corroboratedClaimCount: claims.filter((c) => c.provenance === "INDEPENDENTLY_CORROBORATED")
+      .length,
+    projectClaimCount: claims.filter((c) => c.provenance === "PROJECT_CLAIM").length,
     sourceDomainDiversity: hosts.size,
     conflictingClaimCount: claims.filter((c) => c.status === "CONFLICTING").length,
   };

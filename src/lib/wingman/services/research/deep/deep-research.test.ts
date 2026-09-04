@@ -26,10 +26,12 @@ function source(overrides: Partial<ResearchSource> = {}): ResearchSource {
     account: null,
     sourceType: "NEWS_MEDIA",
     reliabilityClass: "SECONDARY",
+    independence: "INDEPENDENT",
     publishedAt: null,
     fetchedAt: "2026-01-01T00:00:00.000Z",
     relevance: null,
     mintVerified: true,
+    contentFetched: true,
     attributionConfidence: "CONFIRMED",
     query: null,
     excerpt: "text",
@@ -243,17 +245,31 @@ describe("corroboration accounting", () => {
     const coverage = computeCoverage(
       [],
       [
-        source({ ref: "S1", sourceType: "OFFICIAL_TOKEN_LINK" }),
-        source({ ref: "S2", sourceType: "OFFICIAL_TOKEN_LINK", url: "https://x.com/tok" }),
-        source({ ref: "S3", sourceType: "NEWS_MEDIA", url: "https://news.example/a" }),
+        source({ ref: "S1", sourceType: "OFFICIAL_TOKEN_LINK", independence: "PROJECT_OWNED" }),
+        source({
+          ref: "S2",
+          sourceType: "OFFICIAL_TOKEN_LINK",
+          url: "https://x.com/tok",
+          independence: "PROJECT_OWNED",
+        }),
+        source({
+          ref: "S3",
+          sourceType: "NEWS_MEDIA",
+          url: "https://news.example/a",
+          independence: "INDEPENDENT",
+        }),
       ],
     );
     expect(coverage.sourceCount).toBe(3);
     expect(coverage.independentSourceCount).toBe(1);
+    expect(coverage.projectOwnedSourceCount).toBe(2);
   });
 
   it("reports zero independent sources for a purely self-published dossier", () => {
-    const coverage = computeCoverage([], [source({ sourceType: "OFFICIAL_TOKEN_LINK" })]);
+    const coverage = computeCoverage(
+      [],
+      [source({ sourceType: "OFFICIAL_TOKEN_LINK", independence: "PROJECT_OWNED" })],
+    );
     expect(coverage.independentSourceCount).toBe(0);
   });
 });
