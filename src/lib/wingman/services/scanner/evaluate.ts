@@ -23,6 +23,7 @@ import {
   reaccelerationSignal,
 } from "./signals";
 import { isStructurallyEligible } from "./structural";
+import { isRecentMarketDamageEligible } from "./market-damage";
 
 import {
   SETUP_TYPES,
@@ -340,6 +341,7 @@ export function selectSurvivorsWithReservations(
     reservedCount,
     globalCount: chosen.length - reservedCount,
     structurallyVetoed: vetoed,
+    marketDamageVetoed: damaged,
   };
 
 }
