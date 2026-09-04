@@ -51,9 +51,9 @@ describe("peak since call", () => {
     const out = deriveOutcome({
       ...base,
       series: [
-        { at: "2026-01-01T01:00:00.000Z", priceUsd: 2, marketCap: 2_000_000 },
-        { at: "2026-01-01T02:00:00.000Z", priceUsd: 3.47, marketCap: 3_470_000 },
-        { at: "2026-01-01T03:00:00.000Z", priceUsd: 1.18, marketCap: 1_180_000 },
+        { at: "2026-01-01T01:00:00.000Z", priceUsd: 2, marketCap: 2_000_000, source: "SNAPSHOT" as const },
+        { at: "2026-01-01T02:00:00.000Z", priceUsd: 3.47, marketCap: 3_470_000, source: "SNAPSHOT" as const },
+        { at: "2026-01-01T03:00:00.000Z", priceUsd: 1.18, marketCap: 1_180_000, source: "SNAPSHOT" as const },
       ],
     });
     expect(out.maxGainPct).toBeCloseTo(247);
@@ -63,11 +63,11 @@ describe("peak since call", () => {
   });
 
   it("raises the peak when a refreshed observation sets a new high", () => {
-    const series = [{ at: "2026-01-01T01:00:00.000Z", priceUsd: 2, marketCap: 2_000_000 }];
+    const series = [{ at: "2026-01-01T01:00:00.000Z", priceUsd: 2, marketCap: 2_000_000, source: "SNAPSHOT" as const }];
     const before = deriveOutcome({ ...base, series });
     const after = deriveOutcome({
       ...base,
-      series: [...series, { at: "2026-01-01T05:00:00.000Z", priceUsd: 5, marketCap: 5_000_000 }],
+      series: [...series, { at: "2026-01-01T05:00:00.000Z", priceUsd: 5, marketCap: 5_000_000, source: "SNAPSHOT" as const }],
     });
     expect(before.maxGainPct).toBeCloseTo(100);
     expect(after.maxGainPct).toBeCloseTo(400);
@@ -75,10 +75,10 @@ describe("peak since call", () => {
   });
 
   it("leaves the peak unchanged for a lower refreshed observation", () => {
-    const series = [{ at: "2026-01-01T01:00:00.000Z", priceUsd: 4, marketCap: 4_000_000 }];
+    const series = [{ at: "2026-01-01T01:00:00.000Z", priceUsd: 4, marketCap: 4_000_000, source: "SNAPSHOT" as const }];
     const after = deriveOutcome({
       ...base,
-      series: [...series, { at: "2026-01-01T06:00:00.000Z", priceUsd: 1, marketCap: 1_000_000 }],
+      series: [...series, { at: "2026-01-01T06:00:00.000Z", priceUsd: 1, marketCap: 1_000_000, source: "SNAPSHOT" as const }],
     });
     expect(after.maxGainPct).toBeCloseTo(300);
     expect(after.maxMarketCapAt).toBe("2026-01-01T01:00:00.000Z");
@@ -88,8 +88,8 @@ describe("peak since call", () => {
     const out = deriveOutcome({
       ...base,
       series: [
-        { at: "2025-12-31T23:00:00.000Z", priceUsd: 99, marketCap: 99_000_000 },
-        { at: "2026-01-01T01:00:00.000Z", priceUsd: 2, marketCap: 2_000_000 },
+        { at: "2025-12-31T23:00:00.000Z", priceUsd: 99, marketCap: 99_000_000, source: "SNAPSHOT" as const },
+        { at: "2026-01-01T01:00:00.000Z", priceUsd: 2, marketCap: 2_000_000, source: "SNAPSHOT" as const },
       ],
     });
     expect(out.maxGainPct).toBeCloseTo(100);
@@ -100,7 +100,7 @@ describe("peak since call", () => {
     const out = deriveOutcome({
       ...base,
       baselineMarketCap: null,
-      series: [{ at: "2026-01-01T01:00:00.000Z", priceUsd: null, marketCap: null }],
+      series: [{ at: "2026-01-01T01:00:00.000Z", priceUsd: null, marketCap: null, source: "SNAPSHOT" as const }],
     });
     expect(out.maxGainPct).toBeNull();
     expect(out.maxMarketCap).toBeNull();
