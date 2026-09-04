@@ -270,7 +270,7 @@ describe("compact serialization", () => {
     const a = JSON.stringify(serializeCompact(packet));
     const b = JSON.stringify(serializeCompact(packet));
     expect(a).toBe(b);
-    expect(serializeCompact(packet).sv).toBe(RESEARCH_COMPACT_VERSION);
+    expect(serializeCompact(packet)['sv']).toBe(RESEARCH_COMPACT_VERSION);
   });
 
   it("stays compact and carries no raw candles or database rows", () => {

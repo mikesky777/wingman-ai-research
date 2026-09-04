@@ -487,7 +487,7 @@ export function buildResearchPacket(input: PacketInput): ResearchPacket {
     : null;
   const tradesPerWallet: Record<string, number | null> | null = windows
     ? Object.fromEntries(
-        Object.entries(windows).map(([w, m]) => [w, m?.tradesPerUniqueWallet ?? null]),
+        Object.entries(windows).map(([w, m]) => [w, m?.tradesPerWallet ?? null]),
       )
     : null;
 
@@ -577,12 +577,12 @@ export function buildResearchPacket(input: PacketInput): ResearchPacket {
       status: priceIntegrityStatus,
       policyVersion: c.priceIntegrityPolicyVersion,
       features:
-        (c.priceIntegrityDetail?.features as Record<string, number | string | boolean | null>) ??
+        (c.priceIntegrityDetail?.features as unknown as Record<string, number | string | boolean | null>) ??
         null,
       signals: c.priceIntegrityDetail?.signals ?? [],
       reasons: c.priceIntegrityDetail?.reasons ?? [],
       coverage:
-        (c.priceIntegrityDetail?.coverage as Record<string, number | string | boolean | null>) ??
+        (c.priceIntegrityDetail?.coverage as unknown as Record<string, number | string | boolean | null>) ??
         null,
       evaluatedAt: c.priceIntegrityDetail?.evaluatedAt ?? null,
     },
