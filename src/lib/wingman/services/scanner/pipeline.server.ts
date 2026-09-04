@@ -15,7 +15,10 @@
  */
 import { assessDiscoveryHealth, isDiscoveryUsable } from "./discovery-health";
 import { DEFAULT_CHAIN } from "../external/chains";
+import { checkBirdeyeReadiness } from "../external/birdeye/readiness.server";
+import { readinessBlockReason, shouldFailFast } from "../external/birdeye/readiness";
 import { runDiscovery } from "../external/birdeye/discovery.server";
+
 import { DexScreenerAdapter } from "../external/dexscreener";
 import { normalizeIdentity, normalizeSnapshot } from "../external/dexscreener/normalizer";
 import { insertSnapshot, upsertTokenIdentity } from "../ingestion.server";
