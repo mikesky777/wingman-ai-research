@@ -45,6 +45,47 @@ export interface CohortToken {
   participationStatus: string | null;
   dexPairAddress: string | null;
   observationCount: number;
+  /**
+   * created_at of the token's MOST RECENT persisted scan_candidates row — the
+   * newest scanner observation of this exact mint, regardless of setup or
+   * survivor status. This is the timestamp the "Most recent" sort uses.
+   */
+  latestObservationAt: string | null;
+  /** recurrence_state persisted on that most recent observation. */
+  latestRecurrenceState: string | null;
+}
+
+/** History cohort sort modes. */
+export type CohortSort = "RECENT" | "PEAK";
+
+/**
+ * Sort a cohort. Never mutates the input and never drops a token.
+ *
+ *  - RECENT: latestObservationAt descending (falls back to firstCallAt when a
+ *    token has no persisted candidate row). Missing both sorts last.
+ *  - PEAK: peak_since_call_pct descending. MISSING VALUES SORT LAST and are
+ *    never coerced to 0.
+ */
+export function sortCohort(tokens: CohortToken[], sort: CohortSort): CohortToken[] {
+  const rows = [...tokens];
+  if (sort === "PEAK") {
+    return rows.sort((a, b) => {
+      const av = isNum(a.peakSinceCallPct) ? a.peakSinceCallPct : null;
+      const bv = isNum(b.peakSinceCallPct) ? b.peakSinceCallPct : null;
+      if (av === null && bv === null) return 0;
+      if (av === null) return 1;
+      if (bv === null) return -1;
+      return bv - av;
+    });
+  }
+  return rows.sort((a, b) => {
+    const at = a.latestObservationAt ?? a.firstCallAt;
+    const bt = b.latestObservationAt ?? b.firstCallAt;
+    if (!at && !bt) return 0;
+    if (!at) return 1;
+    if (!bt) return -1;
+    return Date.parse(bt) - Date.parse(at);
+  });
 }
 
 /** A single statistic plus the number of valid observations behind it. */
