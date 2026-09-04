@@ -21,6 +21,8 @@ export interface BirdeyeRequestOptions {
   fetchImpl?: typeof fetch;
   /** Injected in tests to avoid real waiting. */
   sleepImpl?: (ms: number) => Promise<void>;
+  /** Observability hook: called before each retry with the failing code. */
+  onRetry?: (info: { code: string; attempt: number }) => void;
 }
 
 export function isBirdeyeConfigured(): boolean {
@@ -59,6 +61,7 @@ export async function birdeyeRequest<T>(
       const err = error instanceof BirdeyeError ? error : new BirdeyeError("PROVIDER_UNAVAILABLE");
       lastError = err;
       if (attempt === attempts || !isRetryable(err.code)) throw err;
+      options.onRetry?.({ code: err.code, attempt });
       // Exponential backoff; 429 waits an extra step.
       const factor = err.code === "RATE_LIMITED" ? 2 : 1;
       await sleep(BASE_BACKOFF_MS * factor * 2 ** (attempt - 1));
