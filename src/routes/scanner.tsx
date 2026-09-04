@@ -191,18 +191,39 @@ function ScannerPage() {
       !c.selectedByGlobalRanking,
   }));
 
+  // The attempt result is kept separately from persisted state: a resolved
+  // POST is never treated as completion on its own.
+  const [attempt, setAttempt] = useState<ScanAttempt | null>(null);
+  const readRunStatus = useServerFn(getScanRunStatus);
+  const watchedRunId = attempt?.runId ?? attempt?.activeRunId ?? null;
+
   const mutation = useMutation({
     mutationFn: () => scan({ data: {} }),
     onSuccess: (result) => {
-      setMessage(
-        result.ok
+      setAttempt({
+        code: result.code,
+        runId: result.runId,
+        activeRunId: result.activeRunId,
+        message: result.ok
           ? `Scan complete — ${result.summary?.tokensDiscovered ?? 0} tokens discovered, ${result.summary?.enriched ?? 0} enriched.`
           : (result.message ?? "Scan failed."),
-      );
-      void queryClient.invalidateQueries({ queryKey: ["wingman"] });
+      });
     },
-    onError: (error: Error) => setMessage(error.message),
+    onError: (error: Error) =>
+      setAttempt({ code: "FAILED", runId: null, activeRunId: null, message: error.message }),
   });
+
+  // Poll the real run row while a watched run is still open.
+  const { data: runStatus } = useQuery({
+    queryKey: ["wingman", "scan-run-status", watchedRunId],
+    queryFn: () => readRunStatus({ data: { runId: watchedRunId } }),
+    enabled: watchedRunId !== null,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status === "completed" || status === "failed" ? false : 3000;
+    },
+  });
+
 
   const counts: Record<string, number | null> = {
     discovered: funnel?.discovered ?? 0,
