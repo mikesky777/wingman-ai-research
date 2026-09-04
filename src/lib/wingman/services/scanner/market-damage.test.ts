@@ -9,6 +9,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { assignRanks, rankCandidates, selectSurvivorsWithReservations } from "./evaluate";
+import { deriveDamageTimeline } from "./market-damage";
 import { WINGMAN_DEFAULT_SETTINGS, RECENT_MARKET_DAMAGE, type StrategySettings } from "./config";
 import {
   assessRecentMarketDamage,
@@ -175,5 +176,75 @@ describe("recent catastrophic collapse selection gate", () => {
       marketDamageVeto: false,
     });
     expect(selection.survivors.map((s) => s.token.contractAddress)).toEqual(["Crash"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Call-time vs current separation. Historical rows are never recomputed.
+// ---------------------------------------------------------------------------
+describe("damage timeline", () => {
+  const at = "2026-09-04T18:47:23.000Z";
+  const now = "2026-09-04T18:58:00.000Z";
+
+  it("marks a survivor that passed at call time and fails now as POST_CALL_COLLAPSE", () => {
+    const t = deriveDamageTimeline({
+      callTime1hPct: -44.08,
+      callTimeAt: at,
+      current1hPct: -95.5,
+      currentAt: now,
+    });
+    expect(t.callTime.status).toBe("PASS");
+    expect(t.current.status).toBe("FAIL");
+    expect(t.state).toBe("POST_CALL_COLLAPSE");
+    expect(t.postCallCollapse).toBe(true);
+    expect(t.researchEligibleNow).toBe(false);
+    expect(t.callTimeAt).toBe(at);
+    expect(t.currentAt).toBe(now);
+  });
+
+  it("keeps a healthy survivor eligible", () => {
+    const t = deriveDamageTimeline({
+      callTime1hPct: -10,
+      callTimeAt: at,
+      current1hPct: -1,
+      currentAt: now,
+    });
+    expect(t.state).toBe("ELIGIBLE");
+    expect(t.postCallCollapse).toBe(false);
+    expect(t.researchEligibleNow).toBe(true);
+  });
+
+  it("reports a call-time failure separately from a later collapse", () => {
+    const t = deriveDamageTimeline({
+      callTime1hPct: -96,
+      callTimeAt: at,
+      current1hPct: -96,
+      currentAt: now,
+    });
+    expect(t.state).toBe("BLOCKED_AT_CALL");
+    expect(t.postCallCollapse).toBe(false);
+  });
+
+  it("never blocks research on missing current data", () => {
+    const t = deriveDamageTimeline({
+      callTime1hPct: -20,
+      callTimeAt: at,
+      current1hPct: null,
+      currentAt: null,
+    });
+    expect(t.current.status).toBe("UNKNOWN");
+    expect(t.state).toBe("UNKNOWN");
+    expect(t.researchEligibleNow).toBe(true);
+  });
+
+  it("does not alter the frozen call-time assessment when the market collapses", () => {
+    const frozen = deriveDamageTimeline({
+      callTime1hPct: -44.08,
+      callTimeAt: at,
+      current1hPct: -95.5,
+      currentAt: now,
+    });
+    expect(frozen.callTime.priceChange1hPct).toBe(-44.08);
+    expect(frozen.callTime.reason).toBeNull();
   });
 });
