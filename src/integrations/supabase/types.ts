@@ -14,6 +14,177 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_triage_decisions: {
+        Row: {
+          candidate_source: string | null
+          confidence: string | null
+          created_at: string
+          decision: string
+          id: string
+          mint: string
+          participation: string | null
+          price_structure: string | null
+          quant_priority: number | null
+          quant_rank: number | null
+          rank_delta: number | null
+          rationale: string | null
+          requested_research_domains: string[]
+          research_packet_id: string | null
+          research_packet_version: string | null
+          setup: string | null
+          strongest_concern: string | null
+          strongest_positive: string | null
+          token_id: string | null
+          triage_rank: number | null
+          triage_run_id: string
+          unresolved_questions: string[]
+        }
+        Insert: {
+          candidate_source?: string | null
+          confidence?: string | null
+          created_at?: string
+          decision: string
+          id?: string
+          mint: string
+          participation?: string | null
+          price_structure?: string | null
+          quant_priority?: number | null
+          quant_rank?: number | null
+          rank_delta?: number | null
+          rationale?: string | null
+          requested_research_domains?: string[]
+          research_packet_id?: string | null
+          research_packet_version?: string | null
+          setup?: string | null
+          strongest_concern?: string | null
+          strongest_positive?: string | null
+          token_id?: string | null
+          triage_rank?: number | null
+          triage_run_id: string
+          unresolved_questions?: string[]
+        }
+        Update: {
+          candidate_source?: string | null
+          confidence?: string | null
+          created_at?: string
+          decision?: string
+          id?: string
+          mint?: string
+          participation?: string | null
+          price_structure?: string | null
+          quant_priority?: number | null
+          quant_rank?: number | null
+          rank_delta?: number | null
+          rationale?: string | null
+          requested_research_domains?: string[]
+          research_packet_id?: string | null
+          research_packet_version?: string | null
+          setup?: string | null
+          strongest_concern?: string | null
+          strongest_positive?: string | null
+          token_id?: string | null
+          triage_rank?: number | null
+          triage_run_id?: string
+          unresolved_questions?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_triage_decisions_research_packet_id_fkey"
+            columns: ["research_packet_id"]
+            isOneToOne: false
+            referencedRelation: "research_packets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_triage_decisions_token_id_fkey"
+            columns: ["token_id"]
+            isOneToOne: false
+            referencedRelation: "tokens"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_triage_decisions_triage_run_id_fkey"
+            columns: ["triage_run_id"]
+            isOneToOne: false
+            referencedRelation: "ai_triage_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_triage_runs: {
+        Row: {
+          blocked_count: number
+          completed_at: string | null
+          created_at: string
+          deep_research_count: number
+          diagnostics: Json | null
+          error: string | null
+          id: string
+          is_calibration: boolean
+          model_identifier: string | null
+          model_provider: string | null
+          packet_count: number
+          prompt_version: string | null
+          scanner_policy_version: string | null
+          skip_count: number
+          source_scan_id: string | null
+          started_at: string
+          status: string
+          triage_policy_version: string
+          watch_count: number
+        }
+        Insert: {
+          blocked_count?: number
+          completed_at?: string | null
+          created_at?: string
+          deep_research_count?: number
+          diagnostics?: Json | null
+          error?: string | null
+          id?: string
+          is_calibration?: boolean
+          model_identifier?: string | null
+          model_provider?: string | null
+          packet_count?: number
+          prompt_version?: string | null
+          scanner_policy_version?: string | null
+          skip_count?: number
+          source_scan_id?: string | null
+          started_at?: string
+          status?: string
+          triage_policy_version: string
+          watch_count?: number
+        }
+        Update: {
+          blocked_count?: number
+          completed_at?: string | null
+          created_at?: string
+          deep_research_count?: number
+          diagnostics?: Json | null
+          error?: string | null
+          id?: string
+          is_calibration?: boolean
+          model_identifier?: string | null
+          model_provider?: string | null
+          packet_count?: number
+          prompt_version?: string | null
+          scanner_policy_version?: string | null
+          skip_count?: number
+          source_scan_id?: string | null
+          started_at?: string
+          status?: string
+          triage_policy_version?: string
+          watch_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_triage_runs_source_scan_id_fkey"
+            columns: ["source_scan_id"]
+            isOneToOne: false
+            referencedRelation: "scan_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       evidence_observations: {
         Row: {
           captured_at: string
