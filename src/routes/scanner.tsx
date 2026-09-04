@@ -53,6 +53,28 @@ import {
 import type { WorkbenchCandidate } from "@/lib/wingman/services/scanner-service";
 import { cn } from "@/lib/utils";
 import { assessRecentMarketDamage } from "@/lib/wingman/services/scanner/market-damage";
+import { SuspectTable } from "@/components/wingman/scanner/SuspectTable";
+import {
+  selectSuspects,
+  suspectCount,
+  type SuspectFilters,
+} from "@/lib/wingman/services/scanner/suspect-review";
+
+/** Review-only filters inside the SUSPECT tab. None affect selection. */
+const SUSPECT_FILTER_GROUPS: {
+  key: keyof Required<SuspectFilters>;
+  label: string;
+  options: string[];
+}[] = [
+  { key: "status", label: "PQ", options: ["ALL", "EXTREME", "CONCENTRATED"] },
+  { key: "lane", label: "Setup", options: ["ALL", "BASE", "REACCEL"] },
+  {
+    key: "priceIntegrity",
+    label: "PI",
+    options: ["ALL", "HEALTHY", "CONCERN", "DAMAGED", "UNKNOWN"],
+  },
+  { key: "structural", label: "Struct", options: ["ALL", "PASS", "CONCERN", "FAIL", "UNKNOWN"] },
+];
 
 export const Route = createFileRoute("/scanner")({
   head: () => ({
@@ -79,6 +101,7 @@ export const Route = createFileRoute("/scanner")({
 
 type Filter =
   | "SURVIVORS"
+  | "SUSPECT"
   | "ALL"
   | "NEAR_MISS"
   | "OUT_OF_SCOPE"
@@ -155,6 +178,9 @@ function applyFilter(candidates: Row[], filter: Filter): Row[] {
   switch (filter) {
     case "ALL":
       return candidates;
+    case "SUSPECT":
+      // Review queue only — rendered by its own table, never a reclassification.
+      return selectSuspects(candidates);
     case "SURVIVORS":
       return candidates.filter((c) => c.enriched || c.selectedByLaneReservation || c.selectedByGlobalRanking);
     case "OUT_OF_SCOPE":
@@ -217,6 +243,12 @@ function ScannerPage() {
   const { data: diagnostics } = useRunDiagnostics(funnel?.runId);
   const [filter, setFilter] = useState<Filter>("SURVIVORS");
   const [recurrence, setRecurrence] = useState<RecurrenceFilter>("ALL");
+  const [suspectFilters, setSuspectFilters] = useState<Required<SuspectFilters>>({
+    status: "ALL",
+    lane: "ALL",
+    priceIntegrity: "ALL",
+    structural: "ALL",
+  });
   const [selected, setSelected] = useState<string | null>(null);
   const scan = useServerFn(runScan);
   const loadStrategy = useServerFn(getStrategySettings);
@@ -279,6 +311,9 @@ function ScannerPage() {
   };
   const maxCount = Math.max(funnel?.discovered ?? 1, 1);
   const rows = applyRecurrenceFilter(applyFilter(candidates, filter), recurrence);
+  // Derived review queue over the same persisted rows. No new records.
+  const suspectTotal = suspectCount(candidates);
+  const suspectRows = selectSuspects(candidates, suspectFilters);
   const active = candidates.find((c) => c.id === selected) ?? null;
 
   // UI state comes from the real persisted run this session is watching —
@@ -512,6 +547,21 @@ function ScannerPage() {
                   {f.label}
                 </button>
               ))}
+              <button
+                onClick={() => setFilter("SUSPECT")}
+                title="Review queue for candidates flagged by Participation Quality. Review prompt only — no selection effect."
+                className={cn(
+                  "rounded border px-2 py-1 font-mono text-[10px] tracking-wide transition-colors",
+                  filter === "SUSPECT"
+                    ? "border-warning/60 bg-warning/10 text-warning"
+                    : "border-border-strong text-muted-foreground hover:text-foreground",
+                )}
+              >
+                SUSPECT
+                <span className="ml-1 rounded bg-warning/15 px-1 text-warning">
+                  {suspectTotal}
+                </span>
+              </button>
               <span className="mx-1 h-4 w-px bg-border" />
               {(["ALL", ...RECURRENCE_STATES] as RecurrenceFilter[]).map((r) => (
                 <button
@@ -531,7 +581,38 @@ function ScannerPage() {
             </div>
           }
         >
-          {rows.length === 0 ? (
+          {filter === "SUSPECT" ? (
+            <>
+              <div className="mb-3 flex flex-wrap items-center gap-1">
+                {SUSPECT_FILTER_GROUPS.map((group) => (
+                  <div key={group.key} className="flex items-center gap-1">
+                    <span className="label-xs pl-1 pr-0.5">{group.label}</span>
+                    {group.options.map((option) => {
+                      const activeOption = suspectFilters[group.key] === option;
+                      return (
+                        <button
+                          key={`${group.key}-${option}`}
+                          onClick={() =>
+                            setSuspectFilters((prev) => ({ ...prev, [group.key]: option }))
+                          }
+                          className={cn(
+                            "rounded border px-2 py-1 font-mono text-[10px] tracking-wide transition-colors",
+                            activeOption
+                              ? "border-primary/50 bg-primary/10 text-primary"
+                              : "border-border-strong text-muted-foreground hover:text-foreground",
+                          )}
+                        >
+                          {option === "ALL" ? "all" : option}
+                        </button>
+                      );
+                    })}
+                    <span className="mx-1 h-4 w-px bg-border" />
+                  </div>
+                ))}
+              </div>
+              <SuspectTable rows={suspectRows} onSelect={setSelected} />
+            </>
+          ) : rows.length === 0 ? (
             <EmptyState
               title="No candidates in this view"
               description="Change the filter, or run a scan to populate live candidates."
@@ -738,6 +819,13 @@ function ScannerPage() {
               </table>
             </div>
           )}
+          {filter === "SUSPECT" ? (
+            <p className="mt-3 text-[11px] text-muted-foreground">
+              SUSPECT is a review queue derived from the persisted Participation Quality evaluation
+              of this scan. Every token here also remains in its normal setup view; nothing is
+              reclassified, excluded or duplicated, and no label asserts botting or wash trading.
+            </p>
+          ) : null}
           <p className="mt-3 text-[11px] text-muted-foreground">
             Gate hierarchy: Universe OUT_OF_SCOPE excludes, Structural FAIL vetoes, Price Integrity is a label only and never removes a candidate from Survivor selection. Setup labels describe observable market behaviour only. The scanner produces no thesis scores and creates no opportunities. Research reports and
             opportunity records elsewhere in Wingman remain simulated demo data.
