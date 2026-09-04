@@ -4,15 +4,13 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const fetchTokenParticipation = vi.fn();
-const appendEvidenceObservations = vi.fn(async () => ({ inserted: 13 }));
+const { fetchTokenParticipation, appendEvidenceObservations } = vi.hoisted(() => ({
+  fetchTokenParticipation: vi.fn(),
+  appendEvidenceObservations: vi.fn(async () => ({ inserted: 13 })),
+}));
 
-vi.mock("../../external/birdeye/trade-data.server", () => ({
-  fetchTokenParticipation: (...args: never[]) => fetchTokenParticipation(...args),
-}));
-vi.mock("../../evidence-persistence.server", () => ({
-  appendEvidenceObservations: (...args: never[]) => appendEvidenceObservations(...args),
-}));
+vi.mock("../../external/birdeye/trade-data.server", () => ({ fetchTokenParticipation }));
+vi.mock("../../evidence-persistence.server", () => ({ appendEvidenceObservations }));
 
 import { BirdeyeError } from "../../external/birdeye/errors";
 import { evaluateParticipationForTargets, type ParticipationTarget } from "../participation.server";
