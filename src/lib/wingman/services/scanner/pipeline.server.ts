@@ -388,43 +388,6 @@ export async function runScannerPipeline(
       );
     }
 
-    // Participation Quality v1 — SHADOW / CALIBRATION. Runs AFTER selection so
-    // it can never influence it, and only for the narrow competitive set:
-    // structurally eligible, in-scope BASE / REACCEL survivors. One Birdeye
-    // request per evaluated token; fresh stored evidence is reused instead.
-    let participation: ParticipationDiagnostics = { ...EMPTY_PARTICIPATION_DIAGNOSTICS };
-    try {
-      const participationTargets: ParticipationTarget[] = survivors
-        .filter(
-          (c) =>
-            (c.lanes.includes("BASE") || c.lanes.includes("REACCEL")) &&
-            isStructurallyEligible(c.structural?.status ?? null) &&
-            (c.universe?.eligibility ?? "UNKNOWN") !== "OUT_OF_SCOPE",
-        )
-        .map((c) => ({
-          contractAddress: c.token.contractAddress,
-          chain: c.token.chain,
-          tokenId: context.get(c.token.contractAddress)?.tokenId ?? null,
-          liquidityUsd: c.metrics.liquidityUsd ?? null,
-          volumeToLiquidity24h: c.metrics.volumeToLiquidity24h ?? null,
-          turnover24h: c.metrics.volumeToMarketCap24h ?? null,
-          carryForward: false,
-        }));
-      const result = await evaluateParticipationForTargets(participationTargets, {
-        scanRunId: runId,
-        track: (fn) => telemetry.track("birdeye", "token_trade_data", fn),
-      });
-      for (const candidate of survivors) {
-        candidate.participation = result.evaluations.get(candidate.token.contractAddress) ?? null;
-      }
-      participation = result.diagnostics;
-    } catch (participationError) {
-      console.error(
-        "participation evaluation failed",
-        participationError instanceof Error ? participationError.message : participationError,
-      );
-    }
-
     // Persist survivors first, then rejected candidates up to the cap.
     const survivorSet = new Set(survivors.map((s) => s.token.contractAddress));
     const others = ranked.filter((c) => !survivorSet.has(c.token.contractAddress));
@@ -478,6 +441,43 @@ export async function runScannerPipeline(
         lastEnrichedAt: lastMarketAt,
         nowIso,
       });
+    }
+
+    // Participation Quality v1 — SHADOW / CALIBRATION. Runs AFTER selection so
+    // it can never influence it, and only for the narrow competitive set:
+    // structurally eligible, in-scope BASE / REACCEL survivors. One Birdeye
+    // request per evaluated token; fresh stored evidence is reused instead.
+    let participation: ParticipationDiagnostics = { ...EMPTY_PARTICIPATION_DIAGNOSTICS };
+    try {
+      const participationTargets: ParticipationTarget[] = survivors
+        .filter(
+          (c) =>
+            (c.lanes.includes("BASE") || c.lanes.includes("REACCEL")) &&
+            isStructurallyEligible(c.structural?.status ?? null) &&
+            (c.universe?.eligibility ?? "UNKNOWN") !== "OUT_OF_SCOPE",
+        )
+        .map((c) => ({
+          contractAddress: c.token.contractAddress,
+          chain: c.token.chain,
+          tokenId: context.get(c.token.contractAddress)?.tokenId ?? null,
+          liquidityUsd: c.token.liquidityUsd ?? null,
+          volumeToLiquidity24h: c.metrics.volumeToLiquidity24h ?? null,
+          turnover24h: c.metrics.volumeToMarketCap24h ?? null,
+          carryForward: c.refreshPlan?.domains.participation.state === "CARRY_FORWARD",
+        }));
+      const result = await evaluateParticipationForTargets(participationTargets, {
+        scanRunId: runId,
+        track: (fn) => telemetry.track("birdeye", "token_trade_data", fn),
+      });
+      for (const candidate of survivors) {
+        candidate.participation = result.evaluations.get(candidate.token.contractAddress) ?? null;
+      }
+      participation = result.diagnostics;
+    } catch (participationError) {
+      console.error(
+        "participation evaluation failed",
+        participationError instanceof Error ? participationError.message : participationError,
+      );
     }
 
     // Enrichment: survivors keep their slot, but an unchanged repeat with still
