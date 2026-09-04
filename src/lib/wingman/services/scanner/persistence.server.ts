@@ -60,6 +60,24 @@ export async function getActiveRun(): Promise<ActiveRun | null> {
   return { id: row["id"] as string, startedAt: (row["started_at"] as string | null) ?? null };
 }
 
+/** Persisted status of one run. Never mutates anything. */
+export async function getScanRunState(
+  runId: string,
+): Promise<{ status: string; errorMessage: string | null } | null> {
+  const { data, error } = await supabaseAdmin
+    .from("scan_runs")
+    .select("status, error_message")
+    .eq("id", runId)
+    .maybeSingle();
+  if (error) throw new Error(`Could not read scan run: ${error.message}`);
+  if (!data) return null;
+  const row = data as Row;
+  return {
+    status: row["status"] as string,
+    errorMessage: (row["error_message"] as string | null) ?? null,
+  };
+}
+
 /**
  * Release the lock held by runs whose worker died. Only `running` rows older
  * than the stale threshold are touched; completed and failed history is never

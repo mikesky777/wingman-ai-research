@@ -21,6 +21,7 @@ import { insertSnapshot, upsertTokenIdentity } from "../ingestion.server";
 import { snapshotToEvidence } from "../evidence/market-evidence";
 import { appendEvidenceObservations } from "../evidence-persistence.server";
 import { DISCOVERY_CONFIG_VERSION, runConfig, type ScannerRunConfig } from "./config";
+import type { RunScanCode } from "./run-lifecycle";
 import {
   assignRanks,
   dedupeDiscovered,
