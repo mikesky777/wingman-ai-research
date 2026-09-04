@@ -53,6 +53,28 @@ import {
 import type { WorkbenchCandidate } from "@/lib/wingman/services/scanner-service";
 import { cn } from "@/lib/utils";
 import { assessRecentMarketDamage } from "@/lib/wingman/services/scanner/market-damage";
+import { SuspectTable } from "@/components/wingman/scanner/SuspectTable";
+import {
+  selectSuspects,
+  suspectCount,
+  type SuspectFilters,
+} from "@/lib/wingman/services/scanner/suspect-review";
+
+/** Review-only filters inside the SUSPECT tab. None affect selection. */
+const SUSPECT_FILTER_GROUPS: {
+  key: keyof Required<SuspectFilters>;
+  label: string;
+  options: string[];
+}[] = [
+  { key: "status", label: "PQ", options: ["ALL", "EXTREME", "CONCENTRATED"] },
+  { key: "lane", label: "Setup", options: ["ALL", "BASE", "REACCEL"] },
+  {
+    key: "priceIntegrity",
+    label: "PI",
+    options: ["ALL", "HEALTHY", "CONCERN", "DAMAGED", "UNKNOWN"],
+  },
+  { key: "structural", label: "Struct", options: ["ALL", "PASS", "CONCERN", "FAIL", "UNKNOWN"] },
+];
 
 export const Route = createFileRoute("/scanner")({
   head: () => ({
