@@ -23,12 +23,14 @@ import {
 } from "./triage-provider.server";
 import {
   TRIAGE_CONFIG,
+  TRIAGE_INPUT_POLICY_VERSION,
   TRIAGE_POLICY_VERSION,
   TRIAGE_PROMPT_VERSION,
   analyzeCalibration,
   buildCohortSummary,
   buildTriagePrompt,
   compareWithQuant,
+  orderCandidates,
   validateTriageOutput,
   withQuantRanks,
   type CalibrationAnalysis,
@@ -39,6 +41,18 @@ import {
 import type { CandidateSource, ExclusionReason } from "./types";
 
 type Row = Record<string, unknown>;
+
+/** Flat, serializable provider usage counters as reported by the provider. */
+export type TriageUsage = Record<string, number | string | null>;
+
+function sanitizeUsage(usage: unknown): TriageUsage | null {
+  if (!usage || typeof usage !== "object") return null;
+  const out: TriageUsage = {};
+  for (const [key, value] of Object.entries(usage as Record<string, unknown>)) {
+    if (typeof value === "number" || typeof value === "string" || value === null) out[key] = value;
+  }
+  return Object.keys(out).length ? out : null;
+}
 
 export type TriageRunStatus =
   | "completed"
@@ -65,6 +79,15 @@ export interface TriageRunResult {
   blockedCount: number;
   shortlistMilestonesCreated: number;
   promptBytes: number;
+  /** Input-serialization policy actually applied to the model input. */
+  inputPolicyVersion: string;
+  /** Calibration presentation-order seed, null for natural packet order. */
+  shuffleSeed: number | null;
+  /** Wall-clock duration of the provider call, ms. */
+  providerLatencyMs: number | null;
+  /** Provider-reported token usage, verbatim. Never fabricated. */
+  providerUsage: TriageUsage | null;
+  responseBytes: number | null;
   decisions: ComparedDecision[];
   blockedMints: { mint: string; reasons: ExclusionReason[] }[];
   calibration: CalibrationAnalysis | null;
@@ -168,6 +191,12 @@ export interface RunAiTriageOptions {
   scanRunId?: string | null;
   maxDeepResearch?: number;
   provider?: AiTriageProvider;
+  /**
+   * Calibration only: deterministically reorder candidate presentation to test
+   * whether presentation order changes the result. Quant ranks are computed
+   * before reordering, so the evidence itself is identical.
+   */
+  shuffleSeed?: number | null;
 }
 
 /**
@@ -199,6 +228,11 @@ export async function runAiTriage(options: RunAiTriageOptions = {}): Promise<Tri
     blockedCount: 0,
     shortlistMilestonesCreated: 0,
     promptBytes: 0,
+    inputPolicyVersion: TRIAGE_INPUT_POLICY_VERSION,
+    shuffleSeed: options.shuffleSeed ?? null,
+    providerLatencyMs: null,
+    providerUsage: null,
+    responseBytes: null,
     decisions: [],
     blockedMints: [],
     calibration: null,
@@ -288,7 +322,8 @@ export async function runAiTriage(options: RunAiTriageOptions = {}): Promise<Tri
     })),
   );
 
-  const cohort = buildCohortSummary(candidates);
+  const presented = orderCandidates(candidates, options.shuffleSeed ?? null);
+  const cohort = buildCohortSummary(presented);
   const prompt = buildTriagePrompt({
     header: {
       scanId: sourceScanId!,
@@ -301,7 +336,7 @@ export async function runAiTriage(options: RunAiTriageOptions = {}): Promise<Tri
       maxDeepResearch,
     },
     cohort,
-    candidates,
+    candidates: presented,
   });
 
   // 4. Provider.
@@ -328,8 +363,11 @@ export async function runAiTriage(options: RunAiTriageOptions = {}): Promise<Tri
 
   let responseText: string;
   let diagnostics: Record<string, unknown>;
+  const providerStartedAt = Date.now();
+  let providerLatencyMs: number | null = null;
   try {
     const response = await provider.complete({ system: prompt.system, user: prompt.user });
+    providerLatencyMs = Date.now() - providerStartedAt;
     responseText = response.text;
     diagnostics = response.diagnostics;
   } catch (err) {
@@ -472,7 +510,15 @@ export async function runAiTriage(options: RunAiTriageOptions = {}): Promise<Tri
       skip,
       blocked: blocked.length,
     },
-    diagnostics: { promptBytes: prompt.bytes, providerDiagnostics: diagnostics, cohort },
+    diagnostics: {
+      promptBytes: prompt.bytes,
+      responseBytes: new TextEncoder().encode(responseText).length,
+      providerLatencyMs,
+      inputPolicyVersion: TRIAGE_INPUT_POLICY_VERSION,
+      shuffleSeed: options.shuffleSeed ?? null,
+      providerDiagnostics: diagnostics,
+      cohort,
+    },
   });
 
   return {
@@ -494,6 +540,11 @@ export async function runAiTriage(options: RunAiTriageOptions = {}): Promise<Tri
     blockedCount: blocked.length,
     shortlistMilestonesCreated: milestones,
     promptBytes: prompt.bytes,
+    inputPolicyVersion: TRIAGE_INPUT_POLICY_VERSION,
+    shuffleSeed: options.shuffleSeed ?? null,
+    providerLatencyMs,
+    providerUsage: sanitizeUsage(diagnostics["usage"]),
+    responseBytes: new TextEncoder().encode(responseText).length,
     decisions: compared,
     blockedMints: blocked.map((b) => ({ mint: b.packet.mint, reasons: b.reasons })),
     calibration: analyzeCalibration(compared),
