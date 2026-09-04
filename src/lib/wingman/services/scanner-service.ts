@@ -137,7 +137,25 @@ export interface ScanRunDiagnostics {
   baseVolumeFloor: BaseVolumeFloorDiagnostics | null;
   /** Price / Launch Integrity shadow diagnostics for the run. */
   priceIntegrity: PriceIntegrityRunDiagnostics | null;
+  /** Survivor composition for the run: setups, NONE exceptions, unused capacity. */
+  survivors: SurvivorRunDiagnostics | null;
   errorMessage: string | null;
+}
+
+/** Persisted survivor composition. Read-only reporting; never a selection input. */
+export interface SurvivorRunDiagnostics {
+  survivorLimit: number;
+  survivorCount: number;
+  baseSurvivors: number;
+  reaccelSurvivors: number;
+  momentumSurvivors: number;
+  reservationSurvivors: number;
+  recognizedGlobalSurvivors: number;
+  noneGlobalSurvivors: number;
+  maxNoneGlobalSurvivors: number;
+  noneSkippedByCap: number;
+  unusedCapacity: number;
+  underFilled: boolean;
 }
 
 export interface BaseVolumeFloorDiagnostics {
@@ -470,7 +488,7 @@ export const ScannerService = {
     const { data, error } = await supabase
       .from("scan_runs")
       .select(
-        "id, status, started_at, completed_at, duration_ms, survivor_limit, calibration_mode, scanner_version, discovery_config_version, bucket_diagnostics, lane_diagnostics, provider_telemetry, base_volume_floor_diagnostics, price_integrity_diagnostics, error_message",
+        "id, status, started_at, completed_at, duration_ms, survivor_limit, calibration_mode, scanner_version, discovery_config_version, bucket_diagnostics, lane_diagnostics, provider_telemetry, base_volume_floor_diagnostics, price_integrity_diagnostics, survivor_diagnostics, error_message",
       )
       .eq("id", scanRunId)
       .maybeSingle();
@@ -494,6 +512,7 @@ export const ScannerService = {
         (r["base_volume_floor_diagnostics"] as BaseVolumeFloorDiagnostics | null) ?? null,
       priceIntegrity:
         (r["price_integrity_diagnostics"] as PriceIntegrityRunDiagnostics | null) ?? null,
+      survivors: (r["survivor_diagnostics"] as SurvivorRunDiagnostics | null) ?? null,
       errorMessage: (r["error_message"] as string | null) ?? null,
     };
   },
