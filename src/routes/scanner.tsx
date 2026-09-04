@@ -86,6 +86,7 @@ type Filter =
   | "PI_DAMAGED"
   | "PI_UNKNOWN"
   | "PI_DAMAGED_EXCLUDED"
+  | "RECENT_CATASTROPHIC_COLLAPSE"
   | (typeof LANES)[number];
 
 /**
@@ -116,6 +117,7 @@ function calibrationFilters(strategy: StrategyShape): { key: Filter; label: stri
     { key: "ALL" as Filter, label: "All candidates" },
     { key: "NEAR_MISS" as Filter, label: "Near misses" },
     { key: "OUT_OF_SCOPE" as Filter, label: "Out of mandate" },
+    { key: "RECENT_CATASTROPHIC_COLLAPSE" as Filter, label: "RECENT_CATASTROPHIC_COLLAPSE" },
     ...PRICE_INTEGRITY_FILTERS,
     ...disabledSetups(strategy).map((lane) => ({
       key: lane as Filter,
@@ -131,6 +133,8 @@ function applyRecurrenceFilter(candidates: Row[], filter: RecurrenceFilter): Row
   if (filter === "ALL") return candidates;
   return candidates.filter((c) => c.recurrenceState === filter);
 }
+
+import { assessRecentMarketDamage } from "@/lib/wingman/services/scanner/market-damage";
 
 function applyFilter(candidates: Row[], filter: Filter): Row[] {
   switch (filter) {
@@ -158,6 +162,15 @@ function applyFilter(candidates: Row[], filter: Filter): Row[] {
           (c.priceIntegrityStatus === "DAMAGED" &&
             !c.selectedByLaneReservation &&
             !c.selectedByGlobalRanking),
+      );
+    case "RECENT_CATASTROPHIC_COLLAPSE":
+      // Temporarily vetoed by the current-market collapse gate. Fully
+      // persisted and inspectable; may qualify again on a later scan.
+      return candidates.filter(
+        (c) =>
+          assessRecentMarketDamage(c.priceChange1h).status === "FAIL" &&
+          !c.selectedByLaneReservation &&
+          !c.selectedByGlobalRanking,
       );
     case "NEAR_MISS":
       // Passed the mechanical filters but was never enriched.
