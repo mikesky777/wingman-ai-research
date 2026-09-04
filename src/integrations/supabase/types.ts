@@ -705,6 +705,7 @@ export type Database = {
           started_at: string
           status: string
           structural_diagnostics: Json | null
+          survivor_diagnostics: Json | null
           survivor_limit: number | null
           tokens_discovered: number
           tokens_scanned: number
@@ -741,6 +742,7 @@ export type Database = {
           started_at?: string
           status?: string
           structural_diagnostics?: Json | null
+          survivor_diagnostics?: Json | null
           survivor_limit?: number | null
           tokens_discovered?: number
           tokens_scanned?: number
@@ -777,6 +779,7 @@ export type Database = {
           started_at?: string
           status?: string
           structural_diagnostics?: Json | null
+          survivor_diagnostics?: Json | null
           survivor_limit?: number | null
           tokens_discovered?: number
           tokens_scanned?: number
