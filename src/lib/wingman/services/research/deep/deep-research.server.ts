@@ -652,8 +652,8 @@ async function insertRun(input: {
       model_identifier: input.provider.model,
       is_calibration: input.isCalibration,
       status: input.status,
-      budget: input.budget as unknown as Record<string, number>,
-      eligibility_before: input.eligibility,
+      budget: input.budget as unknown as never,
+      eligibility_before: input.eligibility as unknown as never,
     })
     .select("id")
     .single();
@@ -721,7 +721,7 @@ async function insertReport(input: {
       source_domain_diversity: dossier.coverage.sourceDomainDiversity,
       conflicting_claim_count: dossier.coverage.conflictingClaimCount,
       unresolved_gap_count: dossier.evidenceGaps.length,
-      dossier: dossier as unknown as Record<string, unknown>,
+      dossier: dossier as unknown as never,
     })
     .select("id")
     .single();
