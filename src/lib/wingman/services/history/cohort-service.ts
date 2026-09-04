@@ -123,6 +123,9 @@ export const HistoryCohortService = {
         participationStatus: (call["participation_status"] as string | null) ?? null,
         dexPairAddress: (token["dex_pair_address"] as string | null) ?? null,
         observationCount: num(o, "observation_count") ?? 0,
+        latestObservationAt: (latest?.["created_at"] as string | null) ?? null,
+        latestRecurrenceState: (latest?.["recurrence_state"] as string | null) ?? null,
+
       } satisfies CohortToken;
     });
   },
