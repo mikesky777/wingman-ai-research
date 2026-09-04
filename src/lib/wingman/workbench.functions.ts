@@ -13,6 +13,10 @@ import {
   type ManualEvaluationResult,
 } from "./services/scanner/workbench.server";
 import {
+  refreshTokenMarket,
+  type MarketRefreshResult,
+} from "./services/market-refresh.server";
+import {
   loadCandleReview,
   type CandleReviewResult,
 } from "./services/scanner/candle-review.server";
@@ -60,4 +64,17 @@ export const getCandidateCandles = createServerFn({ method: "POST" })
   .handler(
     async ({ data }): Promise<CandleReviewResult> =>
       loadCandleReview(data.contractAddress, data.chain ?? "solana"),
+  );
+
+/**
+ * Manual per-token current-market refresh. Appends a new immutable snapshot
+ * and recomputes derived outcome fields. Never mutates the stored scan row,
+ * selection, setups, priority, recurrence or any baseline.
+ */
+export const refreshCandidateMarket = createServerFn({ method: "POST" })
+  .inputValidator((input: { contractAddress: string }) => ({
+    contractAddress: String(input?.contractAddress ?? ""),
+  }))
+  .handler(
+    async ({ data }): Promise<MarketRefreshResult> => refreshTokenMarket(data.contractAddress),
   );

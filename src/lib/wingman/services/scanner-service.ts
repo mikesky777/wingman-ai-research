@@ -284,7 +284,10 @@ export interface TokenOutcome {
   firstSeenMarketCap: number | null;
   firstCallAt: string | null;
   firstCallMarketCap: number | null;
+  firstCallPriceUsd: number | null;
   currentMarketCap: number | null;
+  currentPriceUsd: number | null;
+  currentObservedAt: string | null;
   sinceSeenPct: number | null;
   sinceCallPct: number | null;
   maxGainSinceSeenPct: number | null;
@@ -293,11 +296,19 @@ export interface TokenOutcome {
   maxAdverseSinceCallPct: number | null;
   drawdownSinceSeenPct: number | null;
   drawdownSinceCallPct: number | null;
+  /** Peak Since Call (market cap) — primary displayed metric. */
+  peakMarketCapSinceCallPct: number | null;
+  /** Peak Since Call (price) — shown only where market cap is unavailable. */
+  peakSinceCallPct: number | null;
+  peakMarketCapSinceCall: number | null;
+  peakPriceSinceCall: number | null;
+  peakMarketCapSinceCallAt: string | null;
+  peakPriceSinceCallAt: string | null;
   observationCount: number;
 }
 
 const OUTCOME_COLUMNS =
-  "token_id, first_seen_at, first_seen_market_cap_usd, first_call_at, first_call_market_cap_usd, current_market_cap_usd, market_cap_change_since_first_seen_pct, market_cap_change_since_first_call_pct, max_gain_since_first_seen_pct, max_gain_since_first_call_pct, max_adverse_change_since_first_seen_pct, max_adverse_change_since_first_call_pct, max_peak_to_trough_drawdown_since_first_seen_pct, max_peak_to_trough_drawdown_since_first_call_pct, observation_count";
+  "token_id, first_seen_at, first_seen_market_cap_usd, first_call_at, first_call_market_cap_usd, current_market_cap_usd, market_cap_change_since_first_seen_pct, market_cap_change_since_first_call_pct, max_gain_since_first_seen_pct, max_gain_since_first_call_pct, max_adverse_change_since_first_seen_pct, max_adverse_change_since_first_call_pct, max_peak_to_trough_drawdown_since_first_seen_pct, max_peak_to_trough_drawdown_since_first_call_pct, first_call_price_usd, current_price_usd, current_observed_at, max_market_cap_since_first_call, max_price_since_first_call, peak_since_call_pct, peak_market_cap_since_call_pct, peak_market_cap_since_call_at, peak_price_since_call_at, observation_count";
 
 const WORKBENCH_COLUMNS =
   "id, token_id, contract_address, discovery_lanes, lane_rejections, discovery_queries, discovery_ranks, token_age_minutes, age_basis, market_cap, market_cap_bucket, liquidity_usd, price_usd, volume_1h, volume_24h, trades_1h, trades_24h, buys_24h, sells_24h, holder_count, price_change_1h, price_change_24h, volume_to_market_cap_24h, volume_to_liquidity_24h, activity_state, persistence_signal, reacceleration_signal, extension_risk, extension_reasons, attention_price_divergence, structural_safety, token_security, quantitative_priority, priority_breakdown, metrics_detail, global_rank, lane_ranks, selected_by_lane_reservation, selected_by_global_ranking, history_snapshot_count, stage_reached, rejection_reason, rejection_details, enriched, recurrence_state, first_seen_scan_at, previous_seen_scan_at, scans_seen_count, consecutive_scans_seen, previous_quantitative_priority, priority_delta, previous_setups, setup_changed, previous_selected_as_survivor, last_selected_as_survivor_at, recurrence_detail, refresh_state, evidence_carried_forward, last_enriched_at, evidence_age_minutes, refresh_domains, universe_eligibility, universe_category, universe_reason, structural_status, structural_policy_version, structural_detail, price_integrity_status, price_integrity_policy_version, price_integrity_detail, token:tokens!inner(id, name, symbol)";
@@ -570,7 +581,10 @@ export const ScannerService = {
         firstSeenMarketCap: num("first_seen_market_cap_usd"),
         firstCallAt: (row["first_call_at"] as string | null) ?? null,
         firstCallMarketCap: num("first_call_market_cap_usd"),
+        firstCallPriceUsd: num("first_call_price_usd"),
         currentMarketCap: num("current_market_cap_usd"),
+        currentPriceUsd: num("current_price_usd"),
+        currentObservedAt: (row["current_observed_at"] as string | null) ?? null,
         sinceSeenPct: num("market_cap_change_since_first_seen_pct"),
         sinceCallPct: num("market_cap_change_since_first_call_pct"),
         maxGainSinceSeenPct: num("max_gain_since_first_seen_pct"),
@@ -579,6 +593,12 @@ export const ScannerService = {
         maxAdverseSinceCallPct: num("max_adverse_change_since_first_call_pct"),
         drawdownSinceSeenPct: num("max_peak_to_trough_drawdown_since_first_seen_pct"),
         drawdownSinceCallPct: num("max_peak_to_trough_drawdown_since_first_call_pct"),
+        peakMarketCapSinceCallPct: num("peak_market_cap_since_call_pct"),
+        peakSinceCallPct: num("peak_since_call_pct"),
+        peakMarketCapSinceCall: num("max_market_cap_since_first_call"),
+        peakPriceSinceCall: num("max_price_since_first_call"),
+        peakMarketCapSinceCallAt: (row["peak_market_cap_since_call_at"] as string | null) ?? null,
+        peakPriceSinceCallAt: (row["peak_price_since_call_at"] as string | null) ?? null,
         observationCount: (row["observation_count"] as number | null) ?? 0,
       };
     }
