@@ -34,8 +34,35 @@ export const PRICE_INTEGRITY_HINT: Record<string, string> = {
  * in the UI. Both helpers are presentation-only: they read persisted values and
  * can never influence Survivor selection.
  */
+export const RECOGNIZED_SETUP_LABELS = ["BASE", "REACCEL"] as const;
+
+/**
+ * SETUP is BASE, REACCEL or NONE. MOMENTUM is never a setup: it is a SIGNAL
+ * overlay (see {@link signalsOf}) and only ever displayed as such.
+ */
 export function setupOf(candidate: { lanes: string[] }): string {
-  return candidate.lanes[0] ?? "NONE";
+  return RECOGNIZED_SETUP_LABELS.find((s) => candidate.lanes.includes(s)) ?? "NONE";
+}
+
+/** Signal overlays carried alongside the setup. Display only. */
+export function signalsOf(candidate: { lanes: string[] }): string[] {
+  return candidate.lanes.filter(
+    (lane) => !(RECOGNIZED_SETUP_LABELS as readonly string[]).includes(lane),
+  );
+}
+
+/** Presentation-only selection route label. */
+export function selectionRouteOf(candidate: {
+  lanes: string[];
+  selectedByLaneReservation: boolean;
+  selectedByGlobalRanking: boolean;
+  rejectionReason?: string | null;
+}): string {
+  if (candidate.selectedByLaneReservation) return `${setupOf(candidate)} RESERVATION`;
+  if (candidate.selectedByGlobalRanking) {
+    return setupOf(candidate) === "NONE" ? "NONE EXCEPTION" : "GLOBAL RECOGNIZED";
+  }
+  return candidate.rejectionReason ? "REJECTED" : "NEAR MISS";
 }
 
 export type PriceStructure = "HEALTHY" | "CONCERN" | "DAMAGED" | "UNKNOWN" | "NOT_EVALUATED";
