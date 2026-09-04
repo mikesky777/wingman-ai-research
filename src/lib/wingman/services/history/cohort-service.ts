@@ -35,30 +35,38 @@ export const HistoryCohortService = {
     const tokenIds = [...new Set(outcomes.map((r) => r["token_id"] as string))];
 
     // The Data API caps any single response at 1000 rows, so candidate rows are
-    // read in token chunks. Without this, a growing scan history silently
-    // truncates the join and whole cohorts disappear from the UI.
-    const CHUNK = 40;
+    // read in token chunks AND paginated. Without this, a growing scan history
+    // silently truncates the join and whole cohorts disappear from the UI.
+    const CHUNK = 25;
+    const PAGE = 1000;
     const chunks: string[][] = [];
     for (let i = 0; i < tokenIds.length; i += CHUNK) chunks.push(tokenIds.slice(i, i + CHUNK));
 
     const [candidateChunks, { data: tokenRows }] = await Promise.all([
       Promise.all(
         chunks.map(async (ids) => {
-          const { data, error: candidateError } = await supabase
-            .from("scan_candidates")
-            .select(
-              "token_id, scan_run_id, discovery_lanes, contract_address, market_cap, liquidity_usd, volume_24h, price_integrity_status, structural_status, participation_status",
-            )
-            .in("token_id", ids)
-            .order("created_at", { ascending: false })
-            .limit(1000);
-          if (candidateError) throw candidateError;
-          return (data ?? []) as unknown as Row[];
+          const rows: Row[] = [];
+          for (let offset = 0; ; offset += PAGE) {
+            const { data, error: candidateError } = await supabase
+              .from("scan_candidates")
+              .select(
+                "token_id, scan_run_id, created_at, recurrence_state, discovery_lanes, contract_address, market_cap, liquidity_usd, volume_24h, price_integrity_status, structural_status, participation_status",
+              )
+              .in("token_id", ids)
+              .order("created_at", { ascending: false })
+              .range(offset, offset + PAGE - 1);
+            if (candidateError) throw candidateError;
+            const page = (data ?? []) as unknown as Row[];
+            rows.push(...page);
+            if (page.length < PAGE) break;
+          }
+          return rows;
         }),
       ),
       supabase.from("tokens").select("id, name, symbol, dex_pair_address").in("id", tokenIds),
     ]);
     const candidateRows = candidateChunks.flat();
+
 
 
     const candidatesByToken = new Map<string, Row[]>();
