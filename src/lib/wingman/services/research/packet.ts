@@ -427,6 +427,9 @@ function buildOutcomes(input: PacketInput): PacketOutcomes | null {
     peakSinceCallPct: o.peakMarketCapSinceCallPct ?? o.peakSinceCallPct,
     maxAdverseSinceCallPct: o.maxAdverseSinceCallPctV2 ?? o.maxAdverseSinceCallPct,
     drawdownSinceCallPct: o.drawdownSinceCallPctV2 ?? o.drawdownSinceCallPct,
+    currentMarketValidity: o.currentMarketValidity,
+    lastValidObservationAt: o.lastValidObservationAt,
+    invalidObservationCount: o.invalidObservationCount,
     note: "historical_context_only",
   };
 }
@@ -464,6 +467,11 @@ export function buildResearchPacket(input: PacketInput): ResearchPacket {
   if (!input.pairAddress) gaps.add("PROVENANCE_UNAVAILABLE");
   const outcomes = buildOutcomes(input);
   if (!outcomes) gaps.add("OUTCOMES_UNAVAILABLE");
+  // The AI must be told the latest outcome quote is not a real market rather
+  // than silently reading a drained-pool number as a fact.
+  if (outcomes?.currentMarketValidity === "INVALID_MARKET")
+    gaps.add("CURRENT_OUTCOME_MARKET_INVALID");
+  if (outcomes?.currentMarketValidity === "UNKNOWN") gaps.add("CURRENT_OUTCOME_MARKET_UNKNOWN");
 
   const structuralRules = c.structuralDetail?.rules ?? [];
   const ruleFact = (id: string): Fact<string> => {

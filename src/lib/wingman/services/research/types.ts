@@ -49,7 +49,9 @@ export type EvidenceGap =
   | "CURRENT_MARKET_EVIDENCE_STALE"
   | "CURRENT_MARKET_EVIDENCE_UNAVAILABLE"
   | "STRUCTURAL_NOT_EVALUATED"
-  | "OUTCOMES_UNAVAILABLE";
+  | "OUTCOMES_UNAVAILABLE"
+  | "CURRENT_OUTCOME_MARKET_INVALID"
+  | "CURRENT_OUTCOME_MARKET_UNKNOWN";
 
 /** Evaluated-layer status. NOT_EVALUATED is distinct from UNKNOWN by design. */
 export type LayerStatus =
@@ -205,6 +207,15 @@ export interface PacketOutcomes {
   peakSinceCallPct: number | null;
   maxAdverseSinceCallPct: number | null;
   drawdownSinceCallPct: number | null;
+  /**
+   * Validity of the latest market observation behind these numbers
+   * (`outcome_market_validity/v1`). When not VALID the values above come from
+   * the last VALID observation and must never be read as a current quote or
+   * turned into bearish evidence.
+   */
+  currentMarketValidity: "VALID" | "INVALID_MARKET" | "UNKNOWN";
+  lastValidObservationAt: string | null;
+  invalidObservationCount: number;
   /** Historical context only. Never predictive. */
   note: "historical_context_only";
 }

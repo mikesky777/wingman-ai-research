@@ -11,6 +11,7 @@
  */
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import {
+  OUTCOME_MARKET_VALIDITY_VERSION,
   OUTCOME_VERSION,
   buildObservationSeries,
   deriveMilestones,
@@ -90,7 +91,7 @@ async function loadAppearances(tokenIds: string[]): Promise<Map<string, Candidat
       supabaseAdmin
         .from("scan_candidates")
         .select(
-          "token_id, scan_run_id, price_usd, market_cap, selected_by_lane_reservation, selected_by_global_ranking, run:scan_runs!inner(id, status, completed_at)",
+          "token_id, scan_run_id, price_usd, market_cap, liquidity_usd, selected_by_lane_reservation, selected_by_global_ranking, run:scan_runs!inner(id, status, completed_at)",
         )
         .in("token_id", chunk)
         .order("id", { ascending: true })
@@ -106,6 +107,7 @@ async function loadAppearances(tokenIds: string[]): Promise<Map<string, Candidat
         completedAt: run.completed_at,
         priceUsd: (row["price_usd"] as number | null) ?? null,
         marketCap: (row["market_cap"] as number | null) ?? null,
+        liquidityUsd: (row["liquidity_usd"] as number | null) ?? null,
         survivor:
           Boolean(row["selected_by_lane_reservation"]) || Boolean(row["selected_by_global_ranking"]),
       });
@@ -124,7 +126,7 @@ async function loadSnapshots(tokenIds: string[]): Promise<Map<string, SnapshotOb
       rows = await fetchAllPages((from, to) =>
         supabaseAdmin
           .from("token_snapshots")
-          .select("token_id, captured_at, price_usd, market_cap")
+          .select("token_id, captured_at, price_usd, market_cap, liquidity_usd")
           .in("token_id", chunk)
           .order("captured_at", { ascending: true })
           .range(from, to),
@@ -139,6 +141,7 @@ async function loadSnapshots(tokenIds: string[]): Promise<Map<string, SnapshotOb
         capturedAt: row["captured_at"] as string,
         priceUsd: (row["price_usd"] as number | null) ?? null,
         marketCap: (row["market_cap"] as number | null) ?? null,
+        liquidityUsd: (row["liquidity_usd"] as number | null) ?? null,
       });
       out.set(tokenId, list);
     }
@@ -300,6 +303,13 @@ function toRow(
 
     horizons_since_first_seen: seen.horizons,
     horizons_since_first_call: firstCall ? call.horizons : null,
+
+    // Market validity of the observation stream. Invalid observations remain
+    // persisted; they simply never moved a metric above.
+    current_market_validity: seen.currentMarketValidity,
+    market_validity_version: OUTCOME_MARKET_VALIDITY_VERSION,
+    last_valid_observation_at: seen.lastValidObservationAt,
+    invalid_observation_count: seen.excludedObservationCount,
 
     outcome_version: OUTCOME_VERSION,
     last_evaluated_at: nowIso,

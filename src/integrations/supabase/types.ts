@@ -757,6 +757,8 @@ export type Database = {
           created_at: string
           deep_researched: number
           discovery_config_version: string | null
+          discovery_health: string | null
+          discovery_health_detail: Json | null
           duration_ms: number | null
           enriched_count: number
           error_message: string | null
@@ -796,6 +798,8 @@ export type Database = {
           created_at?: string
           deep_researched?: number
           discovery_config_version?: string | null
+          discovery_health?: string | null
+          discovery_health_detail?: Json | null
           duration_ms?: number | null
           enriched_count?: number
           error_message?: string | null
@@ -835,6 +839,8 @@ export type Database = {
           created_at?: string
           deep_researched?: number
           discovery_config_version?: string | null
+          discovery_health?: string | null
+          discovery_health_detail?: Json | null
           duration_ms?: number | null
           enriched_count?: number
           error_message?: string | null
@@ -1068,6 +1074,7 @@ export type Database = {
           contract_address: string | null
           created_at: string
           current_market_cap_usd: number | null
+          current_market_validity: string
           current_observed_at: string | null
           current_price_usd: number | null
           drawdown_peak_market_cap_since_call: number | null
@@ -1087,9 +1094,12 @@ export type Database = {
           horizons_since_first_call: Json | null
           horizons_since_first_seen: Json | null
           id: string
+          invalid_observation_count: number
           last_evaluated_at: string | null
+          last_valid_observation_at: string | null
           market_cap_change_since_first_call_pct: number | null
           market_cap_change_since_first_seen_pct: number | null
+          market_validity_version: string | null
           max_adverse_change_since_first_call_pct: number | null
           max_adverse_change_since_first_seen_pct: number | null
           max_adverse_market_cap_since_call: number | null
@@ -1123,6 +1133,7 @@ export type Database = {
           contract_address?: string | null
           created_at?: string
           current_market_cap_usd?: number | null
+          current_market_validity?: string
           current_observed_at?: string | null
           current_price_usd?: number | null
           drawdown_peak_market_cap_since_call?: number | null
@@ -1142,9 +1153,12 @@ export type Database = {
           horizons_since_first_call?: Json | null
           horizons_since_first_seen?: Json | null
           id?: string
+          invalid_observation_count?: number
           last_evaluated_at?: string | null
+          last_valid_observation_at?: string | null
           market_cap_change_since_first_call_pct?: number | null
           market_cap_change_since_first_seen_pct?: number | null
+          market_validity_version?: string | null
           max_adverse_change_since_first_call_pct?: number | null
           max_adverse_change_since_first_seen_pct?: number | null
           max_adverse_market_cap_since_call?: number | null
@@ -1178,6 +1192,7 @@ export type Database = {
           contract_address?: string | null
           created_at?: string
           current_market_cap_usd?: number | null
+          current_market_validity?: string
           current_observed_at?: string | null
           current_price_usd?: number | null
           drawdown_peak_market_cap_since_call?: number | null
@@ -1197,9 +1212,12 @@ export type Database = {
           horizons_since_first_call?: Json | null
           horizons_since_first_seen?: Json | null
           id?: string
+          invalid_observation_count?: number
           last_evaluated_at?: string | null
+          last_valid_observation_at?: string | null
           market_cap_change_since_first_call_pct?: number | null
           market_cap_change_since_first_seen_pct?: number | null
+          market_validity_version?: string | null
           max_adverse_change_since_first_call_pct?: number | null
           max_adverse_change_since_first_seen_pct?: number | null
           max_adverse_market_cap_since_call?: number | null

@@ -14,7 +14,20 @@
  *     is interpolated, extrapolated or fabricated.
  */
 
-export const OUTCOME_VERSION = "outcomes/v1";
+import {
+  assessMarketValidity,
+  isMetricUsable,
+  type OutcomeMarketValidity,
+} from "./market-validity";
+
+export const OUTCOME_VERSION = "outcomes/v2";
+
+export {
+  OUTCOME_MARKET_VALIDITY_VERSION,
+  assessMarketValidity,
+  isMetricUsable,
+  type OutcomeMarketValidity,
+} from "./market-validity";
 
 export type ObservationSource = "scan_candidate" | "token_snapshot";
 
@@ -23,7 +36,20 @@ export interface Observation {
   at: string;
   priceUsd: number | null;
   marketCap: number | null;
+  /** Pooled USD depth at observation time. Drives market validity. */
+  liquidityUsd?: number | null;
   source: ObservationSource;
+}
+
+/** Validity of a single observation; computed once, never persisted as zero. */
+export function observationValidity(observation: {
+  liquidityUsd?: number | null;
+  marketCap: number | null;
+}): OutcomeMarketValidity {
+  return assessMarketValidity({
+    liquidityUsd: observation.liquidityUsd ?? null,
+    marketCap: observation.marketCap,
+  }).validity;
 }
 
 /** One appearance of a token in a completed scan run. */
@@ -33,6 +59,7 @@ export interface CandidateAppearance {
   completedAt: string;
   priceUsd: number | null;
   marketCap: number | null;
+  liquidityUsd?: number | null;
   /** True when the run selected the token as a Survivor. */
   survivor: boolean;
 }
@@ -41,6 +68,7 @@ export interface SnapshotObservation {
   capturedAt: string;
   priceUsd: number | null;
   marketCap: number | null;
+  liquidityUsd?: number | null;
 }
 
 export interface Milestone {
@@ -105,10 +133,22 @@ export function buildObservationSeries(
   };
 
   for (const c of candidates) {
-    put({ at: c.completedAt, priceUsd: c.priceUsd, marketCap: c.marketCap, source: "scan_candidate" });
+    put({
+      at: c.completedAt,
+      priceUsd: c.priceUsd,
+      marketCap: c.marketCap,
+      liquidityUsd: c.liquidityUsd ?? null,
+      source: "scan_candidate",
+    });
   }
   for (const s of snapshots) {
-    put({ at: s.capturedAt, priceUsd: s.priceUsd, marketCap: s.marketCap, source: "token_snapshot" });
+    put({
+      at: s.capturedAt,
+      priceUsd: s.priceUsd,
+      marketCap: s.marketCap,
+      liquidityUsd: s.liquidityUsd ?? null,
+      source: "token_snapshot",
+    });
   }
 
   return [...byBucket.entries()]
@@ -173,7 +213,14 @@ export interface OutcomeMetrics {
   drawdownTroughMarketCap: number | null;
   drawdownTroughAt: string | null;
   elapsedMinutes: number | null;
+  /** Every post-baseline observation, valid or not. Never rewritten. */
   observationCount: number;
+  /** Observations excluded from metrics because they were INVALID_MARKET. */
+  excludedObservationCount: number;
+  /** Validity of the most recent post-baseline observation. */
+  currentMarketValidity: OutcomeMarketValidity;
+  /** Timestamp of the newest observation that actually moved the metrics. */
+  lastValidObservationAt: string | null;
   horizons: HorizonMap;
 }
 
@@ -212,6 +259,9 @@ export function emptyOutcome(): OutcomeMetrics {
     elapsedMinutes: null,
 
     observationCount: 0,
+    excludedObservationCount: 0,
+    currentMarketValidity: "UNKNOWN",
+    lastValidObservationAt: null,
     horizons: {},
   };
 }
@@ -233,15 +283,23 @@ export function deriveOutcome(input: OutcomeInput): OutcomeMetrics {
   const baseTime = Date.parse(input.baselineAt);
   if (Number.isNaN(baseTime)) return emptyOutcome();
 
-  const series = input.series
+  const postBaseline = input.series
     .filter((o) => {
       const t = Date.parse(o.at);
       return !Number.isNaN(t) && t >= baseTime;
     })
     .sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
 
+  // Drained-pool and unknown-liquidity observations stay persisted but never
+  // move a metric. A later VALID observation resumes tracking normally.
+  const series = postBaseline.filter((o) => isMetricUsable(observationValidity(o)));
+
   const out = emptyOutcome();
-  out.observationCount = series.length;
+  out.observationCount = postBaseline.length;
+  out.excludedObservationCount = postBaseline.length - series.length;
+  const newest = postBaseline[postBaseline.length - 1] ?? null;
+  out.currentMarketValidity = newest ? observationValidity(newest) : "UNKNOWN";
+  out.lastValidObservationAt = series[series.length - 1]?.at ?? null;
 
   const now = Date.parse(input.nowIso);
   out.elapsedMinutes = Number.isNaN(now) ? null : (now - baseTime) / 60000;

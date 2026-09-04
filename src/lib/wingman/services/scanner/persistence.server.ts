@@ -512,6 +512,9 @@ export async function loadRecurrenceHistory(
     .from("scan_runs")
     .select("id, started_at, completed_at")
     .eq("status", "completed")
+    // A completed run that discovered nothing observed nothing: it can never
+    // be evidence that a token was absent.
+    .gt("tokens_discovered", 0)
     .order("completed_at", { ascending: false })
     .limit(lookback);
   if (runError) return empty;
@@ -612,4 +615,37 @@ export async function loadEvidenceDomainAges(
   }
 
   return out;
+}
+
+/**
+ * Record how discovery actually behaved on this run. Diagnostic only: nothing
+ * reads it back into scoring, setups or selection.
+ */
+export async function recordDiscoveryHealth(
+  runId: string,
+  health: {
+    state: string;
+    queries: number;
+    successes: number;
+    failures: number;
+    tokens: number;
+    failureMessages: string[];
+    reason: string | null;
+  },
+): Promise<void> {
+  await supabaseAdmin
+    .from("scan_runs")
+    .update({
+      discovery_health: health.state,
+      discovery_health_detail: {
+        version: "discovery_health/v1",
+        queries: health.queries,
+        successes: health.successes,
+        failures: health.failures,
+        tokens: health.tokens,
+        failureMessages: health.failureMessages,
+        reason: health.reason,
+      },
+    } as never)
+    .eq("id", runId);
 }
