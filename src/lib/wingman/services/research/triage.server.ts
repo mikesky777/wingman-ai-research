@@ -308,7 +308,7 @@ export async function runAiTriage(options: RunAiTriageOptions = {}): Promise<Tri
       maxDeepResearch,
     },
     cohort,
-    candidates,
+    candidates: presented,
   });
 
   // 4. Provider.
