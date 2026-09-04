@@ -27,7 +27,8 @@ import { PriceIntegrityChart } from "./PriceIntegrityChart";
 import { DexScreenerEmbed } from "@/components/wingman/history/DexScreenerEmbed";
 import type { WorkbenchCandidate } from "@/lib/wingman/services/scanner-service";
 import { evaluateFromCandidateRowSummary } from "@/lib/wingman/services/scanner/price-integrity";
-import { assessRecentMarketDamage } from "@/lib/wingman/services/scanner/market-damage";
+import { deriveDamageTimeline } from "@/lib/wingman/services/scanner/market-damage";
+import { useLiveMarket } from "@/components/wingman/history/useLiveMarket";
 import {
   COMPONENT_LABELS,
   EXTENSION_TONE,
