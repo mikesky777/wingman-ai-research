@@ -13,7 +13,7 @@
 import type { CandidateSource } from "./types";
 
 export const TRIAGE_POLICY_VERSION = "ai_triage/v1";
-export const TRIAGE_PROMPT_VERSION = "ai_triage_prompt/v1.1";
+export const TRIAGE_PROMPT_VERSION = "ai_triage_prompt/v1.2";
 
 /**
  * Input-serialization policy for triage. Stage 2 must never see information
@@ -27,17 +27,70 @@ export const TRIAGE_INPUT_POLICY_VERSION = "ai_triage_input/v1_no_outcomes";
 /** Compact packet keys removed before the model ever sees a candidate. */
 export const TRIAGE_REDACTED_KEYS = ["outcomes"] as const;
 
-/** Pure, deterministic: strip post-snapshot outcome information. */
+/**
+ * CALIBRATION-ONLY input ablations. These exist to test whether the model is
+ * reading evidence or mechanically inheriting the scanner's own selection
+ * decision. They never change production input, never change Quantitative
+ * Research Priority, and never change scanner selection.
+ */
+export interface TriageInputAblation {
+  /** Hide scanner-selection provenance: candidate_source, survivor flag, selection route. */
+  blindSource?: boolean;
+  /** Represent setup as recognized_setup true/false instead of the literal BASE/REACCEL/NONE label. */
+  neutralSetup?: boolean;
+  /** Counterfactual: present these mints under a different source label. Evidence is untouched. */
+  sourceLabelOverrides?: Record<string, CandidateSource>;
+}
+
+/** Stable policy id describing exactly what the model was allowed to see. */
+export function inputPolicyVersionFor(ablation?: TriageInputAblation | null): string {
+  const parts: string[] = [];
+  if (ablation?.blindSource) parts.push("blind_source");
+  if (ablation?.neutralSetup) parts.push("neutral_setup");
+  if (ablation?.sourceLabelOverrides && Object.keys(ablation.sourceLabelOverrides).length > 0) {
+    parts.push("source_label_swap");
+  }
+  return parts.length ? `${TRIAGE_INPUT_POLICY_VERSION}+${parts.join("+")}` : TRIAGE_INPUT_POLICY_VERSION;
+}
+
+const RECOGNIZED_SETUPS = ["BASE", "REACCEL"];
+
+/** Pure, deterministic: strip post-snapshot outcome information (+ optional ablations). */
 export function redactCompactForTriage(
   compact: Record<string, unknown>,
+  ablation?: TriageInputAblation | null,
+  /** Counterfactual source label for this candidate, evidence untouched. */
+  sourceOverride?: CandidateSource | null,
 ): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(compact)) {
     if ((TRIAGE_REDACTED_KEYS as readonly string[]).includes(key)) continue;
+    if (ablation?.blindSource && key === "src") continue;
     out[key] = value;
+  }
+  if (sourceOverride && !ablation?.blindSource) out["src"] = sourceOverride;
+  const scan = out["scan"];
+  if (scan && typeof scan === "object" && !Array.isArray(scan)) {
+    const next: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(scan as Record<string, unknown>)) {
+      if (ablation?.blindSource && (key === "survivor" || key === "route")) continue;
+      if (sourceOverride && key === "route") continue;
+      if (sourceOverride && key === "survivor") {
+        next[key] = sourceOverride === "SURVIVOR";
+        continue;
+      }
+      if (ablation?.neutralSetup && key === "setups") continue;
+      next[key] = value;
+    }
+    if (ablation?.neutralSetup) {
+      const setups = ((scan as Record<string, unknown>)["setups"] as string[] | undefined) ?? [];
+      next["recognized_setup"] = setups.some((s) => RECOGNIZED_SETUPS.includes(s));
+    }
+    out["scan"] = next;
   }
   return out;
 }
+
 
 /** Deterministic seeded ordering, for presentation-order stability testing. */
 export function orderCandidates<T extends { mint: string }>(rows: T[], seed: number | null): T[] {
@@ -246,17 +299,39 @@ export function buildTriagePrompt(input: {
   header: TriageRunHeader;
   cohort: CohortSummary;
   candidates: TriageCandidateInput[];
+  ablation?: TriageInputAblation | null;
 }): TriagePrompt {
+  const ablation = input.ablation ?? null;
+  const cohort: Record<string, unknown> = { ...input.cohort };
+  if (ablation?.blindSource) delete cohort["sourceCounts"];
+  if (ablation?.neutralSetup) {
+    const counts = input.cohort.setupCounts;
+    let recognized = 0;
+    let unrecognized = 0;
+    for (const [key, n] of Object.entries(counts)) {
+      if (key === "NONE" || key === "UNKNOWN") unrecognized += n;
+      else recognized += n;
+    }
+    delete cohort["setupCounts"];
+    cohort["recognizedSetupCounts"] = { recognized, unrecognized };
+  }
   const payload = {
     run: input.header,
-    cohort_summary: input.cohort,
+    cohort_summary: cohort,
     candidates: input.candidates.map((c) => ({
       mint: c.mint,
-      candidate_source: c.candidateSource,
+      ...(ablation?.blindSource
+        ? {}
+        : { candidate_source: ablation?.sourceLabelOverrides?.[c.mint] ?? c.candidateSource }),
       quant_priority: c.quantPriority,
       quant_rank: c.quantRank,
-      packet: redactCompactForTriage(c.compact),
+      packet: redactCompactForTriage(
+        c.compact,
+        ablation,
+        ablation?.sourceLabelOverrides?.[c.mint] ?? null,
+      ),
     })),
+
     output_contract: {
       schema: TRIAGE_POLICY_VERSION,
       max_deep_research: input.header.maxDeepResearch,

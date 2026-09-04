@@ -23,19 +23,20 @@ import {
 } from "./triage-provider.server";
 import {
   TRIAGE_CONFIG,
-  TRIAGE_INPUT_POLICY_VERSION,
   TRIAGE_POLICY_VERSION,
   TRIAGE_PROMPT_VERSION,
   analyzeCalibration,
   buildCohortSummary,
   buildTriagePrompt,
   compareWithQuant,
+  inputPolicyVersionFor,
   orderCandidates,
   validateTriageOutput,
   withQuantRanks,
   type CalibrationAnalysis,
   type ComparedDecision,
   type TriageCandidateInput,
+  type TriageInputAblation,
   type TriageMode,
 } from "./triage";
 import type { CandidateSource, ExclusionReason } from "./types";
@@ -197,6 +198,11 @@ export interface RunAiTriageOptions {
    * before reordering, so the evidence itself is identical.
    */
   shuffleSeed?: number | null;
+  /**
+   * Calibration only: ablate what the model may see (scanner provenance, setup
+   * label, counterfactual source labels). Rejected for production input.
+   */
+  ablation?: TriageInputAblation | null;
 }
 
 /**
@@ -208,6 +214,17 @@ export async function runAiTriage(options: RunAiTriageOptions = {}): Promise<Tri
   const mode: TriageMode = options.mode ?? "PRODUCTION";
   const isCalibration = mode === "CALIBRATION";
   const maxDeepResearch = options.maxDeepResearch ?? TRIAGE_CONFIG.maxDeepResearch;
+  // Standing input policy (ai_triage/v1.2): scanner-selection provenance is
+  // hidden from the model. The Exploration source-bias audit showed triage
+  // rationales citing "non-survivor routing" as a concern in its own right, so
+  // triage no longer inherits the scanner's selection decision as a label. All
+  // market/evidence facts, including SETUP, are unchanged, and provenance is
+  // still persisted on every decision for analysis and UI.
+  // Calibration may pass an explicit ablation (including an unblinded baseline).
+  const ablation: TriageInputAblation | null = isCalibration
+    ? (options.ablation ?? { blindSource: true })
+    : { blindSource: true };
+  const inputPolicyVersion = inputPolicyVersionFor(ablation);
 
   const base: TriageRunResult = {
     mode,
@@ -228,7 +245,7 @@ export async function runAiTriage(options: RunAiTriageOptions = {}): Promise<Tri
     blockedCount: 0,
     shortlistMilestonesCreated: 0,
     promptBytes: 0,
-    inputPolicyVersion: TRIAGE_INPUT_POLICY_VERSION,
+    inputPolicyVersion,
     shuffleSeed: options.shuffleSeed ?? null,
     providerLatencyMs: null,
     providerUsage: null,
@@ -337,6 +354,7 @@ export async function runAiTriage(options: RunAiTriageOptions = {}): Promise<Tri
     },
     cohort,
     candidates: presented,
+    ablation,
   });
 
   // 4. Provider.
@@ -514,7 +532,8 @@ export async function runAiTriage(options: RunAiTriageOptions = {}): Promise<Tri
       promptBytes: prompt.bytes,
       responseBytes: new TextEncoder().encode(responseText).length,
       providerLatencyMs,
-      inputPolicyVersion: TRIAGE_INPUT_POLICY_VERSION,
+      inputPolicyVersion,
+      ablation,
       shuffleSeed: options.shuffleSeed ?? null,
       providerDiagnostics: diagnostics,
       cohort,
@@ -540,7 +559,7 @@ export async function runAiTriage(options: RunAiTriageOptions = {}): Promise<Tri
     blockedCount: blocked.length,
     shortlistMilestonesCreated: milestones,
     promptBytes: prompt.bytes,
-    inputPolicyVersion: TRIAGE_INPUT_POLICY_VERSION,
+    inputPolicyVersion,
     shuffleSeed: options.shuffleSeed ?? null,
     providerLatencyMs,
     providerUsage: sanitizeUsage(diagnostics["usage"]),

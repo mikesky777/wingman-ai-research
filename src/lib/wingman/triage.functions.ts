@@ -43,3 +43,22 @@ export const getLatestTriage = createServerFn({ method: "GET" }).handler(
     return loadLatestTriage();
   },
 );
+
+export const runTriageAblation = createServerFn({ method: "POST" })
+  .inputValidator(
+    (input?: {
+      variant?: "BASELINE" | "SOURCE_BLIND" | "NEUTRAL_SETUP" | "COUNTERFACTUAL_SOURCE";
+      runs?: number;
+      scanRunId?: string | null;
+      pairCount?: number;
+    }) => ({
+      variant: input?.variant ?? ("SOURCE_BLIND" as const),
+      runs: Math.min(Math.max(input?.runs ?? 3, 1), 5),
+      scanRunId: input?.scanRunId ?? null,
+      pairCount: Math.min(Math.max(input?.pairCount ?? 3, 1), 6),
+    }),
+  )
+  .handler(async ({ data }) => {
+    const { runTriageAblationBatch } = await import("./services/research/triage-ablation.server");
+    return runTriageAblationBatch(data);
+  });
