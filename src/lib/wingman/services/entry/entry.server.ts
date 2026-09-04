@@ -455,6 +455,7 @@ async function evaluateOne(args: {
   // 2. Price history. Stored candles are the cache; a live run tops up the
   //    tail, a historical run reads storage only.
   let candles: EntryCandle[] = [];
+  let historyError: string | null = null;
   if (asOf) {
     candles = await loadStoredCandles(input.mint, input.chain);
   } else {
@@ -469,7 +470,9 @@ async function evaluateOne(args: {
       });
       providerRequests += history.providerRequests;
       candles = history.candles;
+      historyError = history.error;
     } else {
+      historyError = "Launch time unknown — candle history cannot be located.";
       candles = await loadStoredCandles(input.mint, input.chain);
     }
   }
@@ -595,6 +598,7 @@ async function evaluateOne(args: {
         marketRefreshed: market.refreshed,
         marketError: market.error,
         candleCount: candles.length,
+        historyError,
         notes: score?.notes ?? [],
         asOf,
       } as never,
