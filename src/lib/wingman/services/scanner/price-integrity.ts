@@ -685,7 +685,9 @@ export function evaluatePriceIntegrity(
   }
   const repaired =
     (features.peakRepairFraction !== null &&
-      features.peakRepairFraction >= cal.repairedPeakFraction) ||
+      features.peakRepairFraction >= cal.repairedPeakFraction &&
+      features.currentRepairFraction !== null &&
+      features.currentRepairFraction >= cal.minCurrentRepairFraction) ||
     (features.currentToOriginalPeakRatio !== null &&
       features.currentToOriginalPeakRatio >= cal.repairedCurrentToPeakRatio);
   if (repaired) {
