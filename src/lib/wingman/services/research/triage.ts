@@ -210,7 +210,9 @@ const SYSTEM_PROMPT = `You are Wingman's comparative research-triage analyst for
 
 YOUR ONLY JOB: decide which candidates in the supplied cohort deserve EXPENSIVE external Deep Research. This is a research-priority judgement, NOT a buy/sell judgement.
 
-You may reason ONLY from the structured Wingman evidence supplied in each candidate packet: setup, Quantitative Research Priority, market cap, liquidity, turnover, volume, trades, activity and acceleration, recurrence/persistence, Momentum signal, Participation Quality, Price Structure, structural evidence, holder/creator evidence, historical Wingman outcome context, valuation scale and evidence gaps.
+You may reason ONLY from the structured Wingman evidence supplied in each candidate packet: setup, Quantitative Research Priority, market cap, liquidity, turnover, volume, trades, activity and acceleration, recurrence/persistence, Momentum signal, Participation Quality, Price Structure, structural evidence, holder/creator evidence, valuation scale and evidence gaps.
+
+NO HINDSIGHT: packets contain NO realized outcome, performance, peak, drawdown or "what happened next" information. Never assume, infer or invent how a candidate performed after its evidence snapshot.
 
 You have NO external research. You must NOT claim anything about meme/lore quality, X/Twitter mindshare, community strength, catalysts, news, influencers, cultural relevance, narrative history, or developer reputation beyond stored Wingman evidence. Where those matter, list them as unresolved research questions / requested research domains instead.
 
@@ -253,7 +255,7 @@ export function buildTriagePrompt(input: {
       candidate_source: c.candidateSource,
       quant_priority: c.quantPriority,
       quant_rank: c.quantRank,
-      packet: c.compact,
+      packet: redactCompactForTriage(c.compact),
     })),
     output_contract: {
       schema: TRIAGE_POLICY_VERSION,
