@@ -4,7 +4,7 @@
  * Scan-time values stay visible next to LIVE values so the distinction
  * between immutable history and the current market remains auditable.
  */
-import { formatDate, formatUsd } from "@/lib/wingman/format";
+import { formatDate, formatUsd, relativeTime } from "@/lib/wingman/format";
 import { cn } from "@/lib/utils";
 import type { CohortToken } from "@/lib/wingman/services/history/cohort";
 import { liveSinceCallPct } from "@/lib/wingman/services/history/cohort";
@@ -49,6 +49,8 @@ export function CohortTable({
             <th className="text-right">Peak call</th>
             <th className="text-right">Max DD call</th>
             <th className="text-right">First call</th>
+            <th>Seen now</th>
+            <th className="text-right">Last seen</th>
           </tr>
         </thead>
         <tbody>
@@ -96,6 +98,18 @@ export function CohortTable({
                 </td>
                 <td className="tabular text-right text-xs text-muted-foreground">
                   {t.firstCallAt ? formatDate(t.firstCallAt) : "—"}
+                </td>
+                <td>
+                  {t.latestRecurrenceState ? (
+                    <span className="rounded border border-border-strong px-1.5 py-0.5 font-mono text-[10px] tracking-wide text-muted-foreground">
+                      {t.latestRecurrenceState}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">—</span>
+                  )}
+                </td>
+                <td className="tabular text-right text-xs text-muted-foreground">
+                  {t.latestObservationAt ? relativeTime(t.latestObservationAt) : "—"}
                 </td>
               </tr>
             );
