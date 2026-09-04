@@ -130,6 +130,17 @@ export const WINGMAN_DEFAULT_SETTINGS: StrategySettings = {
 /** Deterministic order in which setup reservations are filled. */
 export const SETUP_RESERVATION_ORDER: SetupType[] = ["BASE", "MOMENTUM", "REACCEL"];
 
+/**
+ * Recent Catastrophic Collapse gate — the single configurable threshold for
+ * the current-market Survivor veto. Descriptive elsewhere: it never touches
+ * priority, setup definitions, structural or Price Integrity logic.
+ */
+export const RECENT_MARKET_DAMAGE = {
+  /** 1h price change (percent) at or below which a candidate is vetoed. */
+  maxPriceChange1hPct: -90,
+};
+
+
 const ACTIVITY_STATE_VALUES: ActivityState[] = [
   "DORMANT",
   "LOW",
