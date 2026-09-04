@@ -79,6 +79,7 @@ export const Route = createFileRoute("/scanner")({
 
 type Filter =
   | "SURVIVORS"
+  | "SUSPECT"
   | "ALL"
   | "NEAR_MISS"
   | "OUT_OF_SCOPE"
