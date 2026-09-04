@@ -486,7 +486,112 @@ export function CandidateDrawer({
                 </li>
               ))}
             </ul>
+            {(persistedIntegrity?.signals ?? []).length > 0 ? (
+              <div className="mt-2 flex flex-wrap gap-1">
+                {(persistedIntegrity?.signals ?? []).map((s) => (
+                  <span
+                    key={s}
+                    className="rounded border border-border-strong px-1 py-0.5 font-mono text-[9px] tracking-wide text-muted-foreground"
+                  >
+                    {s}
+                  </span>
+                ))}
+              </div>
+            ) : null}
           </Block>
+
+          <Block title="Historical candles (as evaluated)">
+            <p className="mb-2 text-[11px] text-muted-foreground">
+              The exact stored candle dataset Price Integrity read. Served from Wingman storage —
+              opening this drawer never requests new provider history.
+            </p>
+            {candlesQuery.isLoading ? (
+              <p className="text-[11px] text-muted-foreground">Loading stored candles…</p>
+            ) : (
+              <>
+                <PriceIntegrityChart
+                  candles={candlesQuery.data?.candles ?? []}
+                  levels={{
+                    peakValue: persistedIntegrity?.features.peakValue ?? null,
+                    postPeakLowValue: persistedIntegrity?.features.postPeakLowValue ?? null,
+                    sustainedHigh: persistedIntegrity?.features.postCollapseSustainedHigh ?? null,
+                    currentValue: persistedIntegrity?.features.currentValue ?? null,
+                  }}
+                />
+                <div className="mt-2 border-t border-border pt-2">
+                  <Row
+                    label="Candles stored"
+                    value={`${candlesQuery.data?.candles.length ?? 0} · ${
+                      candlesQuery.data?.intervals.join(", ") || "n/a"
+                    }`}
+                  />
+                  <Row
+                    label="Window"
+                    value={`${formatOutcomeTime(candlesQuery.data?.firstCandleAt ?? null)} → ${formatOutcomeTime(
+                      candlesQuery.data?.lastCandleAt ?? null,
+                    )}`}
+                  />
+                  <Row
+                    label="Status"
+                    value={persistedIntegrity ? (c.priceIntegrityStatus ?? "UNKNOWN") : "UNKNOWN"}
+                  />
+                  <Row
+                    label="Peak → stabilized ratio"
+                    value={
+                      persistedIntegrity?.features.peakToStabilizedRatio != null
+                        ? `${persistedIntegrity.features.peakToStabilizedRatio.toFixed(1)}x`
+                        : "unavailable"
+                    }
+                  />
+                  <Row
+                    label="Peak drawdown"
+                    value={fmtPct(persistedIntegrity?.features.drawdownFromPeak)}
+                  />
+                  <Row
+                    label="Current repair fraction"
+                    value={fmtPct(persistedIntegrity?.features.currentRepairFraction)}
+                  />
+                  <Row
+                    label="Sustained repair fraction"
+                    value={fmtPct(persistedIntegrity?.features.peakRepairFraction)}
+                  />
+                  <Row
+                    label="First observation → peak"
+                    value={
+                      persistedIntegrity?.features.minutesFirstObservationToPeak != null
+                        ? formatAge(persistedIntegrity.features.minutesFirstObservationToPeak)
+                        : "unavailable"
+                    }
+                  />
+                  <Row
+                    label="Peak → major collapse"
+                    value={
+                      persistedIntegrity?.features.minutesPeakToMajorDrawdown != null
+                        ? formatAge(persistedIntegrity.features.minutesPeakToMajorDrawdown)
+                        : "unavailable"
+                    }
+                  />
+                  <Row
+                    label="Volume 30m / 1h / 3h"
+                    value={`${fmtPct(persistedIntegrity?.features.first30mVolumeShare)} / ${fmtPct(
+                      persistedIntegrity?.features.first1hVolumeShare,
+                    )} / ${fmtPct(persistedIntegrity?.features.first3hVolumeShare)}`}
+                  />
+                  <Row
+                    label="Lifecycle blowoff"
+                    value={
+                      (persistedIntegrity?.signals ?? []).includes("LIFECYCLE_BLOWOFF_COLLAPSE")
+                        ? "LIFECYCLE_BLOWOFF_COLLAPSE"
+                        : persistedIntegrity?.features.peakToPrePeakBaselineRatio != null
+                          ? `no · peak/baseline ${persistedIntegrity.features.peakToPrePeakBaselineRatio.toFixed(1)}x`
+                          : "unavailable"
+                    }
+                  />
+                </div>
+              </>
+            )}
+          </Block>
+
 
 
           <Block title="Outcome since Wingman observation">
