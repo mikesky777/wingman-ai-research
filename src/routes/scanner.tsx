@@ -16,6 +16,10 @@ import {
 import { runScan } from "@/lib/wingman/scanner.functions";
 import { getStrategySettings } from "@/lib/wingman/strategy.functions";
 import { formatNumber, formatUsd } from "@/lib/wingman/format";
+import {
+  RefreshMarketButton,
+  useMarketRefresh,
+} from "@/components/wingman/scanner/RefreshMarketButton";
 import { CandidateDrawer } from "@/components/wingman/scanner/CandidateDrawer";
 import { DiagnosticsPanels } from "@/components/wingman/scanner/DiagnosticsPanels";
 import { ManualCheck } from "@/components/wingman/scanner/ManualCheck";
@@ -458,7 +462,14 @@ function ScannerPage() {
                     <th className="text-right" title="Market-cap change since Wingman first selected this token as a Survivor.">
                       Since call
                     </th>
+                    <th
+                      className="text-right"
+                      title="Maximum observed market-cap gain since Wingman's first Survivor call. Historical observation, not simulated or realized trading profit."
+                    >
+                      Peak call
+                    </th>
                     <th className="text-right">Priority</th>
+                    <th className="w-8" title="Refresh current market data for this token." />
                   </tr>
                 </thead>
                 <tbody>
@@ -564,8 +575,22 @@ function ScannerPage() {
                       >
                         {c.outcome?.firstCallAt ? formatOutcomePct(c.outcome.sinceCallPct) : "—"}
                       </td>
+                      <td
+                        className={cn(
+                          "tabular text-right text-sm",
+                          outcomeTone(c.outcome?.peakMarketCapSinceCallPct),
+                        )}
+                        title="Maximum observed market-cap gain since Wingman's first Survivor call. Historical observation, not simulated or realized trading profit."
+                      >
+                        {c.outcome?.firstCallAt
+                          ? formatOutcomePct(c.outcome.peakMarketCapSinceCallPct)
+                          : "—"}
+                      </td>
                       <td className="tabular text-right text-sm font-semibold">
                         {c.quantitativePriority ?? "—"}
+                      </td>
+                      <td className="text-right">
+                        <RefreshCell contractAddress={c.contractAddress} />
                       </td>
                     </tr>
                   ))}
@@ -588,5 +613,18 @@ function ScannerPage() {
         onClose={() => setSelected(null)}
       />
     </AppShell>
+  );
+}
+
+/** Per-row manual market refresh. Appends an observation; never edits the scan row. */
+function RefreshCell({ contractAddress }: { contractAddress: string | null }) {
+  const refresh = useMarketRefresh(contractAddress);
+  return (
+    <RefreshMarketButton
+      contractAddress={contractAddress}
+      pending={refresh.pending}
+      disabled={refresh.disabled}
+      onClick={refresh.refresh}
+    />
   );
 }

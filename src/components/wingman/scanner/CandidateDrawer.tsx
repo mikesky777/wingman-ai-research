@@ -18,6 +18,11 @@ import {
   getCandidateCandles,
   setCandidateLabel,
 } from "@/lib/wingman/workbench.functions";
+import {
+  RefreshMarketButton,
+  UpdatedAgo,
+  useMarketRefresh,
+} from "./RefreshMarketButton";
 import { PriceIntegrityChart } from "./PriceIntegrityChart";
 import type { WorkbenchCandidate } from "@/lib/wingman/services/scanner-service";
 import { evaluateFromCandidateRowSummary } from "@/lib/wingman/services/scanner/price-integrity";
@@ -78,6 +83,7 @@ export function CandidateDrawer({
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
+  const marketRefresh = useMarketRefresh(candidate?.contractAddress ?? null);
   const holderCheck = useServerFn(checkTokenHolders);
   const labelFn = useServerFn(setCandidateLabel);
   const loadCandles = useServerFn(getCandidateCandles);
@@ -169,7 +175,75 @@ export function CandidateDrawer({
                   <ExternalLink className="size-3.5" />
                 </a>
               </Button>
+              <RefreshMarketButton
+                contractAddress={c.contractAddress}
+                pending={marketRefresh.pending}
+                disabled={marketRefresh.disabled}
+                onClick={marketRefresh.refresh}
+                className="h-7 px-2"
+              />
+              <UpdatedAgo at={marketRefresh.lastAt} />
+              {marketRefresh.error ? (
+                <span className="font-mono text-[10px] text-destructive">
+                  {marketRefresh.error}
+                </span>
+              ) : null}
             </div>
+          ) : null}
+
+          {marketRefresh.result?.ok && marketRefresh.result.values ? (
+            <Block title="Refreshed market (current, not scan-time)">
+              <Row
+                label="Price"
+                value={
+                  marketRefresh.result.values.priceUsd == null
+                    ? "—"
+                    : `$${marketRefresh.result.values.priceUsd}`
+                }
+              />
+              <Row
+                label="Market cap"
+                value={
+                  marketRefresh.result.values.marketCap == null
+                    ? "—"
+                    : formatUsd(marketRefresh.result.values.marketCap)
+                }
+              />
+              <Row
+                label="Liquidity"
+                value={
+                  marketRefresh.result.values.liquidityUsd == null
+                    ? "—"
+                    : formatUsd(marketRefresh.result.values.liquidityUsd)
+                }
+              />
+              <Row
+                label="24h volume"
+                value={
+                  marketRefresh.result.values.volume24h == null
+                    ? "—"
+                    : formatUsd(marketRefresh.result.values.volume24h)
+                }
+              />
+              <Row
+                label="Turnover"
+                value={
+                  marketRefresh.result.values.turnover24h == null
+                    ? "—"
+                    : `${(marketRefresh.result.values.turnover24h * 100).toFixed(1)}%`
+                }
+              />
+              <Row
+                label="Pair"
+                value={`${marketRefresh.result.pair?.dexId ?? "—"} / ${
+                  marketRefresh.result.pair?.quoteTokenSymbol ?? "—"
+                }`}
+              />
+              <p className="pt-1 text-[11px] text-muted-foreground">
+                Stored as a new immutable observation. Scan-time values above the fold are
+                unchanged.
+              </p>
+            </Block>
           ) : null}
 
           <div className="flex flex-wrap gap-1">
@@ -440,7 +514,11 @@ export function CandidateDrawer({
               <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
                 Measured coverage
               </div>
-              <Row label="Stored observations" value={c.historySnapshotCount} />
+              <p className="pt-1 text-[11px] text-muted-foreground">
+              Peak call is the maximum observed market-cap gain since Wingman's first Survivor
+              call. Historical observation, not simulated or realized trading profit.
+            </p>
+            <Row label="Stored observations" value={c.historySnapshotCount} />
               <Row label="Scans seen" value={c.scansSeenCount} />
               <Row label="First seen" value={formatOutcomeTime(c.firstSeenScanAt)} />
               <Row
@@ -651,6 +729,46 @@ export function CandidateDrawer({
                   {c.outcome?.firstCallAt ? formatOutcomePct(c.outcome.sinceCallPct) : "—"}
                 </span>
               }
+            />
+            <Row
+              label="First call price"
+              value={
+                c.outcome?.firstCallPriceUsd == null ? "—" : `$${c.outcome.firstCallPriceUsd}`
+              }
+            />
+            <Row
+              label="Peak call"
+              value={
+                <span className={outcomeTone(c.outcome?.peakMarketCapSinceCallPct)}>
+                  {c.outcome?.firstCallAt
+                    ? formatOutcomePct(c.outcome.peakMarketCapSinceCallPct)
+                    : "—"}
+                </span>
+              }
+            />
+            <Row
+              label="Peak post-call MC / price"
+              value={`${
+                c.outcome?.firstCallAt && c.outcome.peakMarketCapSinceCall != null
+                  ? formatUsd(c.outcome.peakMarketCapSinceCall)
+                  : "—"
+              } / ${
+                c.outcome?.firstCallAt && c.outcome.peakPriceSinceCall != null
+                  ? `$${c.outcome.peakPriceSinceCall}`
+                  : "—"
+              }`}
+            />
+            <Row
+              label="Peak observed at"
+              value={
+                c.outcome?.peakMarketCapSinceCallAt
+                  ? formatOutcomeTime(c.outcome.peakMarketCapSinceCallAt)
+                  : "—"
+              }
+            />
+            <Row
+              label="Current price"
+              value={c.outcome?.currentPriceUsd == null ? "—" : `$${c.outcome.currentPriceUsd}`}
             />
             <Row
               label="Current MC"

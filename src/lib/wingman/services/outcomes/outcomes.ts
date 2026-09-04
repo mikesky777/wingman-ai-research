@@ -153,6 +153,11 @@ export interface OutcomeMetrics {
   maxPrice: number | null;
   maxMarketCap: number | null;
   maxGainPct: number | null;
+  /** Price-based peak gain vs the baseline price. Market cap stays primary. */
+  maxPriceGainPct: number | null;
+  /** Timestamp of the observation carrying the post-baseline market-cap peak. */
+  maxMarketCapAt: string | null;
+  maxPriceAt: string | null;
   minPrice: number | null;
   minMarketCap: number | null;
   /** Worst market-cap move against the baseline, as a negative percentage. */
@@ -183,6 +188,9 @@ export function emptyOutcome(): OutcomeMetrics {
     maxPrice: null,
     maxMarketCap: null,
     maxGainPct: null,
+    maxPriceGainPct: null,
+    maxMarketCapAt: null,
+    maxPriceAt: null,
     minPrice: null,
     minMarketCap: null,
     maxAdverseChangePct: null,
@@ -242,6 +250,16 @@ export function deriveOutcome(input: OutcomeInput): OutcomeMetrics {
 
   // Gain / adverse move are market-cap based: Wingman reasons in market caps.
   out.maxGainPct = changePct(input.baselineMarketCap, out.maxMarketCap);
+  out.maxPriceGainPct = changePct(input.baselinePriceUsd, out.maxPrice);
+
+  // Peak timestamps come from the observation that actually carried the peak;
+  // nothing is interpolated. Earliest observation wins on an exact tie.
+  out.maxMarketCapAt =
+    out.maxMarketCap === null
+      ? null
+      : (series.find((o) => o.marketCap === out.maxMarketCap)?.at ?? null);
+  out.maxPriceAt =
+    out.maxPrice === null ? null : (series.find((o) => o.priceUsd === out.maxPrice)?.at ?? null);
   out.maxAdverseChangePct = changePct(input.baselineMarketCap, out.minMarketCap);
 
   out.maxPeakToTroughDrawdownPct = peakToTroughDrawdownPct(
