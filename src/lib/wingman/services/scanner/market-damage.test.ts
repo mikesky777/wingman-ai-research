@@ -9,6 +9,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { assignRanks, rankCandidates, selectSurvivorsWithReservations } from "./evaluate";
+import { deriveDamageTimeline } from "./market-damage";
 import { WINGMAN_DEFAULT_SETTINGS, RECENT_MARKET_DAMAGE, type StrategySettings } from "./config";
 import {
   assessRecentMarketDamage,
