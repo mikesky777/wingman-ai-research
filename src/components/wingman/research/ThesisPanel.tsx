@@ -1,0 +1,334 @@
+/**
+ * Thesis Synthesis v1 panel (Research → Thesis).
+ *
+ * Shows the judgement layer over already-collected evidence. Thesis Score and
+ * Evidence Confidence are displayed as two clearly separate measures, and
+ * neither is a probability of success. No entry state, no sizing, no trade
+ * action is shown or implied anywhere in this view.
+ */
+import { useCallback, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Brain, FlaskConical, Loader2, Link2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Section } from "@/components/wingman/Section";
+import { EmptyState } from "@/components/wingman/EmptyState";
+import { getThesisReports, runThesisSynthesisBatch } from "@/lib/wingman/thesis.functions";
+import { THESIS_COMPONENTS } from "@/lib/wingman/services/research/thesis/contracts";
+import { relativeTime, formatUsd } from "@/lib/wingman/format";
+import { toast } from "sonner";
+
+const verdictTone: Record<string, string> = {
+  STRONG_THESIS: "border-positive/40 bg-positive/10 text-positive",
+  PROMISING: "border-primary/40 bg-primary/10 text-primary",
+  WATCH: "border-border-strong bg-surface text-foreground",
+  WEAK_THESIS: "border-warning/40 bg-warning/10 text-warning",
+  INSUFFICIENT_EVIDENCE: "border-border bg-surface text-muted-foreground",
+};
+
+const severityTone: Record<string, string> = {
+  LOW: "border-border bg-surface text-muted-foreground",
+  MODERATE: "border-border-strong bg-surface text-foreground",
+  HIGH: "border-warning/40 bg-warning/10 text-warning",
+  CRITICAL: "border-destructive/40 bg-destructive/10 text-destructive",
+};
+
+function short(mint: string): string {
+  return mint.length > 12 ? `${mint.slice(0, 5)}…${mint.slice(-4)}` : mint;
+}
+
+export function ThesisPanel() {
+  const queryClient = useQueryClient();
+  const fetchReports = useServerFn(getThesisReports);
+  const startRun = useServerFn(runThesisSynthesisBatch);
+  const [openId, setOpenId] = useState<string | null>(null);
+
+  const { data: reports = [], isLoading } = useQuery({
+    queryKey: ["thesis", "reports"],
+    queryFn: () => fetchReports(),
+  });
+
+  const mutation = useMutation({
+    mutationFn: (mode: "PRODUCTION" | "CALIBRATION") => startRun({ data: { mode, limit: 3 } }),
+    onSuccess: (result) => {
+      if (result.code === "NO_DEEP_RESEARCH_REPORTS") {
+        toast.warning("No research dossiers", {
+          description: "Thesis Synthesis consumes completed Deep Research reports.",
+        });
+      } else if (result.code === "MISSING_API_KEY") {
+        toast.error("Synthesis model unavailable");
+      } else {
+        toast.success(
+          `${result.isCalibration ? "Calibration" : "Synthesis"} finished — ${result.completed} theses, ${result.insufficient} insufficient evidence, ${result.blocked} blocked, ${result.opportunities} qualified`,
+        );
+      }
+      void queryClient.invalidateQueries({ queryKey: ["thesis", "reports"] });
+    },
+    onError: (error: unknown) => {
+      toast.error("Thesis synthesis failed", {
+        description: error instanceof Error ? error.message : String(error),
+      });
+    },
+  });
+
+  const run = useCallback((mode: "PRODUCTION" | "CALIBRATION") => mutation.mutate(mode), [mutation]);
+
+  return (
+    <Section
+      title="Thesis"
+      description="Judgement over collected evidence. Thesis Score is conviction in the idea; Evidence Confidence is how trustworthy the evidence behind it is. Neither is a probability of success, and no entry or sizing is produced here."
+      actions={
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={mutation.isPending}
+            onClick={() => run("CALIBRATION")}
+          >
+            {mutation.isPending ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <FlaskConical className="size-3.5" />
+            )}
+            Dry run (3)
+          </Button>
+          <Button size="sm" disabled={mutation.isPending} onClick={() => run("PRODUCTION")}>
+            <Brain className="size-3.5" />
+            Synthesize shortlist
+          </Button>
+        </div>
+      }
+    >
+      {isLoading ? (
+        <p className="text-xs text-muted-foreground">Loading thesis reports…</p>
+      ) : reports.length === 0 ? (
+        <EmptyState
+          icon={<Brain className="size-4" />}
+          title="No thesis reports yet"
+          description="Run synthesis over completed deep-research dossiers, or start with a 3-candidate dry run."
+        />
+      ) : (
+        <ul className="space-y-3">
+          {reports.map((r) => {
+            const open = openId === r.id;
+            return (
+              <li key={r.id} className="rounded-md border border-border bg-surface/60 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-semibold">{r.symbol ?? short(r.mint)}</span>
+                    {r.isCalibration ? (
+                      <Badge variant="outline" className="text-[10px]">
+                        CALIBRATION
+                      </Badge>
+                    ) : null}
+                    {r.setups.length ? (
+                      <Badge variant="outline" className="text-[10px]">
+                        {r.setups.join("+")}
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-[10px]">
+                        NONE
+                      </Badge>
+                    )}
+                    {r.qualifiedAsOpportunity ? (
+                      <Badge className="text-[10px]">OPPORTUNITY</Badge>
+                    ) : null}
+                    {r.marketCap !== null ? (
+                      <span className="tabular text-[11px] text-muted-foreground">
+                        MC {formatUsd(r.marketCap)}
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] ${verdictTone[r.verdict ?? ""] ?? ""}`}
+                    >
+                      {r.verdict ?? r.status.toUpperCase()}
+                    </Badge>
+                    <Button variant="ghost" size="sm" onClick={() => setOpenId(open ? null : r.id)}>
+                      {open ? "Hide" : "Detail"}
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <ScorePill
+                    label="Thesis Score"
+                    hint="Conviction in the idea, given the evidence we have"
+                    value={r.thesisScore}
+                  />
+                  <ScorePill
+                    label="Evidence Confidence"
+                    hint="How complete, current and independent that evidence is"
+                    value={r.evidenceConfidence}
+                  />
+                </div>
+
+                {r.oneSentenceThesis ? (
+                  <p className="mt-3 text-xs leading-relaxed">{r.oneSentenceThesis}</p>
+                ) : null}
+
+                <dl className="mt-3 grid gap-2 text-[11px] sm:grid-cols-2">
+                  <div>
+                    <dt className="label-xs">Strongest catalyst</dt>
+                    <dd className="text-muted-foreground">{r.strongestCatalyst ?? "—"}</dd>
+                  </div>
+                  <div>
+                    <dt className="label-xs">Strongest concern</dt>
+                    <dd className="text-muted-foreground">{r.strongestConcern ?? "—"}</dd>
+                  </div>
+                </dl>
+
+                {r.blockedReasons.length ? (
+                  <p className="mt-2 text-[11px] text-warning">
+                    Blocked before thesis: {r.blockedReasons.join(", ")}
+                  </p>
+                ) : null}
+
+                <p className="mt-2 text-[10px] text-muted-foreground">
+                  {relativeTime(r.createdAt)} · {r.policyVersion} · {r.modelIdentifier ?? "model n/a"}
+                </p>
+
+                {open ? <ThesisDetail report={r} /> : null}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </Section>
+  );
+}
+
+function ScorePill({
+  label,
+  hint,
+  value,
+}: {
+  label: string;
+  hint: string;
+  value: number | null;
+}) {
+  return (
+    <div className="rounded-md border border-border bg-background/40 px-3 py-2">
+      <p className="label-xs">{label}</p>
+      <p className="tabular mt-1 text-2xl leading-none font-semibold">
+        {value ?? "—"}
+        <span className="text-xs font-normal text-muted-foreground"> / 100</span>
+      </p>
+      <p className="mt-1 text-[10px] text-muted-foreground">{hint}</p>
+    </div>
+  );
+}
+
+type Report = Awaited<ReturnType<ReturnType<typeof useServerFn<typeof getThesisReports>>>>[number];
+
+function ThesisDetail({ report }: { report: Report }) {
+  const sections: { label: string; body: string | null }[] = [
+    { label: "THESIS", body: report.sections?.thesis ?? report.narrativeThesis ?? null },
+    { label: "CATALYST", body: report.sections?.catalyst ?? null },
+    { label: "MIND-SHARE", body: report.sections?.mindshare ?? null },
+    { label: "HOLDERS / DEV", body: report.sections?.holdersDev ?? null },
+    { label: "VALUATION", body: report.sections?.valuation ?? null },
+    { label: "BULL CASE", body: report.strongestBullCase },
+    { label: "BEAR CASE", body: report.strongestBearCase },
+  ];
+
+  return (
+    <div className="mt-4 space-y-4 border-t border-border pt-4">
+      <div>
+        <p className="label-xs mb-2">Component scores</p>
+        <ul className="grid gap-1.5 sm:grid-cols-2">
+          {THESIS_COMPONENTS.map((c) => {
+            const value = report.components?.[c.key] ?? null;
+            return (
+              <li key={c.key} className="flex items-baseline justify-between gap-3 text-[11px]">
+                <span className="text-muted-foreground">{c.label}</span>
+                <span className="tabular font-medium">
+                  {value ?? "—"}
+                  <span className="text-muted-foreground"> / {c.weight}</span>
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+
+      {sections.map((s) =>
+        s.body ? (
+          <div key={s.label}>
+            <p className="label-xs mb-1">{s.label}</p>
+            <p className="text-xs leading-relaxed text-muted-foreground">{s.body}</p>
+            {s.label === "BEAR CASE" && report.bearSeverity ? (
+              <Badge
+                variant="outline"
+                className={`mt-1.5 text-[10px] ${severityTone[report.bearSeverity] ?? ""}`}
+              >
+                SEVERITY {report.bearSeverity}
+              </Badge>
+            ) : null}
+          </div>
+        ) : null,
+      )}
+
+      {report.invalidation.length ? (
+        <div>
+          <p className="label-xs mb-1">INVALIDATION</p>
+          <ul className="list-disc space-y-1 pl-4 text-xs text-muted-foreground">
+            {report.invalidation.map((i) => (
+              <li key={i}>{i}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {report.evidenceGaps.length || report.evidenceDeductions.length ? (
+        <div>
+          <p className="label-xs mb-1">EVIDENCE GAPS</p>
+          <ul className="list-disc space-y-1 pl-4 text-xs text-muted-foreground">
+            {report.evidenceGaps.map((g) => (
+              <li key={g}>{g}</li>
+            ))}
+            {report.evidenceDeductions.map((d) => (
+              <li key={d.code}>
+                {d.detail} <span className="text-[10px]">(−{d.points} evidence confidence)</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {report.sources.length ? (
+        <div>
+          <p className="label-xs mb-1">SOURCES</p>
+          <ul className="space-y-1 text-[11px]">
+            {report.sources.map((s) => (
+              <li key={s.ref} className="flex items-start gap-2">
+                <span className="tabular text-muted-foreground">{s.ref}</span>
+                <span className="min-w-0 flex-1 truncate">
+                  {s.url ? (
+                    <a
+                      href={s.url}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="inline-flex items-center gap-1 hover:underline"
+                    >
+                      <Link2 className="size-3" />
+                      {s.title ?? s.url}
+                    </a>
+                  ) : (
+                    (s.title ?? "—")
+                  )}
+                </span>
+                <Badge variant="outline" className="text-[10px]">
+                  {s.independence}
+                </Badge>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </div>
+  );
+}
