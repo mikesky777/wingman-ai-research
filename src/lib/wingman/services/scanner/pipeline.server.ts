@@ -14,6 +14,7 @@
  * discovered universe — that decision belongs to a later stage.
  */
 import { assessDiscoveryHealth, isDiscoveryUsable } from "./discovery-health";
+import { recordDiscoveryHealth } from "./persistence.server";
 import { DEFAULT_CHAIN } from "../external/chains";
 import { runDiscovery } from "../external/birdeye/discovery.server";
 import { DexScreenerAdapter } from "../external/dexscreener";
@@ -262,6 +263,7 @@ export async function runScannerPipeline(
     // not observe an empty market — it observed nothing at all. Failing it
     // keeps recurrence, absence and policy denominators honest.
     const discoveryHealth = assessDiscoveryHealth(discovery.outcomes, discovery.tokens.length);
+    await recordDiscoveryHealth(runId, discoveryHealth);
     if (!isDiscoveryUsable(discoveryHealth)) {
       throw new Error(discoveryHealth.reason ?? "Discovery provider unavailable. Scan aborted.");
     }

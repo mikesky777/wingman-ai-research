@@ -616,3 +616,36 @@ export async function loadEvidenceDomainAges(
 
   return out;
 }
+
+/**
+ * Record how discovery actually behaved on this run. Diagnostic only: nothing
+ * reads it back into scoring, setups or selection.
+ */
+export async function recordDiscoveryHealth(
+  runId: string,
+  health: {
+    state: string;
+    queries: number;
+    successes: number;
+    failures: number;
+    tokens: number;
+    failureMessages: string[];
+    reason: string | null;
+  },
+): Promise<void> {
+  await supabaseAdmin
+    .from("scan_runs")
+    .update({
+      discovery_health: health.state,
+      discovery_health_detail: {
+        version: "discovery_health/v1",
+        queries: health.queries,
+        successes: health.successes,
+        failures: health.failures,
+        tokens: health.tokens,
+        failureMessages: health.failureMessages,
+        reason: health.reason,
+      },
+    } as never)
+    .eq("id", runId);
+}
