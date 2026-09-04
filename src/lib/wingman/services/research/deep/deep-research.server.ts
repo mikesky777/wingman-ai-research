@@ -818,6 +818,7 @@ export interface DeepResearchReportSummary {
   coveragePct: number | null;
   sourceCount: number;
   primarySourceCount: number;
+  independentSourceCount: number;
   conflictingClaimCount: number;
   unresolvedGapCount: number;
   unresolvedDomains: string[];
@@ -848,6 +849,7 @@ export async function loadDeepResearchReports(limit = 12): Promise<DeepResearchR
       coveragePct: (r["evidence_coverage_pct"] as number) ?? null,
       sourceCount: (r["source_count"] as number) ?? 0,
       primarySourceCount: (r["primary_source_count"] as number) ?? 0,
+      independentSourceCount: dossier?.coverage?.independentSourceCount ?? 0,
       conflictingClaimCount: (r["conflicting_claim_count"] as number) ?? 0,
       unresolvedGapCount: (r["unresolved_gap_count"] as number) ?? 0,
       unresolvedDomains: (r["unresolved_domains"] as string[]) ?? [],
