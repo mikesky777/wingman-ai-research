@@ -221,6 +221,12 @@ function ScannerPage() {
   const { data: diagnostics } = useRunDiagnostics(funnel?.runId);
   const [filter, setFilter] = useState<Filter>("SURVIVORS");
   const [recurrence, setRecurrence] = useState<RecurrenceFilter>("ALL");
+  const [suspectFilters, setSuspectFilters] = useState<Required<SuspectFilters>>({
+    status: "ALL",
+    lane: "ALL",
+    priceIntegrity: "ALL",
+    structural: "ALL",
+  });
   const [selected, setSelected] = useState<string | null>(null);
   const scan = useServerFn(runScan);
   const loadStrategy = useServerFn(getStrategySettings);
