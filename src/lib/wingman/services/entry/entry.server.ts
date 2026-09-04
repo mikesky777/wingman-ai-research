@@ -525,8 +525,8 @@ async function evaluateOne(args: {
   // resolution is recorded explicitly; nothing is fabricated.
   let featureSource: "CANDLES" | "SNAPSHOT_SERIES" | "NONE" = "CANDLES";
   let features: TimingFeatures | null = computeTimingFeatures(candles, evaluationUnix);
-  if (!features && (tokenId ?? market.tokenId)) {
-    const snapshotSeries = await loadSnapshotSeries((tokenId ?? market.tokenId)!, asOf);
+  if (!features && tokenId) {
+    const snapshotSeries = await loadSnapshotSeries(tokenId, asOf);
     const snapshotFeatures = computeTimingFeatures(snapshotSeries, evaluationUnix);
     if (snapshotFeatures) {
       features = snapshotFeatures;
