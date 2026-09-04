@@ -21,6 +21,22 @@ export const runTriage = createServerFn({ method: "POST" })
     return runAiTriage({ mode: data.mode, scanRunId: data.scanRunId });
   });
 
+/**
+ * Calibration-only audit: repeated identical calibration runs plus one
+ * presentation-order-shuffled run, with grounding, bias and stability
+ * analysis. Never runs production triage and never writes milestones.
+ */
+export const runTriageAudit = createServerFn({ method: "POST" })
+  .inputValidator((input?: { runs?: number; includeShuffled?: boolean; scanRunId?: string | null }) => ({
+    runs: typeof input?.runs === "number" ? input.runs : 5,
+    includeShuffled: input?.includeShuffled !== false,
+    scanRunId: input?.scanRunId ?? null,
+  }))
+  .handler(async ({ data }) => {
+    const { runTriageCalibrationAudit } = await import("./services/research/triage-audit.server");
+    return runTriageCalibrationAudit(data);
+  });
+
 export const getLatestTriage = createServerFn({ method: "GET" }).handler(
   async (): Promise<{ run: TriageRunSummary; decisions: PersistedTriageDecision[] } | null> => {
     const { loadLatestTriage } = await import("./services/research/triage.server");
