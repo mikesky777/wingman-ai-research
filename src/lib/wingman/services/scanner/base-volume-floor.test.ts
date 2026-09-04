@@ -187,3 +187,58 @@ describe("candle-derived price integrity", () => {
     expect(result.policyVersion).toBe("price_integrity/v1.1");
   });
 });
+
+describe("price integrity v1.1 normalized repair and lifecycle blowoff", () => {
+  it("does not treat a single bounce wick off the crash low as repair", () => {
+    const spec: Array<{ minute: number; close: number; high?: number; volumeUsd?: number }> = [
+      { minute: 0, close: 10, volumeUsd: 900_000 },
+      { minute: 5, close: 100, volumeUsd: 900_000 },
+      { minute: 30, close: 5, volumeUsd: 20_000 },
+      // one-candle spike back to 60% of the peak, immediately surrendered
+      { minute: 60, close: 6, high: 60, volumeUsd: 20_000 },
+    ];
+    for (let m = 90; m <= 2_800; m += 30) spec.push({ minute: m, close: 5, volumeUsd: 400 });
+    const result = evaluateFromCandles(candles(spec), LAUNCH, ["BASE"], NOW_ISO);
+    // wick is retained for diagnostics, but the sustained reclaim is what counts
+    expect(result.features.postCollapseHighToOriginalPeakRatio!).toBeGreaterThan(0.5);
+    expect(result.features.peakRepairFraction!).toBeLessThan(0.15);
+    expect(result.signals).toContain("WEAK_NORMALIZED_RECLAIM");
+    expect(result.status).not.toBe("HEALTHY");
+  });
+
+  it("measures fixed launch windows and the age-normalized volume rate", () => {
+    const spec = [
+      { minute: 0, close: 1, volumeUsd: 400_000 },
+      { minute: 45, close: 1, volumeUsd: 100_000 },
+      { minute: 200, close: 1, volumeUsd: 10_000 },
+    ];
+    for (let m = 300; m <= 2_800; m += 60) spec.push({ minute: m, close: 1, volumeUsd: 1_000 });
+    const f = evaluateFromCandles(candles(spec), LAUNCH, ["BASE"], NOW_ISO).features;
+    expect(f.first30mVolumeShare!).toBeGreaterThan(0);
+    expect(f.first1hVolumeShare!).toBeGreaterThan(f.first30mVolumeShare!);
+    expect(f.first3hVolumeShare!).toBeGreaterThan(f.first1hVolumeShare!);
+    expect(f.launchToLaterVolumeRateRatio!).toBeGreaterThan(6);
+  });
+
+  it("can flag a late lifecycle blowoff, not just a launch blowoff", () => {
+    const spec: Array<{ minute: number; close: number; volumeUsd?: number }> = [];
+    for (let m = 0; m <= 1_400; m += 20) spec.push({ minute: m, close: 10, volumeUsd: 3_000 });
+    spec.push({ minute: 1_440, close: 120, volumeUsd: 500_000 });
+    spec.push({ minute: 1_470, close: 20, volumeUsd: 60_000 });
+    for (let m = 1_500; m <= 4_000; m += 20) spec.push({ minute: m, close: 12, volumeUsd: 500 });
+    const result = evaluateFromCandles(candles(spec), LAUNCH, ["BASE"], NOW_ISO);
+    expect(result.features.peakToPrePeakBaselineRatio!).toBeGreaterThanOrEqual(5);
+    expect(result.signals).toContain("LIFECYCLE_BLOWOFF_COLLAPSE");
+  });
+
+  it("never lets historical damage veto a REACCEL candidate", () => {
+    const spec: Array<{ minute: number; close: number; volumeUsd?: number }> = [
+      { minute: 0, close: 100, volumeUsd: 900_000 },
+      { minute: 20, close: 4, volumeUsd: 50_000 },
+    ];
+    for (let m = 60; m <= 2_800; m += 30) spec.push({ minute: m, close: 4, volumeUsd: 300 });
+    const result = evaluateFromCandles(candles(spec), LAUNCH, ["REACCEL"], NOW_ISO);
+    expect(result.shadowMode).toBe(true);
+    expect(result.reasons.some((r) => r.includes("REACCEL"))).toBe(true);
+  });
+});
