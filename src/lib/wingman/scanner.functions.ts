@@ -53,3 +53,14 @@ export const getScanRunStatus = createServerFn({ method: "GET" })
       };
     },
   );
+
+/**
+ * Operational readiness + history for the discovery provider. Diagnostic only:
+ * nothing here influences scoring, selection or discovery_health/v1.
+ */
+export const getDiscoveryProviderStatus = createServerFn({ method: "GET" }).handler(async () => {
+  const { loadDiscoveryProviderDiagnostics } = await import(
+    "./services/scanner/provider-diagnostics.server"
+  );
+  return loadDiscoveryProviderDiagnostics();
+});
