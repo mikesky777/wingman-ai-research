@@ -20,12 +20,15 @@ import {
 } from "@/lib/wingman/services/scanner/suspect-review";
 import {
   LANE_TONE,
-  PRICE_INTEGRITY_HINT,
   PRICE_INTEGRITY_TONE,
+  PRICE_STRUCTURE_HINT,
+  PRICE_STRUCTURE_LABEL,
   formatNum,
   formatOutcomePct,
   laneLabel,
   outcomeTone,
+  priceStructureOf,
+  setupOf,
 } from "./shared";
 
 const STRUCTURAL_TONE: Record<string, string> = {
@@ -68,7 +71,7 @@ export function SuspectTable({
             </th>
             <th className="text-right">Unique wallets</th>
             <th title="Activity accelerating faster than participant breadth.">Divergence</th>
-            <th>Price Integrity</th>
+            <th title="Price / launch integrity label. Independent of setup; never affects selection.">Price structure</th>
             <th>Structural</th>
             <th className="text-right">Since call</th>
             <th className="text-right">Peak call</th>
@@ -95,10 +98,10 @@ export function SuspectTable({
                   <span
                     className={cn(
                       "rounded border px-1.5 py-0.5 font-mono text-[10px] tracking-wide",
-                      LANE_TONE[c.lanes[0] ?? "NONE"] ?? "border-border-strong",
+                      LANE_TONE[setupOf(c)] ?? "border-border-strong",
                     )}
                   >
-                    {laneLabel(c.lanes[0] ?? "NONE")}
+                    {laneLabel(setupOf(c))}
                   </span>
                   {c.lanes.length > 1 ? (
                     <span className="ml-1 font-mono text-[10px] text-muted-foreground">
@@ -143,19 +146,30 @@ export function SuspectTable({
                   {suspectDivergence(c)}
                 </td>
                 <td>
-                  {c.priceIntegrityStatus ? (
-                    <span
-                      className={cn(
-                        "rounded border px-1.5 py-0.5 font-mono text-[10px] tracking-wide",
-                        PRICE_INTEGRITY_TONE[c.priceIntegrityStatus] ?? "border-border-strong",
-                      )}
-                      title={PRICE_INTEGRITY_HINT[c.priceIntegrityStatus] ?? ""}
-                    >
-                      {c.priceIntegrityStatus}
-                    </span>
-                  ) : (
-                    "—"
-                  )}
+                  {(() => {
+                    const structure = priceStructureOf(c);
+                    if (structure === "NOT_EVALUATED") {
+                      return (
+                        <span
+                          className="font-mono text-[10px] text-muted-foreground"
+                          title={PRICE_STRUCTURE_HINT.NOT_EVALUATED}
+                        >
+                          —
+                        </span>
+                      );
+                    }
+                    return (
+                      <span
+                        className={cn(
+                          "rounded border px-1.5 py-0.5 font-mono text-[10px] tracking-wide",
+                          PRICE_INTEGRITY_TONE[structure] ?? "border-border-strong",
+                        )}
+                        title={PRICE_STRUCTURE_HINT[structure]}
+                      >
+                        {PRICE_STRUCTURE_LABEL[structure]}
+                      </span>
+                    );
+                  })()}
                 </td>
                 <td>
                   <span

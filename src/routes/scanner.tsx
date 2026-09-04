@@ -33,8 +33,9 @@ import { StrategySettingsPanel } from "@/components/wingman/scanner/StrategySett
 import {
   LANES,
   LANE_TONE,
-  PRICE_INTEGRITY_HINT,
   PRICE_INTEGRITY_TONE,
+  PRICE_STRUCTURE_HINT,
+  PRICE_STRUCTURE_LABEL,
   RECURRENCE_HINT,
   RECURRENCE_STATES,
   RECURRENCE_TONE,
@@ -49,6 +50,8 @@ import {
   laneLabel,
   formatOutcomePct,
   outcomeTone,
+  priceStructureOf,
+  setupOf,
 } from "@/components/wingman/scanner/shared";
 import type { WorkbenchCandidate } from "@/lib/wingman/services/scanner-service";
 import { cn } from "@/lib/utils";
@@ -104,6 +107,7 @@ type Filter =
   | "SUSPECT"
   | "ALL"
   | "NEAR_MISS"
+  | "SETUP_NONE"
   | "OUT_OF_SCOPE"
   | "PI_HEALTHY"
   | "PI_CONCERN"
@@ -155,6 +159,7 @@ function calibrationFilters(strategy: StrategyShape): { key: Filter; label: stri
   return [
     { key: "ALL" as Filter, label: "All candidates" },
     { key: "NEAR_MISS" as Filter, label: "Near misses" },
+    { key: "SETUP_NONE" as Filter, label: "Setup: NONE" },
     { key: "OUT_OF_SCOPE" as Filter, label: "Out of mandate" },
     { key: "RECENT_CATASTROPHIC_COLLAPSE" as Filter, label: "RECENT_CATASTROPHIC_COLLAPSE" },
     ...PRICE_INTEGRITY_FILTERS,
@@ -224,6 +229,10 @@ function applyFilter(candidates: Row[], filter: Filter): Row[] {
           !c.selectedByLaneReservation &&
           !c.selectedByGlobalRanking,
       );
+    case "SETUP_NONE":
+      // Review view over candidates that matched no recognized setup. NONE is a
+      // valid observation, never a negative label, and this filter is display only.
+      return candidates.filter((c) => c.lanes.length === 0);
     case "NEAR_MISS":
       // Passed the mechanical filters but was never enriched.
       return candidates.filter(
@@ -629,7 +638,10 @@ function ScannerPage() {
                     <th className="text-right">Age</th>
                     <th className="text-right">24h volume</th>
                     <th className="text-right">Turnover</th>
-                    <th>Primary lane</th>
+                    <th>Setup</th>
+                    <th title="Price / launch integrity label. Independent of setup classification; never affects Survivor selection.">
+                      Price structure
+                    </th>
                     <th>Seen</th>
                     <th className="text-right" title="Market-cap change since Wingman first observed this token.">
                       Since seen
@@ -687,61 +699,53 @@ function ScannerPage() {
                       <td className="tabular text-right text-sm">
                         {formatRatioPct(c.turnover24h)}
                       </td>
-                      <td className="px-3">
-                        {c.lanes.length === 0 ? (
+                      <td className="px-3" data-testid="setup-cell">
+                        <div className="flex items-center gap-1.5">
                           <span
                             className={cn(
                               "rounded border px-1.5 py-0.5 font-mono text-[10px] tracking-wide",
-                              LANE_TONE["NONE"],
+                              LANE_TONE[setupOf(c)] ?? "border-border-strong",
                             )}
-                            title="Passed hard filters, matched no recognized setup. Not a rejection."
+                            title={
+                              c.lanes.length === 0
+                                ? "Passed hard filters, matched no recognized setup. Not a rejection."
+                                : undefined
+                            }
                           >
-                            NONE
+                            {laneLabel(setupOf(c))}
                           </span>
-                        ) : null}
-                        {c.lanes.length === 0 && c.priceIntegrityStatus ? (
-                          <span
-                            className={cn(
-                              "ml-1 rounded border px-1.5 py-0.5 font-mono text-[10px] tracking-wide",
-                              PRICE_INTEGRITY_TONE[c.priceIntegrityStatus] ??
-                                "border-border-strong",
-                            )}
-                            title={PRICE_INTEGRITY_HINT[c.priceIntegrityStatus] ?? ""}
-                          >
-                            · {c.priceIntegrityStatus}
-                          </span>
-                        ) : (
-                          <div className="flex items-center gap-1.5">
+                          {c.lanes.length > 1 ? (
+                            <span className="font-mono text-[10px] text-muted-foreground">
+                              +{c.lanes.length - 1}
+                            </span>
+                          ) : null}
+                        </div>
+                      </td>
+                      <td className="px-3" data-testid="price-structure-cell">
+                        {(() => {
+                          const structure = priceStructureOf(c);
+                          if (structure === "NOT_EVALUATED") {
+                            return (
+                              <span
+                                className="font-mono text-[10px] text-muted-foreground"
+                                title={PRICE_STRUCTURE_HINT.NOT_EVALUATED}
+                              >
+                                —
+                              </span>
+                            );
+                          }
+                          return (
                             <span
                               className={cn(
                                 "rounded border px-1.5 py-0.5 font-mono text-[10px] tracking-wide",
-                                LANE_TONE[c.lanes[0] ?? "UNKNOWN"] ?? "border-border-strong",
+                                PRICE_INTEGRITY_TONE[structure] ?? "border-border-strong",
                               )}
+                              title={PRICE_STRUCTURE_HINT[structure]}
                             >
-                              {laneLabel(c.lanes[0] ?? "UNKNOWN")}
+                              {PRICE_STRUCTURE_LABEL[structure]}
                             </span>
-                            {c.priceIntegrityStatus ? (
-                              <span
-                                className={cn(
-                                  "rounded border px-1.5 py-0.5 font-mono text-[10px] tracking-wide",
-                                  PRICE_INTEGRITY_TONE[c.priceIntegrityStatus] ??
-                                    "border-border-strong",
-                                )}
-                                title={
-                                  PRICE_INTEGRITY_HINT[c.priceIntegrityStatus] ??
-                                  "Price Integrity label only — no selection effect."
-                                }
-                              >
-                                · {c.priceIntegrityStatus}
-                              </span>
-                            ) : null}
-                            {c.lanes.length > 1 ? (
-                              <span className="font-mono text-[10px] text-muted-foreground">
-                                +{c.lanes.length - 1}
-                              </span>
-                            ) : null}
-                          </div>
-                        )}
+                          );
+                        })()}
                       </td>
                       <td className="px-3">
                         <span
