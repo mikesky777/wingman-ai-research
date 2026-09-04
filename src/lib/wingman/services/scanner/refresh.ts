@@ -152,6 +152,12 @@ export interface DomainRefreshConfig {
   recurrenceDriven: boolean;
   /** Whether the scan pipeline can actually refresh this domain today. */
   enrichmentSupported: boolean;
+  /**
+   * Whether this domain contributes to the candidate-level rollup that governs
+   * market enrichment spend. Domains refreshed through their own dedicated
+   * path (participation) are excluded so they never force a market refetch.
+   */
+  affectsCandidateState?: boolean;
 }
 
 /**
@@ -165,6 +171,7 @@ export const DOMAIN_REFRESH_CONFIG: Record<EvidenceRefreshDomain, DomainRefreshC
     optionalAgeMinutes: REFRESH_CONFIG.optionalEvidenceAgeMinutes,
     recurrenceDriven: true,
     enrichmentSupported: true,
+    affectsCandidateState: true,
   },
   // Participation is current-activity evidence, so it ages like market data,
   // but it is decided INDEPENDENTLY: stale market evidence never invalidates
@@ -174,6 +181,7 @@ export const DOMAIN_REFRESH_CONFIG: Record<EvidenceRefreshDomain, DomainRefreshC
     optionalAgeMinutes: 25,
     recurrenceDriven: true,
     enrichmentSupported: true,
+    affectsCandidateState: false,
   },
   holders: {
     maxAgeMinutes: 6 * 60,
@@ -327,7 +335,11 @@ export function deriveRefreshPlan(input: RefreshPlanInput): RefreshPlan {
 
   // Candidate-level state: the most urgent APPLICABLE domain. NO_EVIDENCE on a
   // domain the pipeline cannot collect is not an urgency signal.
-  const applicable = EVIDENCE_REFRESH_DOMAINS.map((d) => domains[d]).filter(
+  const applicable = EVIDENCE_REFRESH_DOMAINS.filter(
+    (d) => config[d].affectsCandidateState !== false,
+  )
+    .map((d) => domains[d])
+    .filter(
     (d) => d.state !== "NO_EVIDENCE",
   );
   const most = applicable.reduce<DomainRefreshDecision | null>(
