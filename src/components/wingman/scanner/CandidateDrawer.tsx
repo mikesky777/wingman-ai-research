@@ -154,6 +154,42 @@ export function CandidateDrawer({
     scanAt: c.lastEnrichedAt,
   });
 
+  // Read-only preview of the canonical Research Packet. Pure assembly from the
+  // already-loaded row: no provider call, no LLM, no persistence side effect.
+  const researchPacketSource: CandidateSource = c.selectedByLaneReservation ||
+    c.selectedByGlobalRanking
+    ? "SURVIVOR"
+    : c.lanes.includes("BASE")
+      ? "BASE"
+      : c.lanes.includes("REACCEL")
+        ? "REACCEL"
+        : "EXPLORATION";
+  const researchPacket = buildResearchPacket({
+    candidate: c,
+    candidateSource: researchPacketSource,
+    scanRunId: scanRunId ?? "unsaved",
+    scanCompletedAt: c.lastEnrichedAt,
+    currentMarket: liveValues
+      ? {
+          priceUsd: liveValues.priceUsd ?? null,
+          marketCap: liveValues.marketCap ?? null,
+          liquidityUsd: liveValues.liquidityUsd ?? null,
+          volume1h: null,
+          volume24h: liveValues.volume24h ?? null,
+          trades1h: null,
+          trades24h: null,
+          buys24h: null,
+          sells24h: null,
+          priceChange1h: liveValues.priceChange1h ?? null,
+          priceChange24h: liveValues.priceChange24h ?? null,
+          source: "dexscreener",
+          observedAt: liveValues.observedAt ?? null,
+        }
+      : null,
+    holderEvidence: [],
+  });
+  const researchPacketBytes = compactJson(researchPacket).bytes;
+
   return (
     <Sheet open onOpenChange={(open) => (!open ? onClose() : undefined)}>
       <SheetContent className="w-full overflow-y-auto sm:max-w-xl">
