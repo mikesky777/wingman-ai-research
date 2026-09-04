@@ -231,6 +231,8 @@ const EMPTY_FEATURES: PriceIntegrityFeatures = {
   postCollapseHighToOriginalPeakRatio: null,
   currentToOriginalPeakRatio: null,
   peakRepairFraction: null,
+  postCollapseSustainedHigh: null,
+  currentRepairFraction: null,
   first30mVolumeShare: null,
   first1hVolumeShare: null,
   first3hVolumeShare: null,
