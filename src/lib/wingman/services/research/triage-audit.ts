@@ -34,7 +34,16 @@ export const UNRESEARCHED_DOMAIN_TERMS: { domain: string; patterns: RegExp[] }[]
   { domain: "INFLUENCER", patterns: [/\binfluencer\b/i, /\bkol\b/i, /\bcalled by\b/i, /\bshill(ed|ing)?\b/i] },
   {
     domain: "HINDSIGHT_OUTCOME",
-    patterns: [/\blater (ran|pumped|rallied|died)\b/i, /\bwent on to\b/i, /\bpeak(ed)? at\b/i, /\bafter the call\b/i, /\breturned \d/i, /\b\d+x\b/i],
+    patterns: [
+      /\blater (ran|pumped|rallied|died)\b/i,
+      /\bwent on to\b/i,
+      /\bafter the (call|snapshot)\b/i,
+      /\bsince (the )?call\b/i,
+      /\breturned \d/i,
+      /\b(did|would have|has) \d+(\.\d+)?x\b/i,
+      /\bmax gain\b/i,
+      /\brealized (gain|return|outcome)\b/i,
+    ],
   },
 ];
 
@@ -62,6 +71,14 @@ function sentences(text: string | null | undefined): string[] {
     .filter((s) => s.length > 0);
 }
 
+/**
+ * Scanner-packet vocabulary. A sentence built from these metrics is grounded in
+ * the supplied packet even when it contains a multiple ("8x turnover") or the
+ * word "peak" (Price Integrity peak-to-stabilized), so it is not hindsight.
+ */
+const PACKET_METRIC_CONTEXT =
+  /\b(turnover|turn24h|turn1h|volume|vol24h|vol1h|liquidity|liq|market cap|mcap|mc|drawdown|peak-to-stabilized|price integrity|price structure|participation|holders?|trades?|buys?|sells?|recovery|launch|quant(itative)? priority|ratio|concentration|snapshot)\b/i;
+
 /** Hedged/interrogative phrasing = a request for research, not an assertion. */
 const HEDGE = /\b(unknown|unverified|unresolved|not (yet )?(known|researched|evaluated)|no evidence|cannot|can't|would need|requires? research|open question|unclear|to be (checked|verified))\b|\?/i;
 
@@ -88,12 +105,17 @@ export function auditClaims(rows: ComparedDecision[]): {
         for (const { domain, patterns } of UNRESEARCHED_DOMAIN_TERMS) {
           if (!patterns.some((p) => p.test(sentence))) continue;
           const hedged = HEDGE.test(sentence);
+          const grounded = PACKET_METRIC_CONTEXT.test(sentence);
           findings.push({
             mint: row.mint,
             field: field.key,
             domain,
             excerpt: sentence.slice(0, 240),
-            classification: hedged ? "REASONABLE_COMPARATIVE_INFERENCE" : "UNSUPPORTED",
+            classification: grounded
+              ? "SUPPORTED_BY_PACKET"
+              : hedged
+                ? "REASONABLE_COMPARATIVE_INFERENCE"
+                : "UNSUPPORTED",
           });
         }
       }
@@ -279,6 +301,15 @@ export function auditBias(rows: ComparedDecision[]): {
   if (gapped.length >= 3 && gapped.every((r) => r.decision === "SKIP")) flags.push("MISSING_EVIDENCE_PENALIZED");
   const withRank = rows.filter((r) => typeof r.quantRank === "number");
   if (withRank.length >= 5 && withRank.every((r) => r.rankDelta === 0)) flags.push("QUANT_ORDER_COPIED");
+  const exploration = rows.filter((r) => sourceBucket(r) === "EXPLORATION");
+  const survivorRows = rows.filter((r) => sourceBucket(r) === "SURVIVOR");
+  if (
+    exploration.length >= 5 &&
+    exploration.every((r) => r.decision !== "DEEP_RESEARCH") &&
+    survivorRows.some((r) => r.decision === "DEEP_RESEARCH")
+  ) {
+    flags.push("ALL_EXPLORATION_DEMOTED");
+  }
 
   return { bySetup, byPriceStructure, byParticipation, bySource, flags };
 }
