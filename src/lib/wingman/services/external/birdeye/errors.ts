@@ -11,6 +11,7 @@ export type BirdeyeErrorCode =
   | "PROVIDER_UNAVAILABLE"
   | "PROVIDER_TIMEOUT"
   | "RATE_LIMITED"
+  | "QUOTA_EXHAUSTED"
   | "UNAUTHORIZED"
   | "MALFORMED_RESPONSE";
 
@@ -23,6 +24,7 @@ const SAFE_MESSAGES: Record<BirdeyeErrorCode, string> = {
   PROVIDER_UNAVAILABLE: "Holder data provider is currently unavailable.",
   PROVIDER_TIMEOUT: "Holder data provider did not respond in time.",
   RATE_LIMITED: "Holder data rate limit reached. Try again shortly.",
+  QUOTA_EXHAUSTED: "Compute units usage limit exceeded",
   UNAUTHORIZED: "Holder data credentials were rejected.",
   MALFORMED_RESPONSE: "Holder data provider returned an unexpected response.",
 };

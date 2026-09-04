@@ -13,7 +13,15 @@ import {
   useRunDiagnostics,
   useWorkbenchCandidates,
 } from "@/lib/wingman/hooks";
-import { getScanRunStatus, runScan } from "@/lib/wingman/scanner.functions";
+import {
+  getDiscoveryProviderStatus,
+  getScanRunStatus,
+  runScan,
+} from "@/lib/wingman/scanner.functions";
+import {
+  DiscoveryProviderPanel,
+  type DiscoveryProviderStatus,
+} from "@/components/wingman/scanner/DiscoveryProviderPanel";
 import {
   scanStatusMessage,
   scanUiState,
@@ -275,6 +283,13 @@ function ScannerPage() {
   });
   const [selected, setSelected] = useState<string | null>(null);
   const scan = useServerFn(runScan);
+  const loadProviderStatus = useServerFn(getDiscoveryProviderStatus);
+  // Diagnostic only: readiness never changes scoring, selection or health.
+  const { data: providerStatus } = useQuery({
+    queryKey: ["wingman", "discovery-provider-status"],
+    queryFn: () => loadProviderStatus() as Promise<DiscoveryProviderStatus>,
+    refetchInterval: 120_000,
+  });
   const loadStrategy = useServerFn(getStrategySettings);
   const { data: strategyResult } = useQuery({
     queryKey: ["wingman", "strategy-settings"],
@@ -392,6 +407,10 @@ function ScannerPage() {
           </p>
         ) : null}
 
+        {providerStatus && providerStatus.readiness.state !== "AVAILABLE" ? (
+          <DiscoveryProviderPanel status={providerStatus} />
+        ) : null}
+
         <div className="panel flex flex-wrap items-center gap-x-2 gap-y-1 px-4 py-3 font-mono text-xs">
           <span
             className={
@@ -433,6 +452,15 @@ function ScannerPage() {
             <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
           </summary>
           <div className="space-y-6 border-t border-border px-5 py-4">
+            <section>
+              <h3 className="mb-3 label-xs">Discovery provider</h3>
+              {providerStatus ? (
+                <DiscoveryProviderPanel status={providerStatus} />
+              ) : (
+                <p className="text-xs text-muted-foreground">Checking provider readiness…</p>
+              )}
+            </section>
+
             <section>
               <h3 className="mb-3 label-xs">Run status</h3>
               <div className="grid gap-3 text-xs sm:grid-cols-3 xl:grid-cols-6">
