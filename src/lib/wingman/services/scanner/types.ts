@@ -313,6 +313,11 @@ export interface EvaluatedCandidate {
    * Never read by ranking, setup qualification or survivor selection.
    */
   priceIntegrity?: PriceIntegrityEvaluation | null;
+  /**
+   * Participation Quality v1, SHADOW / CALIBRATION ONLY: descriptive.
+   * Never read by ranking, setup qualification or survivor selection.
+   */
+  participation?: ParticipationEvaluation | null;
 }
 
 

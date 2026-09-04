@@ -113,10 +113,16 @@ export function evidenceAgeMinutes(lastEnrichedAt: string | null, nowIso: string
  * Evidence domains are refreshed INDEPENDENTLY. A stale market observation
  * never invalidates still-valid holder, creator or provenance evidence.
  */
-export type EvidenceRefreshDomain = "market" | "holders" | "creator" | "provenance";
+export type EvidenceRefreshDomain =
+  | "market"
+  | "participation"
+  | "holders"
+  | "creator"
+  | "provenance";
 
 export const EVIDENCE_REFRESH_DOMAINS: EvidenceRefreshDomain[] = [
   "market",
+  "participation",
   "holders",
   "creator",
   "provenance",
@@ -157,6 +163,15 @@ export const DOMAIN_REFRESH_CONFIG: Record<EvidenceRefreshDomain, DomainRefreshC
   market: {
     maxAgeMinutes: REFRESH_CONFIG.maxEvidenceAgeMinutes,
     optionalAgeMinutes: REFRESH_CONFIG.optionalEvidenceAgeMinutes,
+    recurrenceDriven: true,
+    enrichmentSupported: true,
+  },
+  // Participation is current-activity evidence, so it ages like market data,
+  // but it is decided INDEPENDENTLY: stale market evidence never invalidates
+  // still-fresh participation evidence and vice versa.
+  participation: {
+    maxAgeMinutes: 45,
+    optionalAgeMinutes: 25,
     recurrenceDriven: true,
     enrichmentSupported: true,
   },
