@@ -52,6 +52,7 @@ import {
 } from "@/components/wingman/scanner/shared";
 import type { WorkbenchCandidate } from "@/lib/wingman/services/scanner-service";
 import { cn } from "@/lib/utils";
+import { assessRecentMarketDamage } from "@/lib/wingman/services/scanner/market-damage";
 
 export const Route = createFileRoute("/scanner")({
   head: () => ({
@@ -133,8 +134,6 @@ function applyRecurrenceFilter(candidates: Row[], filter: RecurrenceFilter): Row
   if (filter === "ALL") return candidates;
   return candidates.filter((c) => c.recurrenceState === filter);
 }
-
-import { assessRecentMarketDamage } from "@/lib/wingman/services/scanner/market-damage";
 
 function applyFilter(candidates: Row[], filter: Filter): Row[] {
   switch (filter) {
