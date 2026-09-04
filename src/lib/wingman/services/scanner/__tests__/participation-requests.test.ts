@@ -8,10 +8,10 @@ const fetchTokenParticipation = vi.fn();
 const appendEvidenceObservations = vi.fn(async () => ({ inserted: 13 }));
 
 vi.mock("../../external/birdeye/trade-data.server", () => ({
-  fetchTokenParticipation: (...args: unknown[]) => fetchTokenParticipation(...args),
+  fetchTokenParticipation: (...args: never[]) => fetchTokenParticipation(...args),
 }));
 vi.mock("../../evidence-persistence.server", () => ({
-  appendEvidenceObservations: (...args: unknown[]) => appendEvidenceObservations(...args),
+  appendEvidenceObservations: (...args: never[]) => appendEvidenceObservations(...args),
 }));
 
 import { BirdeyeError } from "../../external/birdeye/errors";
