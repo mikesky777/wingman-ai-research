@@ -13,6 +13,7 @@
  * Expensive Birdeye holder-profile enrichment is NEVER fanned out over the
  * discovered universe — that decision belongs to a later stage.
  */
+import { assessDiscoveryHealth, isDiscoveryUsable } from "./discovery-health";
 import { DEFAULT_CHAIN } from "../external/chains";
 import { runDiscovery } from "../external/birdeye/discovery.server";
 import { DexScreenerAdapter } from "../external/dexscreener";
@@ -256,6 +257,14 @@ export async function runScannerPipeline(
       limit: config.discoveryPageSize,
       track: (provider, capability, fn) => telemetry.track(provider, capability, fn),
     });
+
+    // A run that discovered nothing because every discovery query failed did
+    // not observe an empty market — it observed nothing at all. Failing it
+    // keeps recurrence, absence and policy denominators honest.
+    const discoveryHealth = assessDiscoveryHealth(discovery.outcomes, discovery.tokens.length);
+    if (!isDiscoveryUsable(discoveryHealth)) {
+      throw new Error(discoveryHealth.reason ?? "Discovery provider unavailable. Scan aborted.");
+    }
 
     const deduped = dedupeDiscovered(discovery.tokens);
     const nowIso = new Date().toISOString();

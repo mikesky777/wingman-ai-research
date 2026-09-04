@@ -512,6 +512,9 @@ export async function loadRecurrenceHistory(
     .from("scan_runs")
     .select("id, started_at, completed_at")
     .eq("status", "completed")
+    // A completed run that discovered nothing observed nothing: it can never
+    // be evidence that a token was absent.
+    .gt("tokens_discovered", 0)
     .order("completed_at", { ascending: false })
     .limit(lookback);
   if (runError) return empty;
