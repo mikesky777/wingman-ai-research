@@ -144,8 +144,14 @@ export function HistoryTokenDrawer({
                 { label: "Packet version", value: p?.researchPacketVersion ?? "—" },
                 { label: "AI / thesis run", value: p?.researchRunId ?? "—" },
                 { label: "Research report", value: p?.researchReportId ?? "—" },
+                {
+                  label: "Policy era",
+                  value: `${POLICY_LABELS[token.policyEpoch] ?? token.policyEpoch} (${token.policyEpoch})`,
+                },
+                { label: "Selection policy", value: token.selectionPolicyVersion ?? "—" },
                 { label: "Policy version", value: p?.policyVersion ?? "—" },
                 { label: "Milestone version", value: p?.milestoneVersion ?? "—" },
+
               ]}
             />
           </section>
