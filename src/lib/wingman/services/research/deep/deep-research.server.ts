@@ -367,6 +367,9 @@ async function researchCandidate(input: {
   const seenUrls = new Set<string>();
   let queries = 0;
   let fetches = 0;
+  let searchFailures = 0;
+  let lastSearchError: string | null = null;
+  const rejectedCollisionSources: { url: string; reason: string }[] = [];
   let stopReason: StopReason | null = null;
 
   const pushSource = (source: ResearchSource) => {
@@ -418,8 +421,10 @@ async function researchCandidate(input: {
     let hits: Awaited<ReturnType<WebSearchProvider["search"]>> = [];
     try {
       hits = await search.search(query, 4);
-    } catch {
+    } catch (error) {
       hits = [];
+      searchFailures += 1;
+      lastSearchError = error instanceof Error ? error.message : String(error);
     }
     queries += 1;
 
@@ -431,7 +436,11 @@ async function researchCandidate(input: {
       const text = `${hit.title ?? ""} ${hit.snippet ?? ""} ${page?.text ?? ""}`;
       const mintVerified = mentionsMint(text, candidate.mint);
       const symbolOnly = !mintVerified && mentionsSymbol(text, identity.symbol);
-      if (!mintVerified && !symbolOnly) continue; // ticker collisions are excluded outright
+      if (!mintVerified && !symbolOnly) {
+        // Neither the exact mint nor the ticker appears: unrelated or colliding source.
+        rejectedCollisionSources.push({ url: hit.url, reason: "NO_MINT_OR_TICKER_MATCH" });
+        continue;
+      }
       const sourceType = classifySourceType(hit.url);
       pushSource({
         ref: `S${sources.length + 1}`,
@@ -450,7 +459,15 @@ async function researchCandidate(input: {
       });
     }
   }
-  if (!stopReason) stopReason = sources.length === 0 ? "NO_SOURCES_FOUND" : "NO_MORE_QUERIES";
+  const externalSearchUnavailable = queries > 0 && searchFailures === queries;
+  if (!stopReason) {
+    stopReason =
+      sources.length === 0
+        ? externalSearchUnavailable
+          ? "SEARCH_PROVIDER_UNAVAILABLE"
+          : "NO_SOURCES_FOUND"
+        : "NO_MORE_QUERIES";
+  }
 
   const identityAttribution: AttributionConfidence = sources.some((s) => s.mintVerified)
     ? "CONFIRMED"
@@ -523,6 +540,12 @@ async function researchCandidate(input: {
       fetcher: fetcher.name,
       identityResolved: identity.resolved,
       officialLinkCount: identity.officialLinks.length,
+      searchFailureCount: searchFailures,
+      externalSearchUnavailable,
+      lastSearchError,
+      rejectedCollisionSourceCount: rejectedCollisionSources.length,
+      rejectedCollisionSources: rejectedCollisionSources.slice(0, 20),
+      independentSourceCount: dossier.coverage.independentSourceCount,
       validationIssues,
       provider: providerDiagnostics,
     },
