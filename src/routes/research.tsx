@@ -43,6 +43,8 @@ function ResearchPage() {
       <div className="space-y-6">
         <TriagePanel />
 
+        <DeepResearchPanel />
+
         <Section title="Completed Reports">
           {reports.length === 0 ? (
             <EmptyState
