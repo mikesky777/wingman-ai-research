@@ -134,6 +134,13 @@ export function CandidateDrawer({
 
   if (!candidate) return null;
   const c = candidate;
+  const liveValues = c.contractAddress ? live.values[c.contractAddress] : undefined;
+  const timeline = deriveDamageTimeline({
+    callTime1hPct: c.priceChange1h,
+    callTimeAt: c.lastEnrichedAt,
+    current1hPct: liveValues?.priceChange1h ?? null,
+    currentAt: liveValues?.observedAt ?? null,
+  });
   const breakdown = c.priorityBreakdown;
   // Shadow-only coverage read. A persisted row carries no price series, so this
   // reports what history exists and never classifies from it.
