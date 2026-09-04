@@ -184,7 +184,7 @@ describe("state mapping", () => {
       hasStructuralHistory: true,
     });
     expect(highScoreNoConfirmation.state).not.toBe("BUY_ZONE");
-    expect(highScoreNoConfirmation.state).toBe("SETTING_UP");
+    expect(highScoreNoConfirmation.state).toBe("ACCEPTABLE");
   });
 });
 
