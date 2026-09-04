@@ -168,6 +168,12 @@ export interface RunAiTriageOptions {
   scanRunId?: string | null;
   maxDeepResearch?: number;
   provider?: AiTriageProvider;
+  /**
+   * Calibration only: deterministically reorder candidate presentation to test
+   * whether presentation order changes the result. Quant ranks are computed
+   * before reordering, so the evidence itself is identical.
+   */
+  shuffleSeed?: number | null;
 }
 
 /**
@@ -288,7 +294,8 @@ export async function runAiTriage(options: RunAiTriageOptions = {}): Promise<Tri
     })),
   );
 
-  const cohort = buildCohortSummary(candidates);
+  const presented = orderCandidates(candidates, options.shuffleSeed ?? null);
+  const cohort = buildCohortSummary(presented);
   const prompt = buildTriagePrompt({
     header: {
       scanId: sourceScanId!,
