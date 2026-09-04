@@ -126,6 +126,12 @@ export interface RunScanResult {
   ok: boolean;
   summary: ScanRunSummary | null;
   message: string | null;
+  /** Machine-readable outcome of this attempt. */
+  code: RunScanCode;
+  /** Run this attempt started, when it started one. */
+  runId: string | null;
+  /** Run already holding the lock, when the attempt was rejected. */
+  activeRunId: string | null;
 }
 
 /** Enrich one survivor: fresh DexScreener pull → new immutable snapshot. */
@@ -197,12 +203,22 @@ export async function runScannerPipeline(
     });
   } catch (error) {
     if (error instanceof ConcurrentScanError) {
-      return { ok: false, summary: null, message: "A scan is already running." };
+      return {
+        ok: false,
+        summary: null,
+        message: "A scan is already running.",
+        code: "ALREADY_RUNNING",
+        runId: null,
+        activeRunId: error.activeRunId,
+      };
     }
     return {
       ok: false,
       summary: null,
       message: error instanceof Error ? error.message : "Could not start scan.",
+      code: "FAILED",
+      runId: null,
+      activeRunId: null,
     };
   }
 
@@ -592,12 +608,12 @@ export async function runScannerPipeline(
       );
     }
 
-    return { ok: true, summary, message: null };
+    return { ok: true, summary, message: null, code: "COMPLETED", runId, activeRunId: null };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Scan failed.";
     // A failed run is isolated; earlier completed runs stay untouched.
     await failScanRun(runId, message);
     console.error("runScannerPipeline failed", message);
-    return { ok: false, summary: null, message };
+    return { ok: false, summary: null, message, code: "FAILED", runId, activeRunId: null };
   }
 }
