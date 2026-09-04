@@ -69,6 +69,10 @@ export const PRICE_INTEGRITY_CALIBRATION = {
   extremePeakToStabilizedRatio: 15,
   /** Normalized repair: fraction of peak→low damage reclaimed. */
   repairedPeakFraction: 0.25,
+  /** A reclaimed level must be held this long to count as sustained. */
+  sustainedReclaimMinutes: 60,
+  /** A repair given back entirely is not a repair. */
+  minCurrentRepairFraction: 0.15,
   /** Below this, the reclaim of the original peak is weak (normalized). */
   weakPeakRepairFraction: 0.15,
   /** Current value at or above this fraction of the original peak = repaired. */
