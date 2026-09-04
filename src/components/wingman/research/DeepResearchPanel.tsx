@@ -16,6 +16,7 @@ import { Section } from "@/components/wingman/Section";
 import { EmptyState } from "@/components/wingman/EmptyState";
 import {
   getDeepResearchReports,
+  getExternalSearchStatus,
   runDeepResearchBatch,
 } from "@/lib/wingman/deep-research.functions";
 import { relativeTime } from "@/lib/wingman/format";
@@ -98,6 +99,8 @@ export function DeepResearchPanel() {
         </div>
       }
     >
+      <ExternalSearchStatusStrip />
+
       {isLoading ? (
         <p className="text-xs text-muted-foreground">Loading dossiers…</p>
       ) : reports.length === 0 ? (
@@ -129,6 +132,11 @@ export function DeepResearchPanel() {
                     {r.status === "insufficient_evidence" ? (
                       <Badge variant="outline" className="border-warning/40 text-[10px] text-warning">
                         INSUFFICIENT EVIDENCE
+                      </Badge>
+                    ) : null}
+                    {r.status === "search_unavailable" ? (
+                      <Badge variant="outline" className="border-negative/40 text-[10px] text-negative">
+                        SEARCH UNAVAILABLE
                       </Badge>
                     ) : null}
                   </div>
@@ -227,9 +235,18 @@ export function DeepResearchPanel() {
                             <Badge variant="outline" className="text-[10px]">
                               {s.reliabilityClass}
                             </Badge>
+                            <Badge
+                              variant="outline"
+                              className={`text-[10px] ${s.independence === "INDEPENDENT" ? "border-positive/40 text-positive" : "text-muted-foreground"}`}
+                            >
+                              {s.independence ?? "UNKNOWN"}
+                            </Badge>
                             <span className="text-muted-foreground">
                               {s.mintVerified ? "mint-verified" : "ticker match"}
                             </span>
+                            {s.contentFetched ? null : (
+                              <span className="text-muted-foreground">snippet only</span>
+                            )}
                             {s.url ? (
                               <a
                                 href={s.url}
@@ -258,5 +275,49 @@ export function DeepResearchPanel() {
         </ul>
       )}
     </Section>
+  );
+}
+
+const readinessTone: Record<string, string> = {
+  READY: "border-positive/40 bg-positive/10 text-positive",
+  DEGRADED: "border-warning/40 bg-warning/10 text-warning",
+  UNAVAILABLE: "border-negative/40 bg-negative/10 text-negative",
+  UNKNOWN: "border-border bg-surface text-muted-foreground",
+};
+
+/**
+ * External search readiness. An empty dossier only means "nothing out there"
+ * when this reads READY — otherwise the outside world was never reachable.
+ */
+function ExternalSearchStatusStrip() {
+  const fetchStatus = useServerFn(getExternalSearchStatus);
+  const { data } = useQuery({
+    queryKey: ["deep-research", "search-status"],
+    queryFn: () => fetchStatus(),
+  });
+  if (!data) return null;
+
+  return (
+    <div className="mb-3 flex flex-wrap items-center gap-3 rounded-md border border-border bg-surface/40 px-3 py-2 text-[11px] text-muted-foreground">
+      <span className="font-semibold tracking-wide text-foreground">EXTERNAL SEARCH</span>
+      <Badge variant="outline" className={`text-[10px] ${readinessTone[data.readiness] ?? ""}`}>
+        {data.readiness}
+      </Badge>
+      <span>{data.provider}</span>
+      <span className="tabular">{data.policyVersion}</span>
+      {data.configured ? null : <span className="text-negative">credentials missing</span>}
+      {data.lastRunAt ? (
+        <span className="tabular">
+          last run {data.lastRunSuccessfulAttempts}/{data.lastRunAttempts} queries ·{" "}
+          {data.lastRunResultsReturned} results · {relativeTime(data.lastRunAt)}
+        </span>
+      ) : null}
+      {data.lastFailureType ? (
+        <span className="text-warning">
+          {data.lastFailureType}
+          {data.lastFailureDetail ? ` — ${data.lastFailureDetail.slice(0, 90)}` : ""}
+        </span>
+      ) : null}
+    </div>
   );
 }

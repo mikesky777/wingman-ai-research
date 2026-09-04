@@ -36,11 +36,20 @@ import {
 } from "./contracts";
 import { mentionsMint, mentionsSymbol, resolveMintIdentity } from "./identity.server";
 import {
-  createDuckDuckGoSearchProvider,
-  createHttpPageFetcher,
-  type PageFetcher,
-  type WebSearchProvider,
-} from "./search.server";
+  EXTERNAL_SEARCH_POLICY_VERSION,
+  buildSearchVariants,
+  canonicalizeUrl,
+  classifyIndependence,
+  isSearchSuccess,
+  type ExternalSearchResponse,
+} from "./external-search";
+import {
+  getExternalSearchHealth,
+  resolveExternalSearchProvider,
+  type ExternalSearchHealth,
+  type ExternalSearchProvider,
+} from "./external-search.server";
+import { createHttpPageFetcher, type PageFetcher } from "./search.server";
 import {
   createLovableDeepResearchProvider,
   type DeepResearchProvider,
@@ -56,7 +65,28 @@ export type DeepResearchRunCode =
   | "NO_DEEP_RESEARCH_CANDIDATES"
   | "MISSING_API_KEY";
 
-export type CandidateStatus = "completed" | "insufficient_evidence" | "blocked" | "failed";
+/**
+ * `search_unavailable` is NOT `insufficient_evidence`. The first means the
+ * outside world was never actually queried; only the second is a finding.
+ */
+export type CandidateStatus =
+  | "completed"
+  | "insufficient_evidence"
+  | "search_unavailable"
+  | "blocked"
+  | "failed";
+
+export interface SearchTelemetry {
+  provider: string;
+  policyVersion: string;
+  attempts: number;
+  successfulAttempts: number;
+  failedAttempts: number;
+  resultsReturned: number;
+  outcomes: Record<string, number>;
+  lastError: string | null;
+  everSucceeded: boolean;
+}
 
 export interface DeepResearchCandidateResult {
   mint: string;
@@ -68,6 +98,7 @@ export interface DeepResearchCandidateResult {
   queryCount: number;
   sourceCount: number;
   verifiedSourceCount: number;
+  independentSourceCount: number;
   coveragePct: number;
   narrativeResolved: boolean;
   identityAttributionConfidence: AttributionConfidence;
@@ -76,6 +107,7 @@ export interface DeepResearchCandidateResult {
   durationMs: number;
   blockedReasons: string[];
   validationIssues: { code: string; detail: string }[];
+  search: SearchTelemetry | null;
   error: string | null;
 }
 
@@ -89,11 +121,14 @@ export interface DeepResearchBatchResult {
   dossierVersion: string;
   promptVersion: string;
   searchVersion: string;
+  searchProvider: string;
+  searchHealth: ExternalSearchHealth;
   modelProvider: string | null;
   modelIdentifier: string | null;
   requested: number;
   completed: number;
   insufficient: number;
+  searchUnavailable: number;
   blocked: number;
   failed: number;
   milestonesCreated: 0;
@@ -108,7 +143,7 @@ export interface RunDeepResearchOptions {
   triageRunId?: string;
   budget?: Partial<ResearchBudget>;
   provider?: DeepResearchProvider;
-  search?: WebSearchProvider;
+  search?: ExternalSearchProvider;
   fetcher?: PageFetcher;
 }
 
@@ -201,7 +236,7 @@ export async function runDeepResearch(
   const isCalibration = mode === "calibration";
   const budget: ResearchBudget = { ...DEFAULT_RESEARCH_BUDGET, ...(options.budget ?? {}) };
 
-  const search = options.search ?? createDuckDuckGoSearchProvider();
+  const search = options.search ?? resolveExternalSearchProvider();
   const fetcher = options.fetcher ?? createHttpPageFetcher();
 
   let provider = options.provider ?? null;
@@ -299,6 +334,7 @@ export async function runDeepResearch(
         queryCount: 0,
         sourceCount: 0,
         verifiedSourceCount: 0,
+        independentSourceCount: 0,
         coveragePct: 0,
         narrativeResolved: false,
         identityAttributionConfidence: "UNRESOLVED",
@@ -307,6 +343,7 @@ export async function runDeepResearch(
         durationMs: 0,
         blockedReasons: [],
         validationIssues: [],
+        search: null,
         error: error instanceof Error ? error.message.slice(0, 400) : "Unknown error",
       });
     }
@@ -322,11 +359,14 @@ export async function runDeepResearch(
     dossierVersion: DEEP_RESEARCH_DOSSIER_VERSION,
     promptVersion: DEEP_RESEARCH_PROMPT_VERSION,
     searchVersion: DEEP_RESEARCH_SEARCH_VERSION,
+    searchProvider: search.name,
+    searchHealth: getExternalSearchHealth(),
     modelProvider: provider.provider,
     modelIdentifier: provider.model,
     requested: shortlist.length,
     completed: results.filter((r) => r.status === "completed").length,
     insufficient: results.filter((r) => r.status === "insufficient_evidence").length,
+    searchUnavailable: results.filter((r) => r.status === "search_unavailable").length,
     blocked: results.filter((r) => r.status === "blocked").length,
     failed: results.filter((r) => r.status === "failed").length,
     milestonesCreated: 0,
@@ -337,7 +377,7 @@ export async function runDeepResearch(
 async function researchCandidate(input: {
   candidate: ShortlistedCandidate;
   provider: DeepResearchProvider;
-  search: WebSearchProvider;
+  search: ExternalSearchProvider;
   fetcher: PageFetcher;
   budget: ResearchBudget;
   isCalibration: boolean;
@@ -363,23 +403,48 @@ async function researchCandidate(input: {
     fallbackName: candidate.name,
   });
 
+  const officialUrls = identity.officialLinks.map((l) => l.url);
   const sources: ResearchSource[] = [];
   const seenUrls = new Set<string>();
   let queries = 0;
   let fetches = 0;
-  let searchFailures = 0;
-  let lastSearchError: string | null = null;
+  const searchTelemetry: SearchTelemetry = {
+    provider: search.name,
+    policyVersion: search.policyVersion,
+    attempts: 0,
+    successfulAttempts: 0,
+    failedAttempts: 0,
+    resultsReturned: 0,
+    outcomes: {},
+    lastError: null,
+    everSucceeded: false,
+  };
   const rejectedCollisionSources: { url: string; reason: string }[] = [];
   let stopReason: StopReason | null = null;
 
+  const recordSearch = (response: ExternalSearchResponse) => {
+    searchTelemetry.attempts += 1;
+    searchTelemetry.outcomes[response.outcome] =
+      (searchTelemetry.outcomes[response.outcome] ?? 0) + 1;
+    searchTelemetry.resultsReturned += response.results.length;
+    if (isSearchSuccess(response.outcome)) {
+      searchTelemetry.successfulAttempts += 1;
+      searchTelemetry.everSucceeded = true;
+    } else {
+      searchTelemetry.failedAttempts += 1;
+      searchTelemetry.lastError = `${response.outcome}: ${response.error ?? ""}`.slice(0, 300);
+    }
+  };
+
   const pushSource = (source: ResearchSource) => {
-    if (source.url && seenUrls.has(source.url)) return;
-    if (source.url) seenUrls.add(source.url);
+    const key = source.url ? (canonicalizeUrl(source.url) ?? source.url) : null;
+    if (key && seenUrls.has(key)) return;
+    if (key) seenUrls.add(key);
     sources.push(source);
   };
 
   // 1. Official links published on the token's own pair metadata are PRIMARY
-  //    and mint-attributed by construction.
+  //    and mint-attributed by construction — but they are the PROJECT speaking.
   for (const link of identity.officialLinks.slice(0, 3)) {
     if (fetches >= budget.maxFetches) break;
     const page = await fetcher.fetchPage(link.url, budget.maxSourceChars);
@@ -391,19 +456,27 @@ async function researchCandidate(input: {
       account: null,
       sourceType: "OFFICIAL_TOKEN_LINK",
       reliabilityClass: "PRIMARY",
+      independence: "PROJECT_OWNED",
       publishedAt: null,
       fetchedAt: page?.fetchedAt ?? new Date().toISOString(),
       relevance: "Official link published on the token's primary pair metadata",
       mintVerified: true,
+      contentFetched: Boolean(page?.text),
       attributionConfidence: "CONFIRMED",
       query: null,
       excerpt: page?.text ?? null,
     });
   }
 
-  // 2. Deterministic external query plan.
-  const plan = buildQueryPlan({ mint: candidate.mint, symbol: identity.symbol, name: identity.name });
-  for (const query of plan) {
+  // 2. Identity-safe external query plan: mint-anchored, never bare-ticker.
+  const plan = buildSearchVariants({
+    mint: candidate.mint,
+    symbol: identity.symbol,
+    name: identity.name,
+    officialUrls,
+    identityEstablished: false,
+  });
+  for (const variant of plan) {
     stopReason = shouldStopSearch(
       {
         startedAt,
@@ -418,22 +491,21 @@ async function researchCandidate(input: {
     );
     if (stopReason) break;
 
-    let hits: Awaited<ReturnType<WebSearchProvider["search"]>> = [];
-    try {
-      hits = await search.search(query, 4);
-    } catch (error) {
-      hits = [];
-      searchFailures += 1;
-      lastSearchError = error instanceof Error ? error.message : String(error);
-    }
+    // The provider returns an explicit outcome. A failure is NEVER silently
+    // converted into "no results found".
+    const response = await search.search(variant.query, 4);
+    recordSearch(response);
     queries += 1;
+    if (!isSearchSuccess(response.outcome)) continue;
 
-    for (const hit of hits) {
+    for (const hit of response.results) {
       if (fetches >= budget.maxFetches) break;
-      if (seenUrls.has(hit.url)) continue;
+      const canonical = canonicalizeUrl(hit.url) ?? hit.url;
+      if (seenUrls.has(canonical)) continue;
       const page = await fetcher.fetchPage(hit.url, budget.maxSourceChars);
       fetches += 1;
-      const text = `${hit.title ?? ""} ${hit.snippet ?? ""} ${page?.text ?? ""}`;
+      const urlAndSnippet = `${hit.url} ${hit.title ?? ""} ${hit.snippet ?? ""}`;
+      const text = `${urlAndSnippet} ${page?.text ?? ""}`;
       const mintVerified = mentionsMint(text, candidate.mint);
       const symbolOnly = !mintVerified && mentionsSymbol(text, identity.symbol);
       if (!mintVerified && !symbolOnly) {
@@ -442,6 +514,7 @@ async function researchCandidate(input: {
         continue;
       }
       const sourceType = classifySourceType(hit.url);
+      const independence = classifyIndependence({ url: hit.url, officialUrls });
       pushSource({
         ref: `S${sources.length + 1}`,
         url: hit.url,
@@ -449,17 +522,27 @@ async function researchCandidate(input: {
         account: null,
         sourceType,
         reliabilityClass: classifyReliability(sourceType, mintVerified),
-        publishedAt: null,
-        fetchedAt: page?.fetchedAt ?? new Date().toISOString(),
-        relevance: mintVerified ? "Mentions the exact mint address" : "Ticker match only",
+        independence,
+        publishedAt: hit.publishedAt,
+        fetchedAt: page?.fetchedAt ?? hit.fetchedAt,
+        relevance: mintVerified
+          ? "Mentions the exact mint address"
+          : "Ticker match only — identity not confirmed",
         mintVerified,
-        attributionConfidence: mintVerified ? "CONFIRMED" : "PROBABLE",
-        query,
+        contentFetched: Boolean(page?.text),
+        attributionConfidence: mintVerified
+          ? page?.text
+            ? "CONFIRMED"
+            : "STRONG"
+          : "WEAK",
+        query: variant.query,
         excerpt: (page?.text ?? hit.snippet ?? "").slice(0, budget.maxSourceChars) || null,
       });
     }
   }
-  const externalSearchUnavailable = queries > 0 && searchFailures === queries;
+  const externalSearchUnavailable = searchTelemetry.attempts > 0 && !searchTelemetry.everSucceeded;
+  const searchFailures = searchTelemetry.failedAttempts;
+  const lastSearchError = searchTelemetry.lastError;
   if (!stopReason) {
     stopReason =
       sources.length === 0
@@ -519,10 +602,14 @@ async function researchCandidate(input: {
     });
   }
 
-  const status: CandidateStatus =
-    dossier.claims.length === 0 || dossier.coverage.coveragePct === 0
-      ? "insufficient_evidence"
-      : "completed";
+  const noEvidence = dossier.claims.length === 0 || dossier.coverage.coveragePct === 0;
+  // Absence of evidence only counts as a finding when the outside world was
+  // actually reachable. Otherwise the honest answer is "we could not look".
+  const status: CandidateStatus = noEvidence
+    ? externalSearchUnavailable
+      ? "search_unavailable"
+      : "insufficient_evidence"
+    : "completed";
   const durationMs = Date.now() - startedAt;
 
   const reportId = await insertReport({ runId, candidate, dossier, isCalibration, status });
@@ -537,6 +624,9 @@ async function researchCandidate(input: {
     eligibilityAfter: input.eligibility,
     diagnostics: {
       searchProvider: search.name,
+      searchPolicyVersion: search.policyVersion,
+      search: searchTelemetry,
+      searchHealth: getExternalSearchHealth(),
       fetcher: fetcher.name,
       identityResolved: identity.resolved,
       officialLinkCount: identity.officialLinks.length,
@@ -546,6 +636,8 @@ async function researchCandidate(input: {
       rejectedCollisionSourceCount: rejectedCollisionSources.length,
       rejectedCollisionSources: rejectedCollisionSources.slice(0, 20),
       independentSourceCount: dossier.coverage.independentSourceCount,
+      projectOwnedSourceCount: dossier.coverage.projectOwnedSourceCount,
+      projectAffiliatedSourceCount: dossier.coverage.projectAffiliatedSourceCount,
       validationIssues,
       provider: providerDiagnostics,
     },
@@ -561,6 +653,7 @@ async function researchCandidate(input: {
     queryCount: queries,
     sourceCount: dossier.coverage.sourceCount,
     verifiedSourceCount: dossier.sources.filter((s) => s.mintVerified).length,
+    independentSourceCount: dossier.coverage.independentSourceCount,
     coveragePct: dossier.coverage.coveragePct,
     narrativeResolved: dossier.narrativeResolved,
     identityAttributionConfidence: dossier.identityAttributionConfidence,
@@ -569,6 +662,7 @@ async function researchCandidate(input: {
     durationMs,
     blockedReasons: [],
     validationIssues,
+    search: searchTelemetry,
     error: null,
   };
 }
@@ -608,6 +702,7 @@ function blockedResult(
     queryCount: 0,
     sourceCount: 0,
     verifiedSourceCount: 0,
+    independentSourceCount: 0,
     coveragePct: 0,
     narrativeResolved: false,
     identityAttributionConfidence: "UNRESOLVED",
@@ -616,6 +711,7 @@ function blockedResult(
     durationMs: 0,
     blockedReasons: reasons,
     validationIssues: [],
+    search: null,
     error: null,
   };
 }
@@ -637,11 +733,14 @@ function emptyBatch(
     dossierVersion: DEEP_RESEARCH_DOSSIER_VERSION,
     promptVersion: DEEP_RESEARCH_PROMPT_VERSION,
     searchVersion: DEEP_RESEARCH_SEARCH_VERSION,
+    searchProvider: getExternalSearchHealth().provider,
+    searchHealth: getExternalSearchHealth(),
     modelProvider: provider?.provider ?? null,
     modelIdentifier: provider?.model ?? null,
     requested: 0,
     completed: 0,
     insufficient: 0,
+    searchUnavailable: 0,
     blocked: 0,
     failed: 0,
     milestonesCreated: 0,
@@ -741,6 +840,14 @@ async function insertReport(input: {
       unresolved_domains: dossier.coverage.unresolvedDomains,
       source_count: dossier.coverage.sourceCount,
       primary_source_count: dossier.coverage.primarySourceCount,
+      independent_source_count: dossier.coverage.independentSourceCount,
+      project_owned_source_count: dossier.coverage.projectOwnedSourceCount,
+      project_affiliated_source_count: dossier.coverage.projectAffiliatedSourceCount,
+      unknown_independence_source_count: dossier.coverage.unknownIndependenceSourceCount,
+      independent_domains_covered: dossier.coverage.independentDomainsCovered,
+      corroborated_claim_count: dossier.coverage.corroboratedClaimCount,
+      project_claim_count: dossier.coverage.projectClaimCount,
+      search_version: dossier.searchVersion,
       source_domain_diversity: dossier.coverage.sourceDomainDiversity,
       conflicting_claim_count: dossier.coverage.conflictingClaimCount,
       unresolved_gap_count: dossier.evidenceGaps.length,
@@ -768,6 +875,8 @@ async function insertSources(
       account: s.account,
       source_type: s.sourceType,
       reliability_class: s.reliabilityClass,
+      independence: s.independence,
+      content_fetched: s.contentFetched,
       published_at: s.publishedAt,
       fetched_at: s.fetchedAt,
       relevance: s.relevance,
@@ -794,6 +903,7 @@ async function insertClaims(
       claim: c.claim,
       claim_type: c.claimType,
       status: c.status,
+      provenance: c.provenance,
       confidence: c.confidence,
       supporting_source_refs: c.supportingSourceRefs,
       contradicting_source_refs: c.contradictingSourceRefs,
@@ -819,6 +929,10 @@ export interface DeepResearchReportSummary {
   sourceCount: number;
   primarySourceCount: number;
   independentSourceCount: number;
+  projectOwnedSourceCount: number;
+  projectAffiliatedSourceCount: number;
+  corroboratedClaimCount: number;
+  searchVersion: string | null;
   conflictingClaimCount: number;
   unresolvedGapCount: number;
   unresolvedDomains: string[];
@@ -850,10 +964,65 @@ export async function loadDeepResearchReports(limit = 12): Promise<DeepResearchR
       sourceCount: (r["source_count"] as number) ?? 0,
       primarySourceCount: (r["primary_source_count"] as number) ?? 0,
       independentSourceCount: dossier?.coverage?.independentSourceCount ?? 0,
+      projectOwnedSourceCount: dossier?.coverage?.projectOwnedSourceCount ?? 0,
+      projectAffiliatedSourceCount: dossier?.coverage?.projectAffiliatedSourceCount ?? 0,
+      corroboratedClaimCount: dossier?.coverage?.corroboratedClaimCount ?? 0,
+      searchVersion: dossier?.searchVersion ?? null,
       conflictingClaimCount: (r["conflicting_claim_count"] as number) ?? 0,
       unresolvedGapCount: (r["unresolved_gap_count"] as number) ?? 0,
       unresolvedDomains: (r["unresolved_domains"] as string[]) ?? [],
       dossier,
     };
   });
+}
+
+export interface ExternalSearchStatus {
+  provider: string;
+  policyVersion: string;
+  configured: boolean;
+  /** Live process health plus the last persisted run's search telemetry. */
+  readiness: ExternalSearchHealth["readiness"];
+  lastFailureType: string | null;
+  lastFailureDetail: string | null;
+  lastRunAt: string | null;
+  lastRunProvider: string | null;
+  lastRunAttempts: number;
+  lastRunSuccessfulAttempts: number;
+  lastRunResultsReturned: number;
+  lastRunOutcomes: Record<string, number>;
+}
+
+/**
+ * External search readiness for the Research workbench: process health plus the
+ * search telemetry of the most recent persisted deep research run.
+ */
+export async function loadExternalSearchStatus(): Promise<ExternalSearchStatus> {
+  const live = getExternalSearchHealth();
+  const configured = Boolean(process.env["LOVABLE_API_KEY"] && process.env["FIRECRAWL_API_KEY"]);
+
+  const { data } = await supabaseAdmin
+    .from("deep_research_runs")
+    .select("created_at, diagnostics")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const row = (data as Row | null) ?? null;
+  const diagnostics = (row?.["diagnostics"] as Record<string, unknown> | null) ?? null;
+  const telemetry = (diagnostics?.["search"] as SearchTelemetry | undefined) ?? null;
+
+  return {
+    provider: telemetry?.provider ?? live.provider,
+    policyVersion: EXTERNAL_SEARCH_POLICY_VERSION,
+    configured,
+    readiness: configured ? live.readiness : "UNAVAILABLE",
+    lastFailureType: live.lastFailureType ?? null,
+    lastFailureDetail: live.lastFailureDetail ?? telemetry?.lastError ?? null,
+    lastRunAt: (row?.["created_at"] as string) ?? null,
+    lastRunProvider: telemetry?.provider ?? null,
+    lastRunAttempts: telemetry?.attempts ?? 0,
+    lastRunSuccessfulAttempts: telemetry?.successfulAttempts ?? 0,
+    lastRunResultsReturned: telemetry?.resultsReturned ?? 0,
+    lastRunOutcomes: telemetry?.outcomes ?? {},
+  };
 }

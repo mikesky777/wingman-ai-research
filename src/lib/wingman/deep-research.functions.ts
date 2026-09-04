@@ -8,6 +8,7 @@ import { createServerFn } from "@tanstack/react-start";
 import type {
   DeepResearchBatchResult,
   DeepResearchReportSummary,
+  ExternalSearchStatus,
 } from "./services/research/deep/deep-research.server";
 
 export const runDeepResearchBatch = createServerFn({ method: "POST" })
@@ -31,5 +32,18 @@ export const getDeepResearchReports = createServerFn({ method: "GET" }).handler(
       "./services/research/deep/deep-research.server"
     );
     return loadDeepResearchReports(12);
+  },
+);
+
+/**
+ * External search readiness. Reports whether the outside world can actually be
+ * queried, so an empty dossier is never mistaken for a finding.
+ */
+export const getExternalSearchStatus = createServerFn({ method: "GET" }).handler(
+  async (): Promise<ExternalSearchStatus> => {
+    const { loadExternalSearchStatus } = await import(
+      "./services/research/deep/deep-research.server"
+    );
+    return loadExternalSearchStatus();
   },
 );
