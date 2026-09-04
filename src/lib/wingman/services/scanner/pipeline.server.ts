@@ -320,7 +320,7 @@ export async function runScannerPipeline(
       config.survivorEnrichmentLimit,
       config.strategy.reservations,
       config.strategy,
-      { structuralVeto: false },
+      { structuralVeto: false, marketDamageVeto: false },
     );
     const baselineSet = new Set(baseline.survivors.map((s) => s.token.contractAddress));
 
@@ -331,6 +331,16 @@ export async function runScannerPipeline(
       config.strategy,
     );
     const survivors = selection.survivors;
+
+    // Recent Catastrophic Collapse exclusions. Descriptive log only: the
+    // candidates remain fully persisted and visible in Calibration.
+    if (selection.marketDamageVetoed.length > 0) {
+      console.info(
+        "recent catastrophic collapse gate excluded",
+        selection.marketDamageVetoed.length,
+        "candidates from survivor selection",
+      );
+    }
 
 
     // Price / Launch Integrity v1 — SHADOW / CALIBRATION. Runs AFTER selection
