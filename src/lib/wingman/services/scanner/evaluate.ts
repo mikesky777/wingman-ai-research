@@ -27,6 +27,7 @@ import { isRecentMarketDamageEligible } from "./market-damage";
 
 import {
   SETUP_TYPES,
+  hasRecognizedSetup,
   type DiscoveredToken,
   type EvaluatedCandidate,
   type HistoricalPoint,
