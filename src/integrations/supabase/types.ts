@@ -575,6 +575,196 @@ export type Database = {
           },
         ]
       }
+      entry_state_evaluations: {
+        Row: {
+          chain: string
+          component_scores: Json | null
+          created_at: string
+          current_eligibility: Json | null
+          deep_research_report_id: string | null
+          diagnostics: Json | null
+          divergence_detail: Json | null
+          entry_policy_version: string
+          entry_score: number | null
+          evaluated_at: string
+          evidence_confidence: number | null
+          evidence_gaps: string[]
+          feature_version: string
+          id: string
+          is_calibration: boolean
+          liquidity_usd: number | null
+          market_cap: number | null
+          market_evidence_at: string | null
+          market_snapshot_id: string | null
+          mint: string
+          name: string | null
+          narrative_timing_confidence: string | null
+          previous_state: string | null
+          price_attention_divergence: string
+          price_usd: number | null
+          rationale: string | null
+          research_packet_id: string | null
+          research_packet_version: string | null
+          score_extension: number | null
+          score_risk_definition: number | null
+          score_structure: number | null
+          score_volume_flow: number | null
+          setups: string[]
+          source_scan_id: string | null
+          state: string
+          state_changed_at: string | null
+          strongest_entry_risk: string | null
+          strongest_positive_signal: string | null
+          symbol: string | null
+          thesis_report_id: string | null
+          thesis_score: number | null
+          thesis_verdict: string | null
+          timing_features: Json | null
+          token_id: string | null
+          what_would_break_entry: string[]
+          what_would_improve_entry: string[]
+        }
+        Insert: {
+          chain?: string
+          component_scores?: Json | null
+          created_at?: string
+          current_eligibility?: Json | null
+          deep_research_report_id?: string | null
+          diagnostics?: Json | null
+          divergence_detail?: Json | null
+          entry_policy_version: string
+          entry_score?: number | null
+          evaluated_at?: string
+          evidence_confidence?: number | null
+          evidence_gaps?: string[]
+          feature_version: string
+          id?: string
+          is_calibration?: boolean
+          liquidity_usd?: number | null
+          market_cap?: number | null
+          market_evidence_at?: string | null
+          market_snapshot_id?: string | null
+          mint: string
+          name?: string | null
+          narrative_timing_confidence?: string | null
+          previous_state?: string | null
+          price_attention_divergence?: string
+          price_usd?: number | null
+          rationale?: string | null
+          research_packet_id?: string | null
+          research_packet_version?: string | null
+          score_extension?: number | null
+          score_risk_definition?: number | null
+          score_structure?: number | null
+          score_volume_flow?: number | null
+          setups?: string[]
+          source_scan_id?: string | null
+          state: string
+          state_changed_at?: string | null
+          strongest_entry_risk?: string | null
+          strongest_positive_signal?: string | null
+          symbol?: string | null
+          thesis_report_id?: string | null
+          thesis_score?: number | null
+          thesis_verdict?: string | null
+          timing_features?: Json | null
+          token_id?: string | null
+          what_would_break_entry?: string[]
+          what_would_improve_entry?: string[]
+        }
+        Update: {
+          chain?: string
+          component_scores?: Json | null
+          created_at?: string
+          current_eligibility?: Json | null
+          deep_research_report_id?: string | null
+          diagnostics?: Json | null
+          divergence_detail?: Json | null
+          entry_policy_version?: string
+          entry_score?: number | null
+          evaluated_at?: string
+          evidence_confidence?: number | null
+          evidence_gaps?: string[]
+          feature_version?: string
+          id?: string
+          is_calibration?: boolean
+          liquidity_usd?: number | null
+          market_cap?: number | null
+          market_evidence_at?: string | null
+          market_snapshot_id?: string | null
+          mint?: string
+          name?: string | null
+          narrative_timing_confidence?: string | null
+          previous_state?: string | null
+          price_attention_divergence?: string
+          price_usd?: number | null
+          rationale?: string | null
+          research_packet_id?: string | null
+          research_packet_version?: string | null
+          score_extension?: number | null
+          score_risk_definition?: number | null
+          score_structure?: number | null
+          score_volume_flow?: number | null
+          setups?: string[]
+          source_scan_id?: string | null
+          state?: string
+          state_changed_at?: string | null
+          strongest_entry_risk?: string | null
+          strongest_positive_signal?: string | null
+          symbol?: string | null
+          thesis_report_id?: string | null
+          thesis_score?: number | null
+          thesis_verdict?: string | null
+          timing_features?: Json | null
+          token_id?: string | null
+          what_would_break_entry?: string[]
+          what_would_improve_entry?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "entry_state_evaluations_deep_research_report_id_fkey"
+            columns: ["deep_research_report_id"]
+            isOneToOne: false
+            referencedRelation: "deep_research_reports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "entry_state_evaluations_market_snapshot_id_fkey"
+            columns: ["market_snapshot_id"]
+            isOneToOne: false
+            referencedRelation: "token_snapshots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "entry_state_evaluations_research_packet_id_fkey"
+            columns: ["research_packet_id"]
+            isOneToOne: false
+            referencedRelation: "research_packets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "entry_state_evaluations_source_scan_id_fkey"
+            columns: ["source_scan_id"]
+            isOneToOne: false
+            referencedRelation: "scan_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "entry_state_evaluations_thesis_report_id_fkey"
+            columns: ["thesis_report_id"]
+            isOneToOne: false
+            referencedRelation: "thesis_reports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "entry_state_evaluations_token_id_fkey"
+            columns: ["token_id"]
+            isOneToOne: false
+            referencedRelation: "tokens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       evidence_observations: {
         Row: {
           captured_at: string
