@@ -162,12 +162,21 @@ export interface OutcomeMetrics {
   minMarketCap: number | null;
   /** Worst market-cap move against the baseline, as a negative percentage. */
   maxAdverseChangePct: number | null;
+  /** Timestamp of the observation carrying the post-baseline market-cap low. */
+  minMarketCapAt: string | null;
   /** Worst decline from a post-baseline market-cap peak, as a negative percentage. */
   maxPeakToTroughDrawdownPct: number | null;
+  /** Market cap / timestamp of the peak that began the worst drawdown. */
+  drawdownPeakMarketCap: number | null;
+  drawdownPeakAt: string | null;
+  /** Market cap / timestamp of the trough that completed the worst drawdown. */
+  drawdownTroughMarketCap: number | null;
+  drawdownTroughAt: string | null;
   elapsedMinutes: number | null;
   observationCount: number;
   horizons: HorizonMap;
 }
+
 
 export interface OutcomeInput {
   baselineAt: string;
