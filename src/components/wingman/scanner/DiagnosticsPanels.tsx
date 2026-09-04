@@ -15,6 +15,43 @@ export function DiagnosticsPanels({ diagnostics }: { diagnostics: ScanRunDiagnos
   return (
     <div className="grid gap-6 xl:grid-cols-2">
       <Section
+        title="Survivor Composition"
+        description="The survivor limit is a maximum, not a target. Unused capacity means no further candidate qualified."
+      >
+        {diagnostics.survivors ? (
+          <>
+            <div className="grid grid-cols-2 gap-2 text-xs md:grid-cols-3">
+              <Stat label="Survivors" value={diagnostics.survivors.survivorCount} />
+              <Stat label="Limit" value={diagnostics.survivors.survivorLimit} />
+              <Stat label="Unused capacity" value={diagnostics.survivors.unusedCapacity} />
+              <Stat label="BASE" value={diagnostics.survivors.baseSurvivors} />
+              <Stat label="REACCEL" value={diagnostics.survivors.reaccelSurvivors} />
+              <Stat label="MOMENTUM" value={diagnostics.survivors.momentumSurvivors} />
+              <Stat label="Reservation route" value={diagnostics.survivors.reservationSurvivors} />
+              <Stat
+                label="Global · recognized setup"
+                value={diagnostics.survivors.recognizedGlobalSurvivors}
+              />
+              <Stat
+                label="Global · NONE exceptions"
+                value={`${diagnostics.survivors.noneGlobalSurvivors} / ${diagnostics.survivors.maxNoneGlobalSurvivors}`}
+              />
+              <Stat label="NONE skipped by cap" value={diagnostics.survivors.noneSkippedByCap} />
+            </div>
+            {diagnostics.survivors.underFilled ? (
+              <p className="mt-3 text-[11px] text-muted-foreground">
+                This run returned fewer than the maximum because no further candidate qualified.
+                The pool was deliberately not padded with SETUP = NONE candidates.
+              </p>
+            ) : null}
+          </>
+        ) : (
+          <p className="text-[11px] text-muted-foreground">Not recorded for this run.</p>
+        )}
+      </Section>
+
+
+      <Section
         title="Low-Cap Discovery Diagnostics"
         description="Where candidates in each market-cap band left the funnel."
       >
