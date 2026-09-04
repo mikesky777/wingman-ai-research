@@ -13,6 +13,7 @@ import {
   type StageProvenance,
   type StageRow,
 } from "./milestones";
+import type { PolicyEpoch } from "./policy-epochs";
 
 type Row = Record<string, unknown>;
 
@@ -68,6 +69,30 @@ export const StageMilestoneService = {
     );
     const out = new Map<string, StageProvenance>();
     for (const row of rows) out.set(row["token_id"] as string, provenanceOf(row));
+    return out;
+  },
+
+  /** Frozen policy era of each token's milestone in one stage. */
+  async policyByToken(
+    stage: FunnelStage,
+  ): Promise<Map<string, { policyEpoch: PolicyEpoch; selectionPolicyVersion: string | null }>> {
+    const rows = await paginate((from, to) =>
+      supabase
+        .from("token_stage_milestones")
+        .select("token_id, policy_epoch, selection_policy_version")
+        .eq("stage", stage)
+        .range(from, to),
+    );
+    const out = new Map<
+      string,
+      { policyEpoch: PolicyEpoch; selectionPolicyVersion: string | null }
+    >();
+    for (const row of rows) {
+      out.set(row["token_id"] as string, {
+        policyEpoch: ((row["policy_epoch"] as string | null) ?? "UNKNOWN_POLICY") as PolicyEpoch,
+        selectionPolicyVersion: (row["selection_policy_version"] as string | null) ?? null,
+      });
+    }
     return out;
   },
 
@@ -192,6 +217,8 @@ export const StageMilestoneService = {
         latestRecurrenceState: (latest["recurrence_state"] as string | null) ?? null,
         provenance: provenanceOf(m),
         baselineComplete: Boolean(m["baseline_complete"]),
+        policyEpoch: ((m["policy_epoch"] as string | null) ?? "UNKNOWN_POLICY") as PolicyEpoch,
+        selectionPolicyVersion: (m["selection_policy_version"] as string | null) ?? null,
       } satisfies StageRow;
     });
   },
