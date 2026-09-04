@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Check, Copy, ExternalLink, Loader2, ShieldQuestion } from "lucide-react";
 import {
@@ -13,7 +13,12 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { formatUsd } from "@/lib/wingman/format";
-import { checkTokenHolders, setCandidateLabel } from "@/lib/wingman/workbench.functions";
+import {
+  checkTokenHolders,
+  getCandidateCandles,
+  setCandidateLabel,
+} from "@/lib/wingman/workbench.functions";
+import { PriceIntegrityChart } from "./PriceIntegrityChart";
 import type { WorkbenchCandidate } from "@/lib/wingman/services/scanner-service";
 import { evaluateFromCandidateRowSummary } from "@/lib/wingman/services/scanner/price-integrity";
 import {
@@ -75,6 +80,7 @@ export function CandidateDrawer({
   const queryClient = useQueryClient();
   const holderCheck = useServerFn(checkTokenHolders);
   const labelFn = useServerFn(setCandidateLabel);
+  const loadCandles = useServerFn(getCandidateCandles);
   const [note, setNote] = useState("");
   const [copied, setCopied] = useState(false);
 
@@ -86,6 +92,14 @@ export function CandidateDrawer({
           tokenId: candidate?.tokenId ?? null,
         },
       }),
+  });
+
+  // Persisted candles only. Storage read — never a provider request.
+  const candlesQuery = useQuery({
+    queryKey: ["wingman", "candles", candidate?.contractAddress ?? null],
+    queryFn: () => loadCandles({ data: { contractAddress: candidate!.contractAddress! } }),
+    enabled: Boolean(candidate?.contractAddress),
+    staleTime: Infinity,
   });
 
   const label = useMutation({
