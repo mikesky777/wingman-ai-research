@@ -1,19 +1,25 @@
 /**
- * Participation Quality v1 — SHADOW / CALIBRATION ONLY (pure).
+ * Participation Quality v1.1 — SHADOW / CALIBRATION ONLY (pure).
  *
- * Measures how repetitive observed trading is relative to how many distinct
- * wallets produced it, and whether activity is accelerating while participant
- * breadth is not.
+ * v1.1 separates three independent dimensions instead of counting undifferentiated
+ * "signals":
  *
- * Hard boundaries:
+ *   - participation breadth      BROAD | MODERATE | NARROW | UNKNOWN
+ *   - trading repetition         NORMAL | ELEVATED | EXTREME | UNKNOWN
+ *   - activity/breadth divergence NONE | PRESENT | STRONG | UNKNOWN
+ *
+ * The user-facing aggregate (BROAD / CONCENTRATED / EXTREME / UNKNOWN) is now
+ * breadth-aware: a market with genuinely broad wallet participation can be
+ * described as highly repetitive, but is never called concentrated, and can
+ * never become EXTREME from repetition or divergence alone.
+ *
+ * Hard boundaries (unchanged):
  *   - descriptive only. Nothing here is read by Quantitative Research Priority,
  *     setup qualification, Structural Eligibility, Price Integrity, recurrence,
  *     outcomes or Survivor selection.
  *   - never asserts botting, wash trading or manipulation. The vocabulary is
  *     "repetitive trading", "narrow participant breadth", "activity/breadth
  *     divergence" and "concentrated participation".
- *   - no single metric can produce a status. High trades, high volume or a low
- *     wallet count on their own are ordinary market facts.
  *   - missing wallet evidence or a provider failure is UNKNOWN, never zero.
  */
 import type {
@@ -26,7 +32,7 @@ import { PARTICIPATION_WINDOWS } from "../external/birdeye/trade-data-normalizer
 export { PARTICIPATION_WINDOWS };
 export type { ParticipationWindow, ParticipationWindowFacts };
 
-export const PARTICIPATION_POLICY_VERSION = "participation/v1";
+export const PARTICIPATION_POLICY_VERSION = "participation/v1.1";
 
 /** Shadow build: Participation Quality has NO selection effect whatsoever. */
 export const PARTICIPATION_SHADOW_MODE = true;
@@ -42,12 +48,18 @@ export const PARTICIPATION_IS_VETO = false;
 export const EXTREME_REPETITIVE_PARTICIPATION = "EXTREME_REPETITIVE_PARTICIPATION";
 
 export type ParticipationStatus = "BROAD" | "CONCENTRATED" | "EXTREME" | "UNKNOWN";
+export type BreadthStatus = "BROAD" | "MODERATE" | "NARROW" | "UNKNOWN";
+export type RepetitionStatus = "NORMAL" | "ELEVATED" | "EXTREME" | "UNKNOWN";
+export type DivergenceStatus = "NONE" | "PRESENT" | "STRONG" | "UNKNOWN";
 
 export interface ParticipationCalibration {
   /** trades per unique wallet — repetition of the same participants. */
   repetitionConcentrated: number;
   repetitionExtreme: number;
+  /** How many windows must show repetition for it to count as persistent. */
+  repetitionPersistentWindows: number;
   /** absolute unique wallets over 24h — participant breadth. */
+  broadWallets24h: number;
   narrowWallets24h: number;
   veryNarrowWallets24h: number;
   /** volume per unique wallet (USD) — size concentration per participant. */
@@ -57,21 +69,22 @@ export interface ParticipationCalibration {
   divergenceActivityGrowthPct: number;
   divergenceWalletGrowthPct: number;
   divergenceRatio: number;
-  /** How many independent signals are required for each status. */
+  divergenceStrongRatio: number;
+  /** How many diverging windows make divergence STRONG. */
+  divergenceStrongWindows: number;
+  /** CONCENTRATED needs this many dimension signals (breadth excluded alone). */
   minSignalsConcentrated: number;
-  minSignalsExtreme: number;
-  /** EXTREME additionally requires repetition AND (breadth or divergence). */
-  extremeRequiresRepetition: boolean;
 }
 
 /**
- * v1 starting points. These are calibration inputs, not truths: they are meant
- * to be revised from observed cohort distributions, never tuned to force a
- * specific token into a specific label.
+ * v1.1 starting points, informed by the first live cohort (30m–24h windows on
+ * BASE / REACCEL survivors). Calibration inputs, not truths.
  */
 export const PARTICIPATION_CALIBRATION: ParticipationCalibration = {
   repetitionConcentrated: 3,
   repetitionExtreme: 6,
+  repetitionPersistentWindows: 2,
+  broadWallets24h: 600,
   narrowWallets24h: 150,
   veryNarrowWallets24h: 60,
   volumePerWalletConcentrated: 2_000,
@@ -79,9 +92,9 @@ export const PARTICIPATION_CALIBRATION: ParticipationCalibration = {
   divergenceActivityGrowthPct: 100,
   divergenceWalletGrowthPct: 25,
   divergenceRatio: 2.5,
+  divergenceStrongRatio: 4,
+  divergenceStrongWindows: 2,
   minSignalsConcentrated: 2,
-  minSignalsExtreme: 3,
-  extremeRequiresRepetition: true,
 };
 
 export interface ParticipationWindowMetrics extends ParticipationWindowFacts {
@@ -104,8 +117,30 @@ export interface ParticipationWindowMetrics extends ParticipationWindowFacts {
   activityBreadthDivergence: boolean;
 }
 
+export interface ParticipationDimensions {
+  breadth: BreadthStatus;
+  repetition: RepetitionStatus;
+  divergence: DivergenceStatus;
+  /** Peak unique wallets observed in the 24h window (breadth evidence). */
+  uniqueWallets24h: number | null;
+  /** Highest trades-per-wallet across available windows. */
+  peakTradesPerWallet: number | null;
+  /** Windows whose trades-per-wallet cleared the elevated threshold. */
+  repetitiveWindows: ParticipationWindow[];
+  /** Windows showing activity/breadth divergence. */
+  divergentWindows: ParticipationWindow[];
+  /** Highest divergence ratio across available windows. */
+  peakDivergenceRatio: number | null;
+  /** 24h USD volume per unique wallet. */
+  volumeUsdPerWallet24h: number | null;
+}
+
 export interface ParticipationEvaluation {
   status: ParticipationStatus;
+  /** v1.1 independent dimensions; kept alongside the aggregate. */
+  dimensions: ParticipationDimensions;
+  /** Human-readable combinations, e.g. "BROAD + HIGH REPETITION". */
+  subSignals: string[];
   policyVersion: string;
   shadowMode: boolean;
   evaluatedAt: string;
@@ -193,6 +228,18 @@ export interface ParticipationContext {
   calibration?: ParticipationCalibration;
 }
 
+const UNKNOWN_DIMENSIONS: ParticipationDimensions = {
+  breadth: "UNKNOWN",
+  repetition: "UNKNOWN",
+  divergence: "UNKNOWN",
+  uniqueWallets24h: null,
+  peakTradesPerWallet: null,
+  repetitiveWindows: [],
+  divergentWindows: [],
+  peakDivergenceRatio: null,
+  volumeUsdPerWallet24h: null,
+};
+
 /** No usable observation at all (provider failure, unsupported, no data). */
 export function unknownParticipation(
   reason: string,
@@ -200,6 +247,8 @@ export function unknownParticipation(
 ): ParticipationEvaluation {
   return {
     status: "UNKNOWN",
+    dimensions: { ...UNKNOWN_DIMENSIONS },
+    subSignals: [],
     policyVersion: PARTICIPATION_POLICY_VERSION,
     shadowMode: PARTICIPATION_SHADOW_MODE,
     evaluatedAt: context.evaluatedAt ?? new Date().toISOString(),
@@ -221,6 +270,17 @@ export function unknownParticipation(
   };
 }
 
+/** Participant breadth from real unique-wallet counts. Never inferred. */
+export function classifyBreadth(
+  wallets24h: number | null,
+  cal: ParticipationCalibration = PARTICIPATION_CALIBRATION,
+): BreadthStatus {
+  if (wallets24h === null || !Number.isFinite(wallets24h)) return "UNKNOWN";
+  if (wallets24h >= cal.broadWallets24h) return "BROAD";
+  if (wallets24h > cal.narrowWallets24h) return "MODERATE";
+  return "NARROW";
+}
+
 export function evaluateParticipation(
   observation: NormalizedParticipation,
   context: ParticipationContext = {},
@@ -233,6 +293,8 @@ export function evaluateParticipation(
 
   const base: ParticipationEvaluation = {
     status: "UNKNOWN",
+    dimensions: { ...UNKNOWN_DIMENSIONS },
+    subSignals: [],
     policyVersion: PARTICIPATION_POLICY_VERSION,
     shadowMode: PARTICIPATION_SHADOW_MODE,
     evaluatedAt: context.evaluatedAt ?? new Date().toISOString(),
@@ -269,49 +331,64 @@ export function evaluateParticipation(
   const signals: string[] = [];
   const reasons: string[] = [];
 
-  // 1. Repetition — the same participants trading repeatedly.
-  const repetitionWindows = walletWindows.filter(
-    (w) => (windows[w].tradesPerWallet ?? 0) >= cal.repetitionConcentrated,
-  );
-  const extremeRepetition = walletWindows.filter(
-    (w) => (windows[w].tradesPerWallet ?? 0) >= cal.repetitionExtreme,
-  );
-  if (extremeRepetition.length > 0) {
-    signals.push("EXTREME_TRADE_REPETITION");
-    reasons.push(
-      `Repetitive trading: ${extremeRepetition
-        .map((w) => `${w} ${windows[w].tradesPerWallet!.toFixed(1)} trades/wallet`)
-        .join(", ")} (threshold ${cal.repetitionExtreme}).`,
-    );
-  } else if (repetitionWindows.length > 0) {
-    signals.push("ELEVATED_TRADE_REPETITION");
-    reasons.push(
-      `Elevated trade repetition: ${repetitionWindows
-        .map((w) => `${w} ${windows[w].tradesPerWallet!.toFixed(1)} trades/wallet`)
-        .join(", ")} (threshold ${cal.repetitionConcentrated}).`,
-    );
-  }
-  const hasRepetition = signals.some((s) => s.endsWith("TRADE_REPETITION"));
-
-  // 2. Participant breadth — how many distinct wallets exist at all.
+  // ── Dimension 1: participation breadth ────────────────────────────────────
   const wallets24h = windows["24h"].uniqueWallets;
-  if (wallets24h !== null) {
+  const breadth = classifyBreadth(wallets24h, cal);
+  if (breadth === "NARROW" && wallets24h !== null) {
     if (wallets24h <= cal.veryNarrowWallets24h) {
       signals.push("VERY_NARROW_PARTICIPANT_BREADTH");
       reasons.push(
         `Narrow participant breadth: ${wallets24h} unique wallets over 24h (threshold ${cal.veryNarrowWallets24h}).`,
       );
-    } else if (wallets24h <= cal.narrowWallets24h) {
+    } else {
       signals.push("NARROW_PARTICIPANT_BREADTH");
       reasons.push(
         `Limited participant breadth: ${wallets24h} unique wallets over 24h (threshold ${cal.narrowWallets24h}).`,
       );
     }
+  } else if (breadth === "BROAD" && wallets24h !== null) {
+    reasons.push(`Broad participation: ${wallets24h} unique wallets over 24h.`);
   }
 
-  // 3. Volume per participant — size concentrated in few hands.
+  // ── Dimension 2: trading repetition ───────────────────────────────────────
+  const repetitiveWindows = walletWindows.filter(
+    (w) => (windows[w].tradesPerWallet ?? 0) >= cal.repetitionConcentrated,
+  );
+  const extremeRepetitionWindows = walletWindows.filter(
+    (w) => (windows[w].tradesPerWallet ?? 0) >= cal.repetitionExtreme,
+  );
+  const peakTradesPerWallet = walletWindows.reduce<number | null>((peak, w) => {
+    const v = windows[w].tradesPerWallet;
+    if (v === null) return peak;
+    return peak === null || v > peak ? v : peak;
+  }, null);
+
+  let repetition: RepetitionStatus = "NORMAL";
+  if (
+    extremeRepetitionWindows.length >= cal.repetitionPersistentWindows ||
+    (extremeRepetitionWindows.length > 0 && walletWindows.length < cal.repetitionPersistentWindows)
+  ) {
+    repetition = "EXTREME";
+    signals.push("EXTREME_TRADE_REPETITION");
+    reasons.push(
+      `Repetitive trading: ${extremeRepetitionWindows
+        .map((w) => `${w} ${windows[w].tradesPerWallet!.toFixed(1)} trades/wallet`)
+        .join(", ")} (threshold ${cal.repetitionExtreme}).`,
+    );
+  } else if (repetitiveWindows.length > 0) {
+    repetition = "ELEVATED";
+    signals.push("ELEVATED_TRADE_REPETITION");
+    reasons.push(
+      `Elevated trade repetition: ${repetitiveWindows
+        .map((w) => `${w} ${windows[w].tradesPerWallet!.toFixed(1)} trades/wallet`)
+        .join(", ")} (threshold ${cal.repetitionConcentrated}).`,
+    );
+  }
+
+  // Size concentration per participant, reported as a repetition-adjacent
+  // signal but only meaningful when breadth is not broad.
   const volumePerWallet24h = windows["24h"].volumeUsdPerWallet;
-  if (volumePerWallet24h !== null) {
+  if (volumePerWallet24h !== null && breadth !== "BROAD") {
     if (volumePerWallet24h >= cal.volumePerWalletExtreme) {
       signals.push("EXTREME_VOLUME_PER_PARTICIPANT");
       reasons.push(
@@ -325,34 +402,97 @@ export function evaluateParticipation(
     }
   }
 
-  // 4. Activity / breadth divergence — activity accelerating without new wallets.
+  // ── Dimension 3: activity / breadth divergence ────────────────────────────
   const divergentWindows = walletWindows.filter((w) => windows[w].activityBreadthDivergence);
+  const peakDivergenceRatio = walletWindows.reduce<number | null>((peak, w) => {
+    const v = windows[w].divergenceRatio;
+    if (v === null) return peak;
+    return peak === null || v > peak ? v : peak;
+  }, null);
+  const measurableDivergence = walletWindows.some((w) => windows[w].divergenceRatio !== null);
+
+  let divergence: DivergenceStatus = measurableDivergence ? "NONE" : "UNKNOWN";
   if (divergentWindows.length > 0) {
+    const strong =
+      divergentWindows.length >= cal.divergenceStrongWindows ||
+      (peakDivergenceRatio ?? 0) >= cal.divergenceStrongRatio;
+    divergence = strong ? "STRONG" : "PRESENT";
     signals.push("ACTIVITY_BREADTH_DIVERGENCE");
     reasons.push(
       `Activity/breadth divergence in ${divergentWindows.join(", ")}: trades/volume accelerating while unique wallets are not expanding proportionally.`,
     );
   }
-  const hasBreadthOrDivergence = signals.some(
-    (s) => s.includes("PARTICIPANT_BREADTH") || s === "ACTIVITY_BREADTH_DIVERGENCE",
-  );
 
-  let status: ParticipationStatus = "BROAD";
-  if (
-    signals.length >= cal.minSignalsExtreme &&
-    (!cal.extremeRequiresRepetition || hasRepetition) &&
-    hasBreadthOrDivergence
-  ) {
+  const dimensions: ParticipationDimensions = {
+    breadth,
+    repetition,
+    divergence,
+    uniqueWallets24h: wallets24h,
+    peakTradesPerWallet,
+    repetitiveWindows,
+    divergentWindows,
+    peakDivergenceRatio,
+    volumeUsdPerWallet24h: volumePerWallet24h,
+  };
+
+  // ── Aggregate, breadth-aware ──────────────────────────────────────────────
+  // EXTREME requires the full conjunction: deficient breadth AND unusually
+  // repetitive trading AND strong divergence. No single dimension can reach it.
+  let status: ParticipationStatus;
+  if (breadth === "UNKNOWN") {
+    status = "UNKNOWN";
+  } else if (breadth === "NARROW" && repetition === "EXTREME" && divergence === "STRONG") {
     status = "EXTREME";
-  } else if (signals.length >= cal.minSignalsConcentrated) {
-    status = "CONCENTRATED";
+  } else if (breadth === "BROAD") {
+    // Genuinely broad participation is never described as concentrated. The
+    // repetition/divergence sub-signals stay visible for later analysis.
+    status = "BROAD";
+  } else {
+    const concentrationSignals =
+      (breadth === "NARROW" ? 1 : 0) +
+      (repetition === "ELEVATED" || repetition === "EXTREME" ? 1 : 0) +
+      (divergence === "PRESENT" || divergence === "STRONG" ? 1 : 0) +
+      (signals.includes("EXTREME_VOLUME_PER_PARTICIPANT") ||
+      signals.includes("ELEVATED_VOLUME_PER_PARTICIPANT")
+        ? 1
+        : 0);
+    status = concentrationSignals >= cal.minSignalsConcentrated ? "CONCENTRATED" : "BROAD";
   }
+
+  const subSignals = buildSubSignals(dimensions);
 
   if (status === "BROAD" && reasons.length === 0) {
     reasons.push("No repetitive-trading or narrow-breadth pattern observed in the sampled windows.");
   }
 
-  return { ...base, status, signals, reasons };
+  return { ...base, status, dimensions, subSignals, signals, reasons };
+}
+
+/** Diagnostic combinations — preserved even when the aggregate is BROAD. */
+export function buildSubSignals(d: ParticipationDimensions): string[] {
+  const out: string[] = [];
+  const breadthLabel =
+    d.breadth === "BROAD"
+      ? "BROAD"
+      : d.breadth === "MODERATE"
+        ? "MODERATE"
+        : d.breadth === "NARROW"
+          ? "NARROW"
+          : null;
+  if (!breadthLabel) return out;
+  if (d.repetition === "ELEVATED" || d.repetition === "EXTREME") {
+    out.push(`${breadthLabel} + HIGH REPETITION`);
+  }
+  if (d.divergence === "STRONG") out.push(`${breadthLabel} + STRONG DIVERGENCE`);
+  else if (d.divergence === "PRESENT") out.push(`${breadthLabel} + DIVERGENCE`);
+  if (
+    d.breadth === "NARROW" &&
+    d.repetition === "EXTREME" &&
+    (d.divergence === "STRONG" || d.divergence === "PRESENT")
+  ) {
+    out.push("NARROW + REPETITIVE + DIVERGENT");
+  }
+  return out;
 }
 
 /** Shadow mode: every status remains fully eligible for Survivor selection. */
