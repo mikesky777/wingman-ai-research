@@ -364,22 +364,15 @@ export function CandidateDrawer({
           <Block title="Why this candidate surfaced">
             <Row label="Setup" value={laneLabel(setupOf(c))} />
             <Row
+              label="Signals"
+              value={signalsOf(c).length === 0 ? "—" : signalsOf(c).map(laneLabel).join(" · ")}
+            />
+            <Row
               label="Price structure"
               value={PRICE_STRUCTURE_LABEL[priceStructureOf(c)]}
             />
             <Row label="Global rank" value={c.globalRank ?? "—"} />
-            <Row
-              label="Selection route"
-              value={
-                c.selectedByLaneReservation
-                  ? "SETUP RESERVATION"
-                  : c.selectedByGlobalRanking
-                    ? "GLOBAL"
-                    : c.rejectionReason
-                      ? "REJECTED"
-                      : "NEAR MISS"
-              }
-            />
+            <Row label="Selection route" value={selectionRouteOf(c)} />
             {c.discoveryQueries.length === 0 ? (
               <p className="text-xs text-muted-foreground">No discovery provenance recorded.</p>
             ) : (
