@@ -21,6 +21,7 @@ export type EvidenceDomain =
   | "provenance"
   | "holders"
   | "creator"
+  | "participation"
   | "social";
 
 /** Primitive fact values supported by the evidence layer. */
