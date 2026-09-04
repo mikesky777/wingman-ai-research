@@ -156,6 +156,9 @@ function applyFilter(candidates: Row[], filter: Filter): Row[] {
   switch (filter) {
     case "ALL":
       return candidates;
+    case "SUSPECT":
+      // Review queue only — rendered by its own table, never a reclassification.
+      return selectSuspects(candidates);
     case "SURVIVORS":
       return candidates.filter((c) => c.enriched || c.selectedByLaneReservation || c.selectedByGlobalRanking);
     case "OUT_OF_SCOPE":
