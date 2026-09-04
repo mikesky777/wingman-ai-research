@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { assessDiscoveryHealth, isDiscoveryUsable } from "./discovery-health";
+import {
+  assessDiscoveryHealth,
+  countsAsAbsenceObservation,
+  isDiscoveryUsable,
+} from "./discovery-health";
 
 const ok = (id: string, count: number) => ({ queryId: id, ok: true, count, message: null });
 const fail = (id: string, message: string) => ({ queryId: id, ok: false, count: 0, message });
@@ -35,5 +39,36 @@ describe("discovery health", () => {
 
   it("returns OK for an empty outcome list", () => {
     expect(assessDiscoveryHealth([], 0).state).toBe("VALID_EMPTY");
+  });
+});
+
+describe("absence observation semantics", () => {
+  it("counts a healthy completed run with a discovered universe", () => {
+    expect(
+      countsAsAbsenceObservation({ status: "completed", tokensDiscovered: 358, discoveryHealth: "OK" }),
+    ).toBe(true);
+  });
+
+  it("does NOT count a VALID_EMPTY run as evidence a token was absent", () => {
+    expect(
+      countsAsAbsenceObservation({
+        status: "completed",
+        tokensDiscovered: 0,
+        discoveryHealth: "VALID_EMPTY",
+      }),
+    ).toBe(false);
+  });
+
+  it("does not count a provider-unavailable or failed run", () => {
+    expect(
+      countsAsAbsenceObservation({
+        status: "completed",
+        tokensDiscovered: 0,
+        discoveryHealth: "PROVIDER_UNAVAILABLE",
+      }),
+    ).toBe(false);
+    expect(
+      countsAsAbsenceObservation({ status: "failed", tokensDiscovered: 358, discoveryHealth: "OK" }),
+    ).toBe(false);
   });
 });

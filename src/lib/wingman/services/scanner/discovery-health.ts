@@ -112,3 +112,30 @@ export function assessDiscoveryHealth(
 export function isDiscoveryUsable(health: DiscoveryHealth): boolean {
   return health.state !== "PROVIDER_UNAVAILABLE";
 }
+
+/**
+ * Does this run count as evidence that a token was ABSENT from the market?
+ *
+ * Explicit decision, not a side effect of a row count:
+ *   - OK (tokens discovered)      -> yes. The universe was observed and the
+ *                                    token was not in it.
+ *   - PROVIDER_UNAVAILABLE        -> no. Nothing was observed.
+ *   - VALID_EMPTY                 -> NO. Every query succeeded but the whole
+ *                                    universe came back empty, which is a
+ *                                    discovery-side anomaly rather than
+ *                                    evidence about any individual token.
+ *                                    A globally empty scan must never push a
+ *                                    token towards RETURNING or reset its
+ *                                    consecutive-appearance count.
+ *
+ * Revisit this only by changing the rule deliberately here.
+ */
+export function countsAsAbsenceObservation(run: {
+  status: string;
+  tokensDiscovered: number | null;
+  discoveryHealth?: string | null;
+}): boolean {
+  if (run.status !== "completed") return false;
+  if (run.discoveryHealth === "PROVIDER_UNAVAILABLE") return false;
+  return (run.tokensDiscovered ?? 0) > 0;
+}

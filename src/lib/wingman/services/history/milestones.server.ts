@@ -27,6 +27,7 @@ import {
 import {
   CURRENT_POLICY_EPOCH,
   SELECTION_POLICY_VERSION,
+  canRunCreateMilestones,
   epochForMilestone,
   type PolicyEpoch,
 } from "./policy-epochs";
@@ -452,7 +453,28 @@ export async function recordScanMilestones(input: {
   scanRunId: string;
   completedAt: string;
   candidates: ScanMilestoneCandidate[];
+  /** Health of the originating run. Only a healthy completed run may write. */
+  run?: { status: string; tokensDiscovered: number | null; discoveryHealth?: string | null };
 }): Promise<ScanMilestoneWriteResult> {
+  // A failed or provider-unavailable run observed nothing: it can never create
+  // a setup milestone, a Survivor milestone, an epoch entry or a First
+  // Survivor baseline.
+  if (
+    input.run &&
+    !canRunCreateMilestones({
+      id: input.scanRunId,
+      status: input.run.status,
+      startedAt: null,
+      completedAt: input.completedAt,
+      tokensDiscovered: input.run.tokensDiscovered,
+      discoveryHealth: input.run.discoveryHealth ?? null,
+      selectionPolicyVersion: SELECTION_POLICY_VERSION,
+      policyEpoch: CURRENT_POLICY_EPOCH,
+    })
+  ) {
+    return { setupQualifiedAttempted: 0, survivorAttempted: 0 };
+  }
+
   const rows: Row[] = [];
   let setupCount = 0;
   let survivorCount = 0;

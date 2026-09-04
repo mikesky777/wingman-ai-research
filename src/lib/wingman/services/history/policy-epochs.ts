@@ -79,3 +79,74 @@ export function filterByPolicy<T extends { policyEpoch?: PolicyEpoch | string | 
   if (filter === "ALL") return rows;
   return rows.filter((row) => row.policyEpoch === CURRENT_POLICY_EPOCH);
 }
+
+/**
+ * When `scanner_selection/v1` became active in the code. This is DEPLOYMENT,
+ * not realization: a policy can be deployed and still have produced no healthy
+ * scan (for example while a discovery provider quota is exhausted).
+ */
+export interface PolicyRunRecord {
+  id: string;
+  status: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  tokensDiscovered: number | null;
+  /** `discovery_health/v1` state, when the run recorded one. */
+  discoveryHealth?: string | null;
+  selectionPolicyVersion?: string | null;
+  policyEpoch?: string | null;
+}
+
+/**
+ * A run only counts as a real observation of the market when it completed AND
+ * discovery actually produced a universe. A failed run, and a run whose
+ * discovery provider was unavailable, observed nothing.
+ */
+export function isHealthyCompletedRun(run: PolicyRunRecord): boolean {
+  if (run.status !== "completed") return false;
+  if (run.discoveryHealth === "PROVIDER_UNAVAILABLE") return false;
+  return (run.tokensDiscovered ?? 0) > 0;
+}
+
+/** Only a healthy completed run may create funnel milestones. */
+export function canRunCreateMilestones(run: PolicyRunRecord): boolean {
+  return isHealthyCompletedRun(run);
+}
+
+export interface PolicyBoundary {
+  policyVersion: string;
+  policyEpoch: PolicyEpoch;
+  /** Earliest run stamped with this policy, whatever its outcome. */
+  deployedAt: string | null;
+  /** Earliest HEALTHY COMPLETED run under this policy. Null until observed. */
+  firstHealthyRunId: string | null;
+  firstHealthyRunAt: string | null;
+  /** False while the epoch is deployed but has produced no healthy scan. */
+  realized: boolean;
+}
+
+/**
+ * Realized boundary of the current scanner policy.
+ *
+ * A FAILED or provider-unavailable scan can never establish the boundary, so
+ * the boundary stays explicitly unrealized (`firstHealthyRunAt = null`) rather
+ * than being invented. The first healthy completed v1 run establishes it
+ * automatically, once, because this is derived from persisted runs.
+ */
+export function deriveCurrentPolicyBoundary(runs: PolicyRunRecord[]): PolicyBoundary {
+  const stamped = runs.filter(
+    (r) => epochForRun(r) === CURRENT_POLICY_EPOCH && r.selectionPolicyVersion === SELECTION_POLICY_VERSION,
+  );
+  const time = (r: PolicyRunRecord) => Date.parse(r.startedAt ?? r.completedAt ?? "") || 0;
+  const ordered = [...stamped].sort((a, b) => time(a) - time(b));
+  const healthy = ordered.filter(isHealthyCompletedRun);
+  const first = healthy[0] ?? null;
+  return {
+    policyVersion: SELECTION_POLICY_VERSION,
+    policyEpoch: CURRENT_POLICY_EPOCH,
+    deployedAt: ordered[0]?.startedAt ?? null,
+    firstHealthyRunId: first?.id ?? null,
+    firstHealthyRunAt: first?.completedAt ?? null,
+    realized: Boolean(first),
+  };
+}

@@ -512,8 +512,11 @@ export async function loadRecurrenceHistory(
     .from("scan_runs")
     .select("id, started_at, completed_at")
     .eq("status", "completed")
-    // A completed run that discovered nothing observed nothing: it can never
-    // be evidence that a token was absent.
+    // Absence semantics are defined by `countsAsAbsenceObservation` in
+    // ./discovery-health: only a completed run with a real discovered universe
+    // is evidence a token was absent. A VALID_EMPTY run (all queries succeeded,
+    // whole universe empty) and a provider-unavailable run are both excluded
+    // here on purpose — this filter IS that rule, not a side effect.
     .gt("tokens_discovered", 0)
     .order("completed_at", { ascending: false })
     .limit(lookback);
