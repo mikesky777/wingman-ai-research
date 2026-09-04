@@ -49,7 +49,8 @@ describe("market resolution resilience", () => {
       throw new Error("PROVIDER_UNAVAILABLE");
     });
 
-    const result = await resolveMarketsDetailed([ADDRESS]);
+    let result;
+    try { result = await resolveMarketsDetailed([ADDRESS]); } catch (e) { console.log("ESCAPED", e); throw e; }
     expect(result.batches).toBe(1);
     expect(result.failedBatches).toBe(1);
     const resolution = result.resolutions.get(ADDRESS)!;
