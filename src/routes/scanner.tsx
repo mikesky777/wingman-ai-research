@@ -88,6 +88,10 @@ type Filter =
   | "PI_UNKNOWN"
   | "PI_DAMAGED_EXCLUDED"
   | "RECENT_CATASTROPHIC_COLLAPSE"
+  | "PQ_BROAD"
+  | "PQ_CONCENTRATED"
+  | "PQ_EXTREME"
+  | "PQ_UNKNOWN"
   | (typeof LANES)[number];
 
 /**
@@ -100,6 +104,17 @@ const PRICE_INTEGRITY_FILTERS: { key: Filter; label: string }[] = [
   { key: "PI_DAMAGED", label: "PI: damaged" },
   { key: "PI_UNKNOWN", label: "PI: unknown" },
   { key: "PI_DAMAGED_EXCLUDED", label: "Excluded: PRICE_INTEGRITY_DAMAGED" },
+];
+
+/**
+ * Participation Quality calibration views (shadow). Descriptive labels only —
+ * no status here affects Survivor selection.
+ */
+const PARTICIPATION_FILTERS: { key: Filter; label: string }[] = [
+  { key: "PQ_BROAD", label: "PQ: broad" },
+  { key: "PQ_CONCENTRATED", label: "PQ: concentrated" },
+  { key: "PQ_EXTREME", label: "PQ: extreme" },
+  { key: "PQ_UNKNOWN", label: "PQ: unknown" },
 ];
 
 type StrategyShape = { setups: Record<string, { enabled: boolean }> } | null;
@@ -120,6 +135,7 @@ function calibrationFilters(strategy: StrategyShape): { key: Filter; label: stri
     { key: "OUT_OF_SCOPE" as Filter, label: "Out of mandate" },
     { key: "RECENT_CATASTROPHIC_COLLAPSE" as Filter, label: "RECENT_CATASTROPHIC_COLLAPSE" },
     ...PRICE_INTEGRITY_FILTERS,
+    ...PARTICIPATION_FILTERS,
     ...disabledSetups(strategy).map((lane) => ({
       key: lane as Filter,
       label: `${laneLabel(lane)} (disabled)`,
@@ -161,6 +177,17 @@ function applyFilter(candidates: Row[], filter: Filter): Row[] {
           (c.priceIntegrityStatus === "DAMAGED" &&
             !c.selectedByLaneReservation &&
             !c.selectedByGlobalRanking),
+      );
+    case "PQ_BROAD":
+    case "PQ_CONCENTRATED":
+    case "PQ_EXTREME":
+      // Participation Quality is descriptive only; these are calibration views.
+      return candidates.filter((c) => c.participationStatus === filter.slice(3));
+    case "PQ_UNKNOWN":
+      return candidates.filter(
+        (c) =>
+          c.participationStatus === "UNKNOWN" ||
+          (c.participationPolicyVersion !== null && c.participationStatus === null),
       );
     case "RECENT_CATASTROPHIC_COLLAPSE":
       // Temporarily vetoed by the current-market collapse gate. Fully

@@ -84,3 +84,21 @@ export {
   type MarketDamageAssessment,
   type MarketDamageStatus,
 } from "./market-damage";
+
+export {
+  EXTREME_REPETITIVE_PARTICIPATION,
+  PARTICIPATION_CALIBRATION,
+  PARTICIPATION_IS_VETO,
+  PARTICIPATION_POLICY_VERSION,
+  PARTICIPATION_SELECTION_EFFECT,
+  PARTICIPATION_SHADOW_MODE,
+  PARTICIPATION_WINDOWS,
+  deriveWindowMetrics,
+  evaluateParticipation,
+  isParticipationEligible,
+  unknownParticipation,
+  type ParticipationEvaluation,
+  type ParticipationStatus,
+  type ParticipationWindow,
+  type ParticipationWindowMetrics,
+} from "./participation";

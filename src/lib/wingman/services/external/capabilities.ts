@@ -17,7 +17,8 @@ export type ProviderCapabilityId =
   | "holder_classification"
   | "wallet_classification"
   | "holder_positions"
-  | "price_history";
+  | "price_history"
+  | "token_trade_data";
 
 export interface ProviderCapability {
   id: ProviderCapabilityId;
@@ -75,6 +76,13 @@ export const PROVIDER_REGISTRY: ProviderDescriptor[] = [
         supportedChains: ["solana"],
         costTier: "standard",
         description: "Wallet-level top-holder concentration (raw, no exclusions).",
+      },
+      {
+        id: "token_trade_data",
+        supportedChains: ["solana"],
+        costTier: "cheap",
+        description:
+          "Per-window trade counts, buy/sell counts, unique wallet counts and volume (one request).",
       },
       {
         id: "price_history",

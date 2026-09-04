@@ -65,3 +65,20 @@ export interface BeHolderProfileData {
   } | null;
   tags?: BeHolderTag[] | null;
 }
+
+/**
+ * GET /defi/v3/token/trade-data/single — per-window activity facts.
+ *
+ * The provider returns one flat object with `<metric>_<window>` keys for every
+ * supported window (1m, 5m, 30m, 1h, 2h, 4h, 8h, 24h) plus `_history_`
+ * counterparts and `_change_percent` values. Keys are read by name in the
+ * normalizer, so the shape stays intentionally open.
+ */
+export interface BeTradeDataSingle {
+  address?: string;
+  holder?: number | null;
+  market?: number | null;
+  price?: number | null;
+  last_trade_unix_time?: number | null;
+  [key: string]: unknown;
+}

@@ -113,10 +113,12 @@ export function evidenceAgeMinutes(lastEnrichedAt: string | null, nowIso: string
  * Evidence domains are refreshed INDEPENDENTLY. A stale market observation
  * never invalidates still-valid holder, creator or provenance evidence.
  */
-export type EvidenceRefreshDomain = "market" | "holders" | "creator" | "provenance";
+export type EvidenceRefreshDomain =
+  "market" | "participation" | "holders" | "creator" | "provenance";
 
 export const EVIDENCE_REFRESH_DOMAINS: EvidenceRefreshDomain[] = [
   "market",
+  "participation",
   "holders",
   "creator",
   "provenance",
@@ -146,6 +148,12 @@ export interface DomainRefreshConfig {
   recurrenceDriven: boolean;
   /** Whether the scan pipeline can actually refresh this domain today. */
   enrichmentSupported: boolean;
+  /**
+   * Whether this domain contributes to the candidate-level rollup that governs
+   * market enrichment spend. Domains refreshed through their own dedicated
+   * path (participation) are excluded so they never force a market refetch.
+   */
+  affectsCandidateState?: boolean;
 }
 
 /**
@@ -159,6 +167,17 @@ export const DOMAIN_REFRESH_CONFIG: Record<EvidenceRefreshDomain, DomainRefreshC
     optionalAgeMinutes: REFRESH_CONFIG.optionalEvidenceAgeMinutes,
     recurrenceDriven: true,
     enrichmentSupported: true,
+    affectsCandidateState: true,
+  },
+  // Participation is current-activity evidence, so it ages like market data,
+  // but it is decided INDEPENDENTLY: stale market evidence never invalidates
+  // still-fresh participation evidence and vice versa.
+  participation: {
+    maxAgeMinutes: 45,
+    optionalAgeMinutes: 25,
+    recurrenceDriven: true,
+    enrichmentSupported: true,
+    affectsCandidateState: false,
   },
   holders: {
     maxAgeMinutes: 6 * 60,
@@ -312,9 +331,11 @@ export function deriveRefreshPlan(input: RefreshPlanInput): RefreshPlan {
 
   // Candidate-level state: the most urgent APPLICABLE domain. NO_EVIDENCE on a
   // domain the pipeline cannot collect is not an urgency signal.
-  const applicable = EVIDENCE_REFRESH_DOMAINS.map((d) => domains[d]).filter(
-    (d) => d.state !== "NO_EVIDENCE",
-  );
+  const applicable = EVIDENCE_REFRESH_DOMAINS.filter(
+    (d) => config[d].affectsCandidateState !== false,
+  )
+    .map((d) => domains[d])
+    .filter((d) => d.state !== "NO_EVIDENCE");
   const most = applicable.reduce<DomainRefreshDecision | null>(
     (best, current) =>
       best === null || URGENCY[current.state] > URGENCY[best.state] ? current : best,

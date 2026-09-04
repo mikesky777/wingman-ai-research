@@ -424,6 +424,9 @@ export type Database = {
           market_cap_bucket: string | null
           metrics_detail: Json | null
           minutes_since_last_trade: number | null
+          participation_detail: Json | null
+          participation_policy_version: string | null
+          participation_status: string | null
           persistence_signal: string | null
           previous_quantitative_priority: number | null
           previous_seen_scan_at: string | null
@@ -509,6 +512,9 @@ export type Database = {
           market_cap_bucket?: string | null
           metrics_detail?: Json | null
           minutes_since_last_trade?: number | null
+          participation_detail?: Json | null
+          participation_policy_version?: string | null
+          participation_status?: string | null
           persistence_signal?: string | null
           previous_quantitative_priority?: number | null
           previous_seen_scan_at?: string | null
@@ -594,6 +600,9 @@ export type Database = {
           market_cap_bucket?: string | null
           metrics_detail?: Json | null
           minutes_since_last_trade?: number | null
+          participation_detail?: Json | null
+          participation_policy_version?: string | null
+          participation_status?: string | null
           persistence_signal?: string | null
           previous_quantitative_priority?: number | null
           previous_seen_scan_at?: string | null
@@ -683,6 +692,7 @@ export type Database = {
           lane_diagnostics: Json | null
           market_regime: string
           notes: string | null
+          participation_diagnostics: Json | null
           passed_ai_triage: number
           passed_hard_filters: number
           passed_quantitative_ranking: number
@@ -718,6 +728,7 @@ export type Database = {
           lane_diagnostics?: Json | null
           market_regime?: string
           notes?: string | null
+          participation_diagnostics?: Json | null
           passed_ai_triage?: number
           passed_hard_filters?: number
           passed_quantitative_ranking?: number
@@ -753,6 +764,7 @@ export type Database = {
           lane_diagnostics?: Json | null
           market_regime?: string
           notes?: string | null
+          participation_diagnostics?: Json | null
           passed_ai_triage?: number
           passed_hard_filters?: number
           passed_quantitative_ranking?: number
