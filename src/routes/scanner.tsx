@@ -283,6 +283,9 @@ function ScannerPage() {
   };
   const maxCount = Math.max(funnel?.discovered ?? 1, 1);
   const rows = applyRecurrenceFilter(applyFilter(candidates, filter), recurrence);
+  // Derived review queue over the same persisted rows. No new records.
+  const suspectTotal = suspectCount(candidates);
+  const suspectRows = selectSuspects(candidates, suspectFilters);
   const active = candidates.find((c) => c.id === selected) ?? null;
 
   // UI state comes from the real persisted run this session is watching —
