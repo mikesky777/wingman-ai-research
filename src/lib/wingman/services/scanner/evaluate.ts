@@ -352,7 +352,9 @@ export function selectSurvivorsWithReservations(
   for (const candidate of eligible) {
     if (chosen.length >= limit) break;
     if (seen.has(candidate.token.contractAddress)) continue;
-    const isNone = candidate.lanes.length === 0;
+    // MOMENTUM is a signal, not a recognized setup: a MOMENTUM-only candidate
+    // is SETUP = NONE here and consumes NONE exception capacity.
+    const isNone = !hasRecognizedSetup(candidate.lanes);
     if (isNone) {
       if (noneUsed >= maxNone) {
         noneSkippedByCap.push(candidate);
