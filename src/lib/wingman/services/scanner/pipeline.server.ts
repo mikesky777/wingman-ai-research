@@ -29,7 +29,7 @@ import {
   rankCandidates,
   selectSurvivorsWithReservations,
 } from "./evaluate";
-import { resolveMarkets } from "./market-eligibility.server";
+import { resolveMarketsDetailed } from "./market-eligibility.server";
 import type { MarketResolution } from "./market-eligibility";
 import { bucketDiagnostics, laneDiagnostics } from "./diagnostics";
 import { deriveRecurrence } from "./recurrence";
@@ -270,10 +270,22 @@ export async function runScannerPipeline(
 
     // Pass 2: universal live-market gate over the mechanical survivors only.
     const marketCandidates = firstPass.filter((c) => c.passedHardFilters);
-    const markets = await resolveMarkets(
+    const marketResolution = await resolveMarketsDetailed(
       marketCandidates.map((c) => c.token.contractAddress),
       { track: (provider, capability, fn) => telemetry.track(provider, capability, fn) },
     );
+    const markets = marketResolution.resolutions;
+
+    // A total market-lookup outage is a provider failure, never evidence that
+    // the whole universe is unqualified. Abort the run instead of persisting
+    // hundreds of false rejections (earlier runs and history stay untouched).
+    if (marketResolution.batches > 0 && marketResolution.failedBatches === marketResolution.batches) {
+      throw new Error(
+        `DexScreener market lookup was unavailable for the entire universe (${marketResolution.batches} batches failed${
+          marketResolution.errorCodes.length ? `: ${marketResolution.errorCodes.join(", ")}` : ""
+        }). Scan aborted; no candidates were rejected.`,
+      );
+    }
 
     // Pass 3: mandate eligibility, applied AFTER identity + market resolution
     // and BEFORE setup qualification / survivor selection. UNKNOWN is eligible.
