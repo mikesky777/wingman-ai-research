@@ -63,7 +63,7 @@ function sentences(text: string | null | undefined): string[] {
 }
 
 /** Hedged/interrogative phrasing = a request for research, not an assertion. */
-const HEDGE = /\b(unknown|unverified|unresolved|not (yet )?(known|researched|evaluated)|no evidence|cannot|can't|would need|requires? research|open question|unclear|absent|missing|to be (checked|verified))\b|\?/i;
+const HEDGE = /\b(unknown|unverified|unresolved|not (yet )?(known|researched|evaluated)|no evidence|cannot|can't|would need|requires? research|open question|unclear|to be (checked|verified))\b|\?/i;
 
 export function auditClaims(rows: ComparedDecision[]): {
   totalClaimsAudited: number;
