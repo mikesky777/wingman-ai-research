@@ -110,9 +110,16 @@ export interface ResearchDossier {
     coveragePct: number;
     sourceCount: number;
     primarySourceCount: number;
+    /**
+     * Sources that are NOT published by the token itself. Official token links
+     * are self-published: a dossier with zero independent sources is uncorroborated,
+     * however high its domain coverage looks.
+     */
+    independentSourceCount: number;
     sourceDomainDiversity: number;
     conflictingClaimCount: number;
   };
+
 }
 
 export interface ResearchBudget {
