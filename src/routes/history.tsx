@@ -338,11 +338,14 @@ function StageView({ stage }: { stage: FunnelStage }) {
           <EmptyState
             title="No stage entries yet"
             description={
-              stage === "SURVIVOR"
-                ? "A token joins this cohort once it is selected as a Wingman Survivor."
-                : "A token joins this cohort the first time it qualifies for BASE or REACCEL."
+              policyApplies && policy === "CURRENT" && rows.length > 0
+                ? "No calls have been made yet under the current policy. Switch to All history to see earlier calls, measured under the rules that were live at the time."
+                : stage === "SURVIVOR"
+                  ? "A token joins this cohort once it is selected as a Wingman Survivor."
+                  : "A token joins this cohort the first time it qualifies for BASE or REACCEL."
             }
           />
+
         ) : (
           <CohortTable stage={stage} tokens={cohort} live={live.values} onSelect={setSelected} />
         )}
