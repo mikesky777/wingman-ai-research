@@ -33,6 +33,19 @@ export type SetupType = "MOMENTUM" | "BASE" | "REACCEL";
  */
 export const SETUP_TYPES: SetupType[] = ["BASE", "MOMENTUM", "REACCEL"];
 
+/**
+ * RECOGNIZED setups. MOMENTUM is deliberately absent: it is a quantitative
+ * SIGNAL/tag (and a Priority input) that is useful alongside BASE or REACCEL,
+ * never a standalone setup. A candidate whose only tag is MOMENTUM is
+ * SETUP = NONE and competes through the capped NONE global exception.
+ */
+export const RECOGNIZED_SETUPS: SetupType[] = ["BASE", "REACCEL"];
+
+/** True when the candidate matched no recognized setup (MOMENTUM-only counts). */
+export function hasRecognizedSetup(lanes: readonly string[]): boolean {
+  return RECOGNIZED_SETUPS.some((setup) => lanes.includes(setup));
+}
+
 /** Legacy alias kept so older reads and stored rows stay type-compatible. */
 export type DiscoveryLane = SetupType;
 
