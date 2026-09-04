@@ -13,7 +13,7 @@
 import type { CandidateSource } from "./types";
 
 export const TRIAGE_POLICY_VERSION = "ai_triage/v1";
-export const TRIAGE_PROMPT_VERSION = "ai_triage_prompt/v1.1";
+export const TRIAGE_PROMPT_VERSION = "ai_triage_prompt/v1.2";
 
 /**
  * Input-serialization policy for triage. Stage 2 must never see information

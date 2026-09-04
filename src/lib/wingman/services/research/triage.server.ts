@@ -214,9 +214,16 @@ export async function runAiTriage(options: RunAiTriageOptions = {}): Promise<Tri
   const mode: TriageMode = options.mode ?? "PRODUCTION";
   const isCalibration = mode === "CALIBRATION";
   const maxDeepResearch = options.maxDeepResearch ?? TRIAGE_CONFIG.maxDeepResearch;
-  // Input ablations are a calibration instrument only; production always runs
-  // the full, unablated serialization.
-  const ablation: TriageInputAblation | null = isCalibration ? (options.ablation ?? null) : null;
+  // Standing input policy (ai_triage/v1.2): scanner-selection provenance is
+  // hidden from the model. The Exploration source-bias audit showed triage
+  // rationales citing "non-survivor routing" as a concern in its own right, so
+  // triage no longer inherits the scanner's selection decision as a label. All
+  // market/evidence facts, including SETUP, are unchanged, and provenance is
+  // still persisted on every decision for analysis and UI.
+  // Calibration may pass an explicit ablation (including an unblinded baseline).
+  const ablation: TriageInputAblation | null = isCalibration
+    ? (options.ablation ?? { blindSource: true })
+    : { blindSource: true };
   const inputPolicyVersion = inputPolicyVersionFor(ablation);
 
   const base: TriageRunResult = {
