@@ -32,10 +32,30 @@ function when(value: string | null) {
   return value ? new Date(value).toLocaleString() : "—";
 }
 
+function discoveryReason(state: ProviderReadinessState, provider: string): string {
+  const name = provider.charAt(0).toUpperCase() + provider.slice(1);
+  switch (state) {
+    case "AVAILABLE":
+      return `${name} discovery provider is available.`;
+    case "RATE_LIMITED":
+      return `${name} discovery provider is rate-limited; a scan may still be attempted.`;
+    case "QUOTA_EXHAUSTED":
+      return `${name} discovery provider quota exhausted.`;
+    case "AUTH_FAILED":
+      return `${name} discovery provider credentials rejected.`;
+    case "NOT_CONFIGURED":
+      return `${name} discovery provider is not configured.`;
+    case "UNKNOWN_FAILURE":
+      return `${name} discovery provider is currently unavailable.`;
+  }
+}
+
 export function DiscoveryProviderPanel({ status }: { status: DiscoveryProviderStatus }) {
   const state = status.readiness.state;
   const blocked = state !== "AVAILABLE";
   const hard = state === "QUOTA_EXHAUSTED" || state === "AUTH_FAILED" || state === "NOT_CONFIGURED";
+  const action = hard ? "BLOCKED" : state === "AVAILABLE" ? "READY" : "ATTEMPT_ALLOWED";
+  const reason = discoveryReason(state, status.provider);
 
   return (
     <div className="panel px-5 py-4">
@@ -45,16 +65,17 @@ export function DiscoveryProviderPanel({ status }: { status: DiscoveryProviderSt
         <span className={blocked ? "text-negative" : "text-positive"}>{state}</span>
         <span className="text-muted-foreground">·</span>
         <span className="text-muted-foreground">
-          Scanner status:{" "}
-          <span className={hard ? "text-negative" : "text-foreground"}>
-            {hard ? "BLOCKED — discovery provider unavailable" : "READY"}
-          </span>
+          Scanner action:{" "}
+          <span className={hard ? "text-negative" : "text-foreground"}>{action}</span>
         </span>
       </div>
 
-      {status.readiness.reason ? (
-        <p className="mt-2 text-xs text-muted-foreground">
-          Reason: <span className="text-foreground">{status.readiness.reason}</span>
+      <p className="mt-2 text-xs text-muted-foreground">
+        Reason: <span className="text-foreground">{reason}</span>
+      </p>
+      {status.readiness.reason && status.readiness.reason !== reason ? (
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          Provider reason: <span className="text-foreground">{status.readiness.reason}</span>
         </p>
       ) : null}
 
