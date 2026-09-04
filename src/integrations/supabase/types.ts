@@ -1570,6 +1570,343 @@ export type Database = {
           },
         ]
       }
+      thesis_reports: {
+        Row: {
+          bear_case_severity: string | null
+          blocked_reasons: string[]
+          catalysts: string[]
+          chain: string
+          component_scores: Json | null
+          created_at: string
+          current_eligibility: Json | null
+          deep_research_report_id: string | null
+          deep_research_run_id: string | null
+          diagnostics: Json | null
+          evidence_confidence: number | null
+          evidence_confidence_components: Json | null
+          evidence_gaps: string[]
+          id: string
+          input_policy_version: string
+          invalidation: string[]
+          is_calibration: boolean
+          liquidity_at_synthesis: number | null
+          market_cap_at_synthesis: number | null
+          mint: string
+          model_identifier: string | null
+          model_provider: string | null
+          name: string | null
+          narrative_thesis: string | null
+          one_sentence_thesis: string | null
+          price_at_synthesis: number | null
+          prompt_version: string
+          qualified_as_opportunity: boolean
+          research_packet_id: string | null
+          research_packet_version: string | null
+          score_catalyst_narrative: number | null
+          score_chart_context: number | null
+          score_dev_integrity: number | null
+          score_distribution: number | null
+          score_liquidity: number | null
+          score_meme_quality: number | null
+          score_mindshare: number | null
+          score_valuation: number | null
+          sections: Json | null
+          setups: string[]
+          shortlist_milestone_id: string | null
+          status: string
+          strongest_bear_case: string | null
+          strongest_bull_case: string | null
+          strongest_catalyst: string | null
+          strongest_concern: string | null
+          supporting_claim_refs: string[]
+          supporting_source_refs: string[]
+          symbol: string | null
+          thesis_call_milestone_id: string | null
+          thesis_policy_version: string
+          thesis_score: number | null
+          thesis_synthesis_run_id: string
+          token_id: string | null
+          triage_decision_id: string | null
+          triage_run_id: string | null
+          verdict: string | null
+        }
+        Insert: {
+          bear_case_severity?: string | null
+          blocked_reasons?: string[]
+          catalysts?: string[]
+          chain?: string
+          component_scores?: Json | null
+          created_at?: string
+          current_eligibility?: Json | null
+          deep_research_report_id?: string | null
+          deep_research_run_id?: string | null
+          diagnostics?: Json | null
+          evidence_confidence?: number | null
+          evidence_confidence_components?: Json | null
+          evidence_gaps?: string[]
+          id?: string
+          input_policy_version: string
+          invalidation?: string[]
+          is_calibration?: boolean
+          liquidity_at_synthesis?: number | null
+          market_cap_at_synthesis?: number | null
+          mint: string
+          model_identifier?: string | null
+          model_provider?: string | null
+          name?: string | null
+          narrative_thesis?: string | null
+          one_sentence_thesis?: string | null
+          price_at_synthesis?: number | null
+          prompt_version: string
+          qualified_as_opportunity?: boolean
+          research_packet_id?: string | null
+          research_packet_version?: string | null
+          score_catalyst_narrative?: number | null
+          score_chart_context?: number | null
+          score_dev_integrity?: number | null
+          score_distribution?: number | null
+          score_liquidity?: number | null
+          score_meme_quality?: number | null
+          score_mindshare?: number | null
+          score_valuation?: number | null
+          sections?: Json | null
+          setups?: string[]
+          shortlist_milestone_id?: string | null
+          status: string
+          strongest_bear_case?: string | null
+          strongest_bull_case?: string | null
+          strongest_catalyst?: string | null
+          strongest_concern?: string | null
+          supporting_claim_refs?: string[]
+          supporting_source_refs?: string[]
+          symbol?: string | null
+          thesis_call_milestone_id?: string | null
+          thesis_policy_version: string
+          thesis_score?: number | null
+          thesis_synthesis_run_id: string
+          token_id?: string | null
+          triage_decision_id?: string | null
+          triage_run_id?: string | null
+          verdict?: string | null
+        }
+        Update: {
+          bear_case_severity?: string | null
+          blocked_reasons?: string[]
+          catalysts?: string[]
+          chain?: string
+          component_scores?: Json | null
+          created_at?: string
+          current_eligibility?: Json | null
+          deep_research_report_id?: string | null
+          deep_research_run_id?: string | null
+          diagnostics?: Json | null
+          evidence_confidence?: number | null
+          evidence_confidence_components?: Json | null
+          evidence_gaps?: string[]
+          id?: string
+          input_policy_version?: string
+          invalidation?: string[]
+          is_calibration?: boolean
+          liquidity_at_synthesis?: number | null
+          market_cap_at_synthesis?: number | null
+          mint?: string
+          model_identifier?: string | null
+          model_provider?: string | null
+          name?: string | null
+          narrative_thesis?: string | null
+          one_sentence_thesis?: string | null
+          price_at_synthesis?: number | null
+          prompt_version?: string
+          qualified_as_opportunity?: boolean
+          research_packet_id?: string | null
+          research_packet_version?: string | null
+          score_catalyst_narrative?: number | null
+          score_chart_context?: number | null
+          score_dev_integrity?: number | null
+          score_distribution?: number | null
+          score_liquidity?: number | null
+          score_meme_quality?: number | null
+          score_mindshare?: number | null
+          score_valuation?: number | null
+          sections?: Json | null
+          setups?: string[]
+          shortlist_milestone_id?: string | null
+          status?: string
+          strongest_bear_case?: string | null
+          strongest_bull_case?: string | null
+          strongest_catalyst?: string | null
+          strongest_concern?: string | null
+          supporting_claim_refs?: string[]
+          supporting_source_refs?: string[]
+          symbol?: string | null
+          thesis_call_milestone_id?: string | null
+          thesis_policy_version?: string
+          thesis_score?: number | null
+          thesis_synthesis_run_id?: string
+          token_id?: string | null
+          triage_decision_id?: string | null
+          triage_run_id?: string | null
+          verdict?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "thesis_reports_deep_research_report_id_fkey"
+            columns: ["deep_research_report_id"]
+            isOneToOne: false
+            referencedRelation: "deep_research_reports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "thesis_reports_deep_research_run_id_fkey"
+            columns: ["deep_research_run_id"]
+            isOneToOne: false
+            referencedRelation: "deep_research_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "thesis_reports_research_packet_id_fkey"
+            columns: ["research_packet_id"]
+            isOneToOne: false
+            referencedRelation: "research_packets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "thesis_reports_shortlist_milestone_id_fkey"
+            columns: ["shortlist_milestone_id"]
+            isOneToOne: false
+            referencedRelation: "token_stage_milestones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "thesis_reports_thesis_call_milestone_id_fkey"
+            columns: ["thesis_call_milestone_id"]
+            isOneToOne: false
+            referencedRelation: "token_stage_milestones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "thesis_reports_thesis_synthesis_run_id_fkey"
+            columns: ["thesis_synthesis_run_id"]
+            isOneToOne: false
+            referencedRelation: "thesis_synthesis_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "thesis_reports_token_id_fkey"
+            columns: ["token_id"]
+            isOneToOne: false
+            referencedRelation: "tokens"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "thesis_reports_triage_decision_id_fkey"
+            columns: ["triage_decision_id"]
+            isOneToOne: false
+            referencedRelation: "ai_triage_decisions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "thesis_reports_triage_run_id_fkey"
+            columns: ["triage_run_id"]
+            isOneToOne: false
+            referencedRelation: "ai_triage_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      thesis_synthesis_runs: {
+        Row: {
+          blocked_count: number
+          code: string | null
+          completed_at: string | null
+          completed_count: number
+          created_at: string
+          diagnostics: Json | null
+          error: string | null
+          failed_count: number
+          id: string
+          input_policy_version: string
+          insufficient_count: number
+          is_calibration: boolean
+          model_identifier: string | null
+          model_provider: string | null
+          opportunity_count: number
+          prompt_version: string
+          requested_count: number
+          source_scan_id: string | null
+          started_at: string
+          status: string
+          thesis_call_count: number
+          thesis_policy_version: string
+          triage_run_id: string | null
+        }
+        Insert: {
+          blocked_count?: number
+          code?: string | null
+          completed_at?: string | null
+          completed_count?: number
+          created_at?: string
+          diagnostics?: Json | null
+          error?: string | null
+          failed_count?: number
+          id?: string
+          input_policy_version: string
+          insufficient_count?: number
+          is_calibration?: boolean
+          model_identifier?: string | null
+          model_provider?: string | null
+          opportunity_count?: number
+          prompt_version: string
+          requested_count?: number
+          source_scan_id?: string | null
+          started_at?: string
+          status?: string
+          thesis_call_count?: number
+          thesis_policy_version: string
+          triage_run_id?: string | null
+        }
+        Update: {
+          blocked_count?: number
+          code?: string | null
+          completed_at?: string | null
+          completed_count?: number
+          created_at?: string
+          diagnostics?: Json | null
+          error?: string | null
+          failed_count?: number
+          id?: string
+          input_policy_version?: string
+          insufficient_count?: number
+          is_calibration?: boolean
+          model_identifier?: string | null
+          model_provider?: string | null
+          opportunity_count?: number
+          prompt_version?: string
+          requested_count?: number
+          source_scan_id?: string | null
+          started_at?: string
+          status?: string
+          thesis_call_count?: number
+          thesis_policy_version?: string
+          triage_run_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "thesis_synthesis_runs_source_scan_id_fkey"
+            columns: ["source_scan_id"]
+            isOneToOne: false
+            referencedRelation: "scan_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "thesis_synthesis_runs_triage_run_id_fkey"
+            columns: ["triage_run_id"]
+            isOneToOne: false
+            referencedRelation: "ai_triage_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       token_price_candles: {
         Row: {
           candle_time: string
