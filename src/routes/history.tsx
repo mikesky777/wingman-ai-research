@@ -25,6 +25,11 @@ import {
   type StageSetupFilter,
   type StageSort,
 } from "@/lib/wingman/services/history/milestones";
+import {
+  POLICY_LABELS,
+  filterByPolicy,
+  type PolicyFilter,
+} from "@/lib/wingman/services/history/policy-epochs";
 import { LIVE_REFRESH_INTERVAL_MS } from "@/lib/wingman/services/history/live-market";
 import { CohortSummaryCards } from "@/components/wingman/history/CohortSummary";
 import { CohortTable } from "@/components/wingman/history/CohortTable";
@@ -146,6 +151,11 @@ function StageView({ stage }: { stage: FunnelStage }) {
     queryFn: () => StageMilestoneService.provenanceByToken("SURVIVOR"),
     enabled: isSurvivor,
   });
+  const survivorPolicy = useQuery({
+    queryKey: ["wingman", "stage-policy", "SURVIVOR"],
+    queryFn: () => StageMilestoneService.policyByToken("SURVIVOR"),
+    enabled: isSurvivor,
+  });
   const stageQuery = useQuery({
     queryKey: ["wingman", "stage-cohort", stage],
     queryFn: () => StageMilestoneService.stageCohort(stage),
@@ -158,16 +168,32 @@ function StageView({ stage }: { stage: FunnelStage }) {
     if (!isSurvivor) return stageQuery.data ?? [];
     return (survivorQuery.data ?? [])
       .filter((t) => t.firstCallAt !== null)
-      .map((t) => survivorRowFromCohortToken(t, survivorProvenance.data?.get(t.tokenId) ?? null));
-  }, [isSurvivor, stageQuery.data, survivorQuery.data, survivorProvenance.data]);
+      .map((t) =>
+        survivorRowFromCohortToken(
+          t,
+          survivorProvenance.data?.get(t.tokenId) ?? null,
+          survivorPolicy.data?.get(t.tokenId) ?? null,
+        ),
+      );
+  }, [isSurvivor, stageQuery.data, survivorQuery.data, survivorProvenance.data, survivorPolicy.data]);
 
   const [selected, setSelected] = useState<string | null>(null);
   const [sort, setSort] = useState<StageSort>("RECENT");
   const [setupFilter, setSetupFilter] = useState<StageSetupFilter>("ALL");
+  const [policy, setPolicy] = useState<PolicyFilter>("CURRENT");
+
+  // Setup Qualified is deliberately NOT policy-filtered: qualifying for a setup
+  // never meant Survivor eligibility, so a policy cohort there would imply a
+  // selection decision that was never made.
+  const policyApplies = stage === "SURVIVOR" || stage === "AI_SHORTLIST" || stage === "THESIS_CALL";
 
   const cohort = useMemo(
-    () => sortStageRows(filterStageRows(rows, setupFilter), sort),
-    [rows, setupFilter, sort],
+    () =>
+      sortStageRows(
+        filterStageRows(policyApplies ? filterByPolicy(rows, policy) : rows, setupFilter),
+        sort,
+      ),
+    [rows, setupFilter, sort, policy, policyApplies],
   );
   const addresses = useMemo(
     () => cohort.map((t) => t.contractAddress).filter((a): a is string => Boolean(a)),
@@ -240,11 +266,36 @@ function StageView({ stage }: { stage: FunnelStage }) {
         title={`${terms.title} cohort`}
         description={
           stage === "SURVIVOR"
-            ? "Unique tokens with a frozen First Survivor selection. Descriptive historical measurement — not thesis returns or simulated trading."
+            ? `Unique tokens with a frozen First Survivor selection. ${policy === "CURRENT" ? `Only calls made under ${POLICY_LABELS.CURRENT_V1.toLowerCase()} (CURRENT_V1).` : "Every historical call, across all policy eras."} Descriptive historical measurement — not thesis returns or simulated trading.`
             : "Unique tokens the first time they qualified for a recognized BASE or REACCEL setup."
         }
       >
         <div className="mb-3 flex flex-wrap items-center gap-1">
+          {policyApplies ? (
+            <>
+              <span className="label-xs mr-1">Policy</span>
+              {(
+                [
+                  ["CURRENT", "Current"],
+                  ["ALL", "All history"],
+                ] as [PolicyFilter, string][]
+              ).map(([key, label]) => (
+                <button
+                  key={key}
+                  onClick={() => setPolicy(key)}
+                  className={cn(
+                    "rounded border px-2.5 py-1 font-mono text-[10px] tracking-wide transition-colors",
+                    policy === key
+                      ? "border-primary/50 bg-primary/10 text-primary"
+                      : "border-border-strong text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+              <span className="mr-1 ml-4" />
+            </>
+          ) : null}
           <span className="label-xs mr-1">Setup</span>
           {setupFilters.map((key) => (
             <button
@@ -287,11 +338,14 @@ function StageView({ stage }: { stage: FunnelStage }) {
           <EmptyState
             title="No stage entries yet"
             description={
-              stage === "SURVIVOR"
-                ? "A token joins this cohort once it is selected as a Wingman Survivor."
-                : "A token joins this cohort the first time it qualifies for BASE or REACCEL."
+              policyApplies && policy === "CURRENT" && rows.length > 0
+                ? "No calls have been made yet under the current policy. Switch to All history to see earlier calls, measured under the rules that were live at the time."
+                : stage === "SURVIVOR"
+                  ? "A token joins this cohort once it is selected as a Wingman Survivor."
+                  : "A token joins this cohort the first time it qualifies for BASE or REACCEL."
             }
           />
+
         ) : (
           <CohortTable stage={stage} tokens={cohort} live={live.values} onSelect={setSelected} />
         )}

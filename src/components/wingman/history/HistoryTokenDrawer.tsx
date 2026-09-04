@@ -16,6 +16,7 @@ import {
   type StageRow,
 } from "@/lib/wingman/services/history/milestones";
 import type { LiveMarketValues } from "@/lib/wingman/services/history/live-market";
+import { POLICY_LABELS } from "@/lib/wingman/services/history/policy-epochs";
 
 function pct(value: number | null | undefined): string {
   if (value === null || value === undefined) return "—";
@@ -144,8 +145,14 @@ export function HistoryTokenDrawer({
                 { label: "Packet version", value: p?.researchPacketVersion ?? "—" },
                 { label: "AI / thesis run", value: p?.researchRunId ?? "—" },
                 { label: "Research report", value: p?.researchReportId ?? "—" },
+                {
+                  label: "Policy era",
+                  value: `${POLICY_LABELS[token.policyEpoch] ?? token.policyEpoch} (${token.policyEpoch})`,
+                },
+                { label: "Selection policy", value: token.selectionPolicyVersion ?? "—" },
                 { label: "Policy version", value: p?.policyVersion ?? "—" },
                 { label: "Milestone version", value: p?.milestoneVersion ?? "—" },
+
               ]}
             />
           </section>

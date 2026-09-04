@@ -11,6 +11,10 @@
  */
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { SCANNER_VERSION, type StrategySettings } from "./config";
+import {
+  CURRENT_POLICY_EPOCH,
+  SELECTION_POLICY_VERSION,
+} from "../history/policy-epochs";
 import { marketCapBucket } from "./diagnostics";
 import { RECURRENCE_CONFIG, type RecurrenceAppearance } from "./recurrence";
 import { ABANDONED_RUN_REASON, SCAN_STALE_AFTER_MS } from "./run-lifecycle";
@@ -117,6 +121,9 @@ async function insertScanRun(input: StartRunInput): Promise<string> {
       calibration_mode: input.calibrationMode,
       config_version: input.strategy.configVersion,
       config_snapshot: input.strategy as never,
+      // Policy era this run actually executes under, frozen at run start.
+      selection_policy_version: SELECTION_POLICY_VERSION,
+      policy_epoch: CURRENT_POLICY_EPOCH,
     } as never)
     .select("id")
     .single();

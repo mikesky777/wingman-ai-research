@@ -24,6 +24,12 @@ import {
   type StageMilestone,
   type StageProvenance,
 } from "./milestones";
+import {
+  CURRENT_POLICY_EPOCH,
+  SELECTION_POLICY_VERSION,
+  epochForMilestone,
+  type PolicyEpoch,
+} from "./policy-epochs";
 
 type Row = Record<string, unknown>;
 
@@ -114,6 +120,27 @@ async function loadFirstCalls(): Promise<Row[]> {
   );
 }
 
+/** Policy era each completed scan run actually executed under. */
+async function loadRunPolicies(): Promise<
+  Map<string, { selectionPolicyVersion: string | null; policyEpoch: string | null }>
+> {
+  const rows = await fetchAllPages((from, to) =>
+    supabaseAdmin
+      .from("scan_runs")
+      .select("id, selection_policy_version, policy_epoch")
+      .order("id", { ascending: true })
+      .range(from, to),
+  );
+  const out = new Map<string, { selectionPolicyVersion: string | null; policyEpoch: string | null }>();
+  for (const row of rows) {
+    out.set(row["id"] as string, {
+      selectionPolicyVersion: (row["selection_policy_version"] as string | null) ?? null,
+      policyEpoch: (row["policy_epoch"] as string | null) ?? null,
+    });
+  }
+  return out;
+}
+
 /** Key of an existing frozen entry: mint + stage + setup dimension. */
 const milestoneKey = (tokenId: string, stage: string, setupKey: string) =>
   `${tokenId}:${stage}:${setupKey}`;
@@ -122,7 +149,7 @@ async function loadExistingMilestones(): Promise<Map<string, Row>> {
   const rows = await fetchAllPages((from, to) =>
     supabaseAdmin
       .from("token_stage_milestones")
-      .select("token_id, stage, setup_key, first_entered_at, source_scan_id")
+      .select("id, token_id, stage, setup_key, first_entered_at, source_scan_id, policy_epoch")
       .order("id", { ascending: true })
       .range(from, to),
   );
@@ -167,6 +194,11 @@ function toInsertRow(milestone: StageMilestone, sourceType: MilestoneSourceType)
     policy_version: milestone.provenance.policyVersion,
     milestone_version: MILESTONE_VERSION,
     baseline_complete: milestone.baselineComplete,
+    policy_epoch: milestone.policyEpoch,
+    selection_policy_version: milestone.selectionPolicyVersion,
+    ai_policy_version: milestone.aiPolicyVersion,
+    research_model_version: milestone.researchModelVersion,
+    selected_at: milestone.selectedAt,
   };
 }
 
@@ -201,6 +233,9 @@ export interface MilestoneBackfillResult {
   reconciliationMismatches: { tokenId: string; reason: string }[];
   incompleteBaselines: number;
   tokensConsidered: number;
+  /** Epoch counts across ALL milestones after the backfill. */
+  policyEpochCounts: Record<PolicyEpoch, number>;
+  policyEpochsAssigned: Record<PolicyEpoch, number>;
 }
 
 /**
@@ -210,12 +245,24 @@ export interface MilestoneBackfillResult {
  * entry — a delayed run never replaces an earlier authoritative baseline.
  */
 export async function backfillStageMilestones(): Promise<MilestoneBackfillResult> {
-  const [appearances, addresses, firstCalls, existing] = await Promise.all([
+  const [appearances, addresses, firstCalls, existing, runPolicies] = await Promise.all([
     loadAppearances(),
     loadAddresses(),
     loadFirstCalls(),
     loadExistingMilestones(),
+    loadRunPolicies(),
   ]);
+
+  /**
+   * The originating scan is the ONLY authoritative evidence of which policy was
+   * live. Nothing is re-evaluated against today's rules.
+   */
+  const stampPolicy = (milestone: StageMilestone): StageMilestone => ({
+    ...milestone,
+    policyEpoch: epochForMilestone(milestone.provenance.sourceScanId, runPolicies),
+    selectionPolicyVersion:
+      runPolicies.get(milestone.provenance.sourceScanId ?? "")?.selectionPolicyVersion ?? null,
+  });
 
   const inserts: Row[] = [];
   const mismatches: { tokenId: string; reason: string }[] = [];
@@ -235,7 +282,7 @@ export async function backfillStageMilestones(): Promise<MilestoneBackfillResult
     for (const milestone of milestones) {
       if (existing.has(milestoneKey(tokenId, "SETUP_QUALIFIED", milestone.setupKey))) continue;
       if (!milestone.baselineComplete) incomplete += 1;
-      inserts.push(toInsertRow(milestone, "BACKFILL"));
+      inserts.push(toInsertRow(stampPolicy(milestone), "BACKFILL"));
     }
   }
 
@@ -278,7 +325,7 @@ export async function backfillStageMilestones(): Promise<MilestoneBackfillResult
     );
     if (!milestone) continue;
     if (!milestone.baselineComplete) incomplete += 1;
-    inserts.push(toInsertRow(milestone, "BACKFILL"));
+    inserts.push(toInsertRow(stampPolicy(milestone), "BACKFILL"));
   }
 
   const written: Record<FunnelStage, number> = {
@@ -289,6 +336,42 @@ export async function backfillStageMilestones(): Promise<MilestoneBackfillResult
   };
   for (const row of inserts) written[row["stage"] as FunnelStage] += 1;
   await appendMilestones(inserts);
+
+  // Fill the policy epoch on rows written before epochs existed. Only rows that
+  // are still UNKNOWN_POLICY are touched, and only the epoch fields change:
+  // baselines, outcomes and provenance are never rewritten, and a row that
+  // already carries an epoch keeps it forever.
+  const policyBackfill: Record<PolicyEpoch, number> = {
+    LEGACY_V0: 0,
+    CURRENT_V1: 0,
+    UNKNOWN_POLICY: 0,
+  };
+  const pending = new Map<string, string[]>();
+  for (const row of existing.values()) {
+    const current = (row["policy_epoch"] as string | null) ?? "UNKNOWN_POLICY";
+    if (current !== "UNKNOWN_POLICY") continue;
+    const scanId = (row["source_scan_id"] as string | null) ?? null;
+    const epoch = epochForMilestone(scanId, runPolicies);
+    if (epoch === "UNKNOWN_POLICY") continue;
+    const version = runPolicies.get(scanId ?? "")?.selectionPolicyVersion ?? "";
+    const key = `${epoch}|${version}`;
+    const list = pending.get(key) ?? [];
+    list.push(row["id"] as string);
+    pending.set(key, list);
+  }
+  for (const [key, ids] of pending) {
+    const [epoch, version] = key.split("|") as [PolicyEpoch, string];
+    for (let i = 0; i < ids.length; i += 200) {
+      const { error } = await supabaseAdmin
+        .from("token_stage_milestones")
+        .update({ policy_epoch: epoch, selection_policy_version: version || null } as never)
+        .in("id", ids.slice(i, i + 200))
+        .eq("policy_epoch", "UNKNOWN_POLICY");
+      if (error) throw error;
+    }
+    policyBackfill[epoch] += ids.length;
+  }
+
 
   const after = await loadExistingMilestones();
   let setupTotal = 0;
@@ -303,7 +386,19 @@ export async function backfillStageMilestones(): Promise<MilestoneBackfillResult
   }
 
 
+  const epochCounts: Record<PolicyEpoch, number> = {
+    LEGACY_V0: 0,
+    CURRENT_V1: 0,
+    UNKNOWN_POLICY: 0,
+  };
+  for (const row of after.values()) {
+    const epoch = ((row["policy_epoch"] as string | null) ?? "UNKNOWN_POLICY") as PolicyEpoch;
+    epochCounts[epoch] = (epochCounts[epoch] ?? 0) + 1;
+  }
+
   return {
+    policyEpochCounts: epochCounts,
+    policyEpochsAssigned: policyBackfill,
     stagesWritten: written,
     setupQualifiedTotal: setupTotal,
     setupQualifiedBySetup: bySetup,
@@ -343,6 +438,16 @@ export interface ScanMilestoneWriteResult {
  * exact market state of that scan, appends only, and is safe to retry: an
  * existing first entry is never rewritten.
  */
+/** Scanner writes are stamped with the policy version live in the code today. */
+function withRunPolicy(milestone: StageMilestone, selectedAt: string): StageMilestone {
+  return {
+    ...milestone,
+    policyEpoch: CURRENT_POLICY_EPOCH,
+    selectionPolicyVersion: SELECTION_POLICY_VERSION,
+    selectedAt,
+  };
+}
+
 export async function recordScanMilestones(input: {
   scanRunId: string;
   completedAt: string;
@@ -374,7 +479,7 @@ export async function recordScanMilestones(input: {
     for (const setup of QUALIFYING_SETUPS) {
       const milestone = deriveSetupMilestone(identity, [appearance], setup);
       if (!milestone) continue;
-      rows.push(toInsertRow(milestone, "SCANNER"));
+      rows.push(toInsertRow(withRunPolicy(milestone, input.completedAt), "SCANNER"));
       setupCount += 1;
     }
 
@@ -391,7 +496,7 @@ export async function recordScanMilestones(input: {
         appearance,
       );
       if (milestone) {
-        rows.push(toInsertRow(milestone, "SCANNER"));
+        rows.push(toInsertRow(withRunPolicy(milestone, input.completedAt), "SCANNER"));
         survivorCount += 1;
       }
     }
@@ -417,6 +522,10 @@ export async function recordAiStageMilestone(input: {
   priceUsd: number | null;
   liquidityUsd: number | null;
   provenance: Partial<StageProvenance> & { sourceType: MilestoneSourceType };
+  /** AI epochs are versioned INDEPENDENTLY from the scanner policy epoch. */
+  policyEpoch?: PolicyEpoch;
+  aiPolicyVersion?: string | null;
+  researchModelVersion?: string | null;
 }): Promise<void> {
   const provenance: StageProvenance = {
     ...emptyProvenance(input.provenance.sourceType),
@@ -439,6 +548,11 @@ export async function recordAiStageMilestone(input: {
     liquidityAtEntry: input.liquidityUsd,
     quantitativePriorityAtEntry: null,
     baselineComplete: input.marketCap !== null && input.priceUsd !== null,
+    policyEpoch: input.policyEpoch ?? "UNKNOWN_POLICY",
+    selectionPolicyVersion: null,
+    aiPolicyVersion: input.aiPolicyVersion ?? null,
+    researchModelVersion: input.researchModelVersion ?? null,
+    selectedAt: input.enteredAt,
     provenance,
   };
   await appendMilestones([toInsertRow(milestone, provenance.sourceType)]);

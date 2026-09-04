@@ -15,6 +15,7 @@
  */
 import type { CohortToken, Stat } from "./cohort";
 import { mean, median, validValues } from "./cohort";
+import { CURRENT_POLICY_EPOCH, SELECTION_POLICY_VERSION, type PolicyEpoch } from "./policy-epochs";
 
 export const FUNNEL_STAGES = [
   "SETUP_QUALIFIED",
@@ -96,7 +97,25 @@ export interface StageMilestone {
   quantitativePriorityAtEntry: number | null;
   /** True when market cap + price are both present, so outcomes are derivable. */
   baselineComplete: boolean;
+  /** Policy era that was actually live at this event. Frozen, never recomputed. */
+  policyEpoch: PolicyEpoch;
+  selectionPolicyVersion: string | null;
+  aiPolicyVersion: string | null;
+  researchModelVersion: string | null;
+  /** Exact moment of the event (same instant as firstEnteredAt for scans). */
+  selectedAt: string | null;
   provenance: StageProvenance;
+}
+
+/** Policy stamp applied to a milestone created by the CURRENT scanner policy. */
+export function currentPolicyStamp(selectedAt: string | null) {
+  return {
+    policyEpoch: CURRENT_POLICY_EPOCH,
+    selectionPolicyVersion: SELECTION_POLICY_VERSION,
+    aiPolicyVersion: null,
+    researchModelVersion: null,
+    selectedAt,
+  } as const;
 }
 
 /** One persisted scanner appearance of an exact mint in a COMPLETED scan. */
@@ -156,6 +175,11 @@ export function deriveSetupMilestone(
       ? first.quantitativePriority
       : null,
     baselineComplete: isNum(first.marketCap) && isNum(first.priceUsd),
+    policyEpoch: "UNKNOWN_POLICY",
+    selectionPolicyVersion: null,
+    aiPolicyVersion: null,
+    researchModelVersion: null,
+    selectedAt: first.completedAt,
     provenance: {
       ...emptyProvenance("SCANNER"),
       sourceId: first.scanRunId,
@@ -215,6 +239,11 @@ export function deriveSurvivorMilestone(
       ? callAppearance!.quantitativePriority
       : null,
     baselineComplete: isNum(record.firstCallMarketCap) && isNum(record.firstCallPriceUsd),
+    policyEpoch: "UNKNOWN_POLICY",
+    selectionPolicyVersion: null,
+    aiPolicyVersion: null,
+    researchModelVersion: null,
+    selectedAt: record.firstCallAt,
     provenance: {
       ...emptyProvenance("SCANNER"),
       sourceId: record.firstCallScanId,
@@ -271,6 +300,9 @@ export interface StageRow {
   latestRecurrenceState: string | null;
   provenance: StageProvenance | null;
   baselineComplete: boolean;
+  /** Policy era frozen at stage entry. */
+  policyEpoch: PolicyEpoch;
+  selectionPolicyVersion: string | null;
 }
 
 /** Stage-appropriate wording. Survivor metrics are never called thesis returns. */
@@ -306,7 +338,11 @@ export const STAGE_TERMS: Record<FunnelStage, { title: string; since: string; pe
 };
 
 /** Adapter: the existing First Survivor cohort expressed as stage rows. */
-export function survivorRowFromCohortToken(token: CohortToken, provenance?: StageProvenance | null): StageRow {
+export function survivorRowFromCohortToken(
+  token: CohortToken,
+  provenance?: StageProvenance | null,
+  policy?: { policyEpoch: PolicyEpoch; selectionPolicyVersion: string | null } | null,
+): StageRow {
   return {
     tokenId: token.tokenId,
     contractAddress: token.contractAddress,
@@ -338,6 +374,8 @@ export function survivorRowFromCohortToken(token: CohortToken, provenance?: Stag
     latestRecurrenceState: token.latestRecurrenceState,
     provenance: provenance ?? null,
     baselineComplete: token.firstCallMarketCap !== null,
+    policyEpoch: policy?.policyEpoch ?? "UNKNOWN_POLICY",
+    selectionPolicyVersion: policy?.selectionPolicyVersion ?? null,
   };
 }
 
