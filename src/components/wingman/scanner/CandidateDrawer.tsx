@@ -28,6 +28,27 @@ import { DexScreenerEmbed } from "@/components/wingman/history/DexScreenerEmbed"
 import type { WorkbenchCandidate } from "@/lib/wingman/services/scanner-service";
 import { evaluateFromCandidateRowSummary } from "@/lib/wingman/services/scanner/price-integrity";
 import { deriveDamageTimeline } from "@/lib/wingman/services/scanner/market-damage";
+import { buildResearchPacket } from "@/lib/wingman/services/research/packet";
+import { compactJson } from "@/lib/wingman/services/research/serialize";
+import {
+  RESEARCH_COMPACT_VERSION,
+  type CandidateSource,
+} from "@/lib/wingman/services/research/types";
+
+/** Evidence domains a v1 packet carries. Display only. */
+const RESEARCH_PACKET_DOMAINS = [
+  "identity",
+  "scanner",
+  "eligibility",
+  "market",
+  "universe",
+  "structural",
+  "market_damage",
+  "price_integrity",
+  "participation",
+  "holders",
+  "outcomes",
+] as const;
 import { useLiveMarket } from "@/components/wingman/history/useLiveMarket";
 import {
   COMPONENT_LABELS,
@@ -153,6 +174,42 @@ export function CandidateDrawer({
     firstSeenScanAt: c.firstSeenScanAt,
     scanAt: c.lastEnrichedAt,
   });
+
+  // Read-only preview of the canonical Research Packet. Pure assembly from the
+  // already-loaded row: no provider call, no LLM, no persistence side effect.
+  const researchPacketSource: CandidateSource = c.selectedByLaneReservation ||
+    c.selectedByGlobalRanking
+    ? "SURVIVOR"
+    : c.lanes.includes("BASE")
+      ? "BASE"
+      : c.lanes.includes("REACCEL")
+        ? "REACCEL"
+        : "EXPLORATION";
+  const researchPacket = buildResearchPacket({
+    candidate: c,
+    candidateSource: researchPacketSource,
+    scanRunId: scanRunId ?? "unsaved",
+    scanCompletedAt: c.lastEnrichedAt,
+    currentMarket: liveValues
+      ? {
+          priceUsd: liveValues.priceUsd ?? null,
+          marketCap: liveValues.marketCap ?? null,
+          liquidityUsd: liveValues.liquidityUsd ?? null,
+          volume1h: null,
+          volume24h: liveValues.volume24h ?? null,
+          trades1h: null,
+          trades24h: null,
+          buys24h: null,
+          sells24h: null,
+          priceChange1h: liveValues.priceChange1h ?? null,
+          priceChange24h: liveValues.priceChange24h ?? null,
+          source: "dexscreener",
+          observedAt: liveValues.observedAt ?? null,
+        }
+      : null,
+    holderEvidence: [],
+  });
+  const researchPacketBytes = compactJson(researchPacket).bytes;
 
   return (
     <Sheet open onOpenChange={(open) => (!open ? onClose() : undefined)}>
@@ -1288,6 +1345,36 @@ export function CandidateDrawer({
                 </p>
               )
             ) : null}
+          </Block>
+
+          <Block title="AI research packet (calibration)">
+            <Row label="Packet version" value={researchPacket.packetVersion} />
+            <Row label="Serialization" value={RESEARCH_COMPACT_VERSION} />
+            <Row label="Candidate source" value={researchPacketSource} />
+            <Row label="Compact size" value={`${researchPacketBytes} bytes`} />
+            <Row
+              label="Research eligible now"
+              value={researchPacket.eligibility.researchEligibleNow ? "YES" : "NO"}
+            />
+            {researchPacket.eligibility.exclusionReasons.length > 0 ? (
+              <Row
+                label="Exclusion reasons"
+                value={researchPacket.eligibility.exclusionReasons.join(", ")}
+              />
+            ) : null}
+            <Row label="Evidence domains" value={RESEARCH_PACKET_DOMAINS.join(", ")} />
+            <Row
+              label="Evidence gaps"
+              value={
+                researchPacket.evidenceGaps.length === 0
+                  ? "none"
+                  : researchPacket.evidenceGaps.join(", ")
+              }
+            />
+            <p className="mt-1.5 text-[11px] text-muted-foreground">
+              Preview of the structured data future AI research reads. No model is called, no
+              thesis or score exists yet, and gaps are never treated as negative evidence.
+            </p>
           </Block>
 
           <Block title="Human calibration label">

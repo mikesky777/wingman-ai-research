@@ -244,6 +244,78 @@ export type Database = {
           },
         ]
       }
+      research_packets: {
+        Row: {
+          candidate_source: string
+          chain: string
+          compact: Json
+          compact_bytes: number | null
+          contract_address: string | null
+          created_at: string
+          evidence_gaps: string[]
+          exclusion_reasons: string[]
+          generated_at: string
+          id: string
+          packet: Json
+          packet_version: string
+          research_eligible_now: boolean
+          scan_run_id: string | null
+          serialization_version: string
+          token_id: string
+        }
+        Insert: {
+          candidate_source: string
+          chain?: string
+          compact: Json
+          compact_bytes?: number | null
+          contract_address?: string | null
+          created_at?: string
+          evidence_gaps?: string[]
+          exclusion_reasons?: string[]
+          generated_at?: string
+          id?: string
+          packet: Json
+          packet_version: string
+          research_eligible_now: boolean
+          scan_run_id?: string | null
+          serialization_version: string
+          token_id: string
+        }
+        Update: {
+          candidate_source?: string
+          chain?: string
+          compact?: Json
+          compact_bytes?: number | null
+          contract_address?: string | null
+          created_at?: string
+          evidence_gaps?: string[]
+          exclusion_reasons?: string[]
+          generated_at?: string
+          id?: string
+          packet?: Json
+          packet_version?: string
+          research_eligible_now?: boolean
+          scan_run_id?: string | null
+          serialization_version?: string
+          token_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_packets_scan_run_id_fkey"
+            columns: ["scan_run_id"]
+            isOneToOne: false
+            referencedRelation: "scan_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "research_packets_token_id_fkey"
+            columns: ["token_id"]
+            isOneToOne: false
+            referencedRelation: "tokens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       research_reports: {
         Row: {
           base_mc_high: number | null
