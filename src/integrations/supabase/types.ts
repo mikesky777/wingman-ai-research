@@ -768,12 +768,14 @@ export type Database = {
           passed_ai_triage: number
           passed_hard_filters: number
           passed_quantitative_ranking: number
+          policy_epoch: string | null
           price_integrity_diagnostics: Json | null
           provider_telemetry: Json | null
           quantitatively_ranked: number
           recurrence_diagnostics: Json | null
           refresh_diagnostics: Json | null
           scanner_version: string | null
+          selection_policy_version: string | null
           started_at: string
           status: string
           structural_diagnostics: Json | null
@@ -805,12 +807,14 @@ export type Database = {
           passed_ai_triage?: number
           passed_hard_filters?: number
           passed_quantitative_ranking?: number
+          policy_epoch?: string | null
           price_integrity_diagnostics?: Json | null
           provider_telemetry?: Json | null
           quantitatively_ranked?: number
           recurrence_diagnostics?: Json | null
           refresh_diagnostics?: Json | null
           scanner_version?: string | null
+          selection_policy_version?: string | null
           started_at?: string
           status?: string
           structural_diagnostics?: Json | null
@@ -842,12 +846,14 @@ export type Database = {
           passed_ai_triage?: number
           passed_hard_filters?: number
           passed_quantitative_ranking?: number
+          policy_epoch?: string | null
           price_integrity_diagnostics?: Json | null
           provider_telemetry?: Json | null
           quantitatively_ranked?: number
           recurrence_diagnostics?: Json | null
           refresh_diagnostics?: Json | null
           scanner_version?: string | null
+          selection_policy_version?: string | null
           started_at?: string
           status?: string
           structural_diagnostics?: Json | null
@@ -1371,6 +1377,7 @@ export type Database = {
       }
       token_stage_milestones: {
         Row: {
+          ai_policy_version: string | null
           baseline_complete: boolean
           chain: string
           contract_address: string
@@ -1386,13 +1393,17 @@ export type Database = {
           market_snapshot_id: string | null
           metadata: Json | null
           milestone_version: string
+          policy_epoch: string
           policy_version: string | null
           price_at_entry: number | null
           quantitative_priority_at_entry: number | null
+          research_model_version: string | null
           research_packet_id: string | null
           research_packet_version: string | null
           research_report_id: string | null
           research_run_id: string | null
+          selected_at: string | null
+          selection_policy_version: string | null
           setup_at_entry: string | null
           setup_key: string
           source_id: string | null
@@ -1403,6 +1414,7 @@ export type Database = {
           token_id: string
         }
         Insert: {
+          ai_policy_version?: string | null
           baseline_complete?: boolean
           chain?: string
           contract_address: string
@@ -1418,13 +1430,17 @@ export type Database = {
           market_snapshot_id?: string | null
           metadata?: Json | null
           milestone_version?: string
+          policy_epoch?: string
           policy_version?: string | null
           price_at_entry?: number | null
           quantitative_priority_at_entry?: number | null
+          research_model_version?: string | null
           research_packet_id?: string | null
           research_packet_version?: string | null
           research_report_id?: string | null
           research_run_id?: string | null
+          selected_at?: string | null
+          selection_policy_version?: string | null
           setup_at_entry?: string | null
           setup_key?: string
           source_id?: string | null
@@ -1435,6 +1451,7 @@ export type Database = {
           token_id: string
         }
         Update: {
+          ai_policy_version?: string | null
           baseline_complete?: boolean
           chain?: string
           contract_address?: string
@@ -1450,13 +1467,17 @@ export type Database = {
           market_snapshot_id?: string | null
           metadata?: Json | null
           milestone_version?: string
+          policy_epoch?: string
           policy_version?: string | null
           price_at_entry?: number | null
           quantitative_priority_at_entry?: number | null
+          research_model_version?: string | null
           research_packet_id?: string | null
           research_packet_version?: string | null
           research_report_id?: string | null
           research_run_id?: string | null
+          selected_at?: string | null
+          selection_policy_version?: string | null
           setup_at_entry?: string | null
           setup_key?: string
           source_id?: string | null
