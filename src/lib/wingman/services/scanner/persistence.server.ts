@@ -13,6 +13,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { SCANNER_VERSION, type StrategySettings } from "./config";
 import { marketCapBucket } from "./diagnostics";
 import { RECURRENCE_CONFIG, type RecurrenceAppearance } from "./recurrence";
+import { ABANDONED_RUN_REASON, SCAN_STALE_AFTER_MS } from "./run-lifecycle";
 import type {
   DiscoveredToken,
   EvaluatedCandidate,
@@ -30,13 +31,64 @@ export interface StartRunInput {
 }
 
 export class ConcurrentScanError extends Error {
-  constructor() {
+  /** The run actually holding the lock, when it could be identified. */
+  activeRunId: string | null;
+  constructor(activeRunId: string | null = null) {
     super("A scan is already running.");
     this.name = "ConcurrentScanError";
+    this.activeRunId = activeRunId;
   }
 }
 
+export interface ActiveRun {
+  id: string;
+  startedAt: string | null;
+}
+
+/** The single run currently holding the lock, if any. */
+export async function getActiveRun(): Promise<ActiveRun | null> {
+  const { data, error } = await supabaseAdmin
+    .from("scan_runs")
+    .select("id, started_at")
+    .eq("status", "running")
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(`Could not read active scan run: ${error.message}`);
+  if (!data) return null;
+  const row = data as Row;
+  return { id: row["id"] as string, startedAt: (row["started_at"] as string | null) ?? null };
+}
+
+/**
+ * Release the lock held by runs whose worker died. Only `running` rows older
+ * than the stale threshold are touched; completed and failed history is never
+ * modified. Returns the reclaimed run ids.
+ */
+export async function reclaimStaleRuns(nowMs: number = Date.now()): Promise<string[]> {
+  const cutoff = new Date(nowMs - SCAN_STALE_AFTER_MS).toISOString();
+  const { data, error } = await supabaseAdmin
+    .from("scan_runs")
+    .update({
+      status: "failed",
+      completed_at: new Date(nowMs).toISOString(),
+      error_message: ABANDONED_RUN_REASON,
+    } as never)
+    .eq("status", "running")
+    .lt("started_at", cutoff)
+    .select("id");
+  if (error) throw new Error(`Could not reclaim stale scan runs: ${error.message}`);
+  return ((data as Row[] | null) ?? []).map((r) => r["id"] as string);
+}
+
 export async function startScanRun(input: StartRunInput): Promise<string> {
+  // An abandoned run must never block scanning forever: reclaim first, then
+  // rely on the unique partial index to reject genuine concurrency.
+  await reclaimStaleRuns();
+  return insertScanRun(input);
+}
+
+async function insertScanRun(input: StartRunInput): Promise<string> {
   const { data, error } = await supabaseAdmin
     .from("scan_runs")
     .insert({
@@ -53,7 +105,10 @@ export async function startScanRun(input: StartRunInput): Promise<string> {
 
   if (error) {
     // 23505 = unique violation on the single-running-scan index.
-    if (error.code === "23505") throw new ConcurrentScanError();
+    if (error.code === "23505") {
+      const active = await getActiveRun().catch(() => null);
+      throw new ConcurrentScanError(active?.id ?? null);
+    }
     throw new Error(`Could not start scan run: ${error.message}`);
   }
   return (data as Row)["id"] as string;
