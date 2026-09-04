@@ -675,6 +675,18 @@ function ScannerPage() {
                           ? formatOutcomePct(c.outcome.peakMarketCapSinceCallPct)
                           : "—"}
                       </td>
+                      <td
+                        className={cn(
+                          "tabular text-right text-sm",
+                          outcomeTone(c.outcome?.maxAdverseSinceCallPctV2),
+                        )}
+                        title="Worst observed market-cap move below Wingman's first Survivor call."
+                      >
+                        {c.outcome?.firstCallAt
+                          ? formatOutcomePct(c.outcome.maxAdverseSinceCallPctV2)
+                          : "—"}
+                      </td>
+
                       <td className="tabular text-right text-sm font-semibold">
                         {c.quantitativePriority ?? "—"}
                       </td>
