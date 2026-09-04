@@ -253,11 +253,31 @@ export async function runScannerPipeline(
   }
 
   try {
+    // Preflight: one cheap authoritative call. A definitively blocked provider
+    // (quota exhausted, credentials rejected, not configured) fails the run
+    // fast, before the ten discovery queries are issued. Uncertain states —
+    // ordinary rate limits, transport hiccups — still attempt a normal scan.
+    const readiness = await checkBirdeyeReadiness();
+    if (shouldFailFast(readiness)) {
+      const reason = readinessBlockReason(readiness);
+      await recordDiscoveryHealth(runId, {
+        state: "PROVIDER_UNAVAILABLE",
+        queries: 0,
+        successes: 0,
+        failures: 0,
+        tokens: 0,
+        failureMessages: readiness.reason ? [readiness.reason] : [],
+        reason,
+      });
+      throw new Error(reason);
+    }
+
     const discovery = await runDiscovery({
       chain: config.chain,
       limit: config.discoveryPageSize,
       track: (provider, capability, fn) => telemetry.track(provider, capability, fn),
     });
+
 
     // A run that discovered nothing because every discovery query failed did
     // not observe an empty market — it observed nothing at all. Failing it
