@@ -546,6 +546,21 @@ export function CandidateDrawer({
                     }
                   />
                   <Row label="Policy" value={c.participationPolicyVersion ?? "participation/v1"} />
+                  <Row label="Breadth" value={pq?.dimensions?.breadth ?? "UNKNOWN"} />
+                  <Row label="Repetition" value={pq?.dimensions?.repetition ?? "UNKNOWN"} />
+                  <Row label="Divergence" value={pq?.dimensions?.divergence ?? "UNKNOWN"} />
+                  {pq?.subSignals?.length ? (
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {pq.subSignals.map((sub) => (
+                        <span
+                          key={sub}
+                          className="rounded border border-border-strong px-1 py-0.5 font-mono text-[10px] text-muted-foreground"
+                        >
+                          {sub}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
                   {windows ? (
                     <div className="mt-2 overflow-x-auto">
                       <table className="w-full text-[11px]">

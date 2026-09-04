@@ -12,6 +12,7 @@ import {
   PARTICIPATION_SHADOW_MODE,
   deriveWindowMetrics,
   evaluateParticipation,
+  isParticipationEligible,
   unknownParticipation,
 } from "../participation";
 import type { ParticipationWindowFacts } from "../participation";
@@ -137,5 +138,137 @@ describe("participation quality v1", () => {
       }),
     );
     expect(healthy.activityBreadthDivergence).toBe(false);
+  });
+});
+
+/**
+ * v1.1 — breadth-aware aggregation. The aggregate must never be driven by a
+ * single dimension, and genuinely broad participation must never be described
+ * as concentrated.
+ */
+describe("participation quality v1.1 dimensions", () => {
+  const broadRepetitive = normalized({
+    "24h": facts({
+      window: "24h",
+      trades: 250_000,
+      uniqueWallets: 10_700,
+      uniqueWalletsPrev: 10_000,
+      volumeUsd: 5_000_000,
+    }),
+    "4h": facts({
+      window: "4h",
+      trades: 40_000,
+      tradesPrev: 10_000,
+      uniqueWallets: 4_000,
+      uniqueWalletsPrev: 3_900,
+      volumeUsd: 900_000,
+    }),
+  });
+
+  it("broad wallet participation cannot become EXTREME from repetition alone", () => {
+    const r = evaluateParticipation(broadRepetitive);
+    expect(r.dimensions.breadth).toBe("BROAD");
+    expect(r.dimensions.repetition).toBe("EXTREME");
+    expect(r.status).toBe("BROAD");
+  });
+
+  it("keeps broad + high repetition diagnostically visible", () => {
+    const r = evaluateParticipation(broadRepetitive);
+    expect(r.subSignals.some((s) => s.startsWith("BROAD + HIGH REPETITION"))).toBe(true);
+  });
+
+  it("narrow breadth alone cannot become EXTREME or CONCENTRATED", () => {
+    const r = evaluateParticipation(
+      normalized({
+        "24h": facts({ window: "24h", trades: 90, uniqueWallets: 50, volumeUsd: 20_000 }),
+      }),
+    );
+    expect(r.dimensions.breadth).toBe("NARROW");
+    expect(r.dimensions.repetition).toBe("NORMAL");
+    expect(r.status).toBe("BROAD");
+  });
+
+  it("repetition alone cannot become EXTREME", () => {
+    const r = evaluateParticipation(
+      normalized({
+        "24h": facts({ window: "24h", trades: 3_000, uniqueWallets: 300, volumeUsd: 100_000 }),
+        "4h": facts({ window: "4h", trades: 900, uniqueWallets: 90, volumeUsd: 30_000 }),
+      }),
+    );
+    expect(r.dimensions.repetition).toBe("EXTREME");
+    expect(r.status).not.toBe("EXTREME");
+  });
+
+  it("strong divergence alone cannot become EXTREME", () => {
+    const r = evaluateParticipation(
+      normalized({
+        "24h": facts({
+          window: "24h",
+          trades: 1_000,
+          uniqueWallets: 900,
+          uniqueWalletsPrev: 890,
+          volumeUsd: 100_000,
+        }),
+        "1h": facts({
+          window: "1h",
+          trades: 900,
+          tradesPrev: 90,
+          uniqueWallets: 500,
+          uniqueWalletsPrev: 495,
+          volumeUsd: 40_000,
+        }),
+        "4h": facts({
+          window: "4h",
+          trades: 900,
+          tradesPrev: 90,
+          uniqueWallets: 600,
+          uniqueWalletsPrev: 595,
+          volumeUsd: 50_000,
+        }),
+      }),
+    );
+    expect(r.dimensions.divergence).toBe("STRONG");
+    expect(r.status).not.toBe("EXTREME");
+  });
+
+  it("narrow + repetitive + strongly divergent can classify EXTREME", () => {
+    const r = evaluateParticipation(
+      normalized({
+        "24h": facts({
+          window: "24h",
+          trades: 6_000,
+          uniqueWallets: 40,
+          uniqueWalletsPrev: 38,
+          volumeUsd: 900_000,
+        }),
+        "4h": facts({
+          window: "4h",
+          trades: 2_000,
+          tradesPrev: 200,
+          uniqueWallets: 30,
+          uniqueWalletsPrev: 29,
+          volumeUsd: 300_000,
+        }),
+        "1h": facts({
+          window: "1h",
+          trades: 900,
+          tradesPrev: 100,
+          uniqueWallets: 20,
+          uniqueWalletsPrev: 19,
+          volumeUsd: 200_000,
+        }),
+      }),
+    );
+    expect(r.dimensions.breadth).toBe("NARROW");
+    expect(r.dimensions.repetition).toBe("EXTREME");
+    expect(r.dimensions.divergence).toBe("STRONG");
+    expect(r.status).toBe("EXTREME");
+    expect(r.subSignals).toContain("NARROW + REPETITIVE + DIVERGENT");
+  });
+
+  it("remains selection-neutral for every status", () => {
+    for (const status of ["BROAD", "CONCENTRATED", "EXTREME", "UNKNOWN"] as const) {
+      expect(isParticipationEligible(status)).toBe(true);
+    }
   });
 });

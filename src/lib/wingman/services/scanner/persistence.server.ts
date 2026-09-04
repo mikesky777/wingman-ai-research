@@ -409,6 +409,8 @@ export async function persistCandidates(
         participation_detail: c.participation
           ? {
               windows: c.participation.windows,
+              dimensions: c.participation.dimensions,
+              subSignals: c.participation.subSignals,
               context: c.participation.context,
               signals: c.participation.signals,
               reasons: c.participation.reasons,
