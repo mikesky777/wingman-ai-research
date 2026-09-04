@@ -23,19 +23,20 @@ import {
 } from "./triage-provider.server";
 import {
   TRIAGE_CONFIG,
-  TRIAGE_INPUT_POLICY_VERSION,
   TRIAGE_POLICY_VERSION,
   TRIAGE_PROMPT_VERSION,
   analyzeCalibration,
   buildCohortSummary,
   buildTriagePrompt,
   compareWithQuant,
+  inputPolicyVersionFor,
   orderCandidates,
   validateTriageOutput,
   withQuantRanks,
   type CalibrationAnalysis,
   type ComparedDecision,
   type TriageCandidateInput,
+  type TriageInputAblation,
   type TriageMode,
 } from "./triage";
 import type { CandidateSource, ExclusionReason } from "./types";
@@ -197,6 +198,11 @@ export interface RunAiTriageOptions {
    * before reordering, so the evidence itself is identical.
    */
   shuffleSeed?: number | null;
+  /**
+   * Calibration only: ablate what the model may see (scanner provenance, setup
+   * label, counterfactual source labels). Rejected for production input.
+   */
+  ablation?: TriageInputAblation | null;
 }
 
 /**
@@ -208,6 +214,10 @@ export async function runAiTriage(options: RunAiTriageOptions = {}): Promise<Tri
   const mode: TriageMode = options.mode ?? "PRODUCTION";
   const isCalibration = mode === "CALIBRATION";
   const maxDeepResearch = options.maxDeepResearch ?? TRIAGE_CONFIG.maxDeepResearch;
+  // Input ablations are a calibration instrument only; production always runs
+  // the full, unablated serialization.
+  const ablation: TriageInputAblation | null = isCalibration ? (options.ablation ?? null) : null;
+  const inputPolicyVersion = inputPolicyVersionFor(ablation);
 
   const base: TriageRunResult = {
     mode,
@@ -228,7 +238,7 @@ export async function runAiTriage(options: RunAiTriageOptions = {}): Promise<Tri
     blockedCount: 0,
     shortlistMilestonesCreated: 0,
     promptBytes: 0,
-    inputPolicyVersion: TRIAGE_INPUT_POLICY_VERSION,
+    inputPolicyVersion,
     shuffleSeed: options.shuffleSeed ?? null,
     providerLatencyMs: null,
     providerUsage: null,
@@ -337,6 +347,7 @@ export async function runAiTriage(options: RunAiTriageOptions = {}): Promise<Tri
     },
     cohort,
     candidates: presented,
+    ablation,
   });
 
   // 4. Provider.
@@ -514,7 +525,8 @@ export async function runAiTriage(options: RunAiTriageOptions = {}): Promise<Tri
       promptBytes: prompt.bytes,
       responseBytes: new TextEncoder().encode(responseText).length,
       providerLatencyMs,
-      inputPolicyVersion: TRIAGE_INPUT_POLICY_VERSION,
+      inputPolicyVersion,
+      ablation,
       shuffleSeed: options.shuffleSeed ?? null,
       providerDiagnostics: diagnostics,
       cohort,
@@ -540,7 +552,7 @@ export async function runAiTriage(options: RunAiTriageOptions = {}): Promise<Tri
     blockedCount: blocked.length,
     shortlistMilestonesCreated: milestones,
     promptBytes: prompt.bytes,
-    inputPolicyVersion: TRIAGE_INPUT_POLICY_VERSION,
+    inputPolicyVersion,
     shuffleSeed: options.shuffleSeed ?? null,
     providerLatencyMs,
     providerUsage: sanitizeUsage(diagnostics["usage"]),
