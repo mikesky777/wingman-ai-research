@@ -587,6 +587,15 @@ async function evaluateOne(args: {
   };
 }
 
+export interface PersistedEligibility {
+  actionable: boolean;
+  reasons: string[];
+  universe: string | null;
+  structural: string | null;
+  marketDamage: string;
+  mappingReasons: string[];
+}
+
 export interface EntryEvaluationSummary {
   id: string;
   mint: string;
@@ -602,14 +611,14 @@ export interface EntryEvaluationSummary {
   components: EntryComponentScores | null;
   timingFeatures: TimingFeatures | null;
   divergence: string;
-  divergenceDetail: Record<string, unknown> | null;
+  divergenceDetail: DivergenceResult["detail"] | null;
   rationale: string | null;
   strongestPositiveSignal: string | null;
   strongestEntryRisk: string | null;
   whatWouldImproveEntry: string[];
   whatWouldBreakEntry: string[];
   evidenceGaps: string[];
-  eligibility: Record<string, unknown> | null;
+  eligibility: PersistedEligibility | null;
   narrativeTimingConfidence: string | null;
   thesisScore: number | null;
   evidenceConfidence: number | null;
@@ -665,14 +674,14 @@ export async function loadEntryEvaluations(limit = 20): Promise<EntryEvaluationS
       components: (r["component_scores"] as EntryComponentScores) ?? null,
       timingFeatures: (r["timing_features"] as TimingFeatures) ?? null,
       divergence: (r["price_attention_divergence"] as string) ?? "UNKNOWN",
-      divergenceDetail: (r["divergence_detail"] as Record<string, unknown>) ?? null,
+      divergenceDetail: (r["divergence_detail"] as DivergenceResult["detail"]) ?? null,
       rationale: (r["rationale"] as string) ?? null,
       strongestPositiveSignal: (r["strongest_positive_signal"] as string) ?? null,
       strongestEntryRisk: (r["strongest_entry_risk"] as string) ?? null,
       whatWouldImproveEntry: (r["what_would_improve_entry"] as string[]) ?? [],
       whatWouldBreakEntry: (r["what_would_break_entry"] as string[]) ?? [],
       evidenceGaps: (r["evidence_gaps"] as string[]) ?? [],
-      eligibility: (r["current_eligibility"] as Record<string, unknown>) ?? null,
+      eligibility: (r["current_eligibility"] as PersistedEligibility) ?? null,
       narrativeTimingConfidence: (r["narrative_timing_confidence"] as string) ?? null,
       thesisScore: num(r["thesis_score"]),
       evidenceConfidence: num(r["evidence_confidence"]),
