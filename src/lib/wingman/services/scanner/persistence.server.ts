@@ -521,39 +521,50 @@ export async function loadRecurrenceHistory(
   const runIds = runs.map((r) => r.id);
   const byAddress = new Map<string, RecurrenceAppearance[]>();
 
-  for (let i = 0; i < addresses.length; i += 150) {
-    const chunk = addresses.slice(i, i + 150);
-    const { data, error } = await supabaseAdmin
-      .from("scan_candidates")
-      .select(
-        "scan_run_id, contract_address, discovery_lanes, quantitative_priority, activity_state, persistence_signal, reacceleration_signal, selected_by_lane_reservation, selected_by_global_ranking, enriched",
-      )
-      .in("scan_run_id", runIds)
-      .in("contract_address", chunk);
-    if (error) continue; // History is optional; candidates degrade to NEW.
+  // The Data API caps a single response at 1000 rows. A wide address chunk
+  // across 25 completed runs blows straight past that cap, and the truncated
+  // tail silently reads as "never seen before" — every affected token then
+  // persists as NEW forever. Chunks stay small AND every chunk is paginated.
+  const PAGE = 1000;
+  for (let i = 0; i < addresses.length; i += 25) {
+    const chunk = addresses.slice(i, i + 25);
+    for (let offset = 0; ; offset += PAGE) {
+      const { data, error } = await supabaseAdmin
+        .from("scan_candidates")
+        .select(
+          "scan_run_id, contract_address, discovery_lanes, quantitative_priority, activity_state, persistence_signal, reacceleration_signal, selected_by_lane_reservation, selected_by_global_ranking, enriched",
+        )
+        .in("scan_run_id", runIds)
+        .in("contract_address", chunk)
+        .range(offset, offset + PAGE - 1);
+      if (error) break; // History is optional; candidates degrade to NEW.
 
-    for (const row of (data ?? []) as Row[]) {
-      const address = row["contract_address"] as string | null;
-      const runId = row["scan_run_id"] as string;
-      if (!address || !runAt.has(runId)) continue;
-      const entry: RecurrenceAppearance = {
-        runId,
-        runAt: runAt.get(runId)!,
-        setups: (row["discovery_lanes"] as string[] | null) ?? [],
-        quantitativePriority: (row["quantitative_priority"] as number | null) ?? null,
-        activityState: (row["activity_state"] as string | null) ?? null,
-        persistenceSignal: (row["persistence_signal"] as string | null) ?? null,
-        reaccelerationSignal: (row["reacceleration_signal"] as string | null) ?? null,
-        selectedAsSurvivor:
-          Boolean(row["selected_by_lane_reservation"]) ||
-          Boolean(row["selected_by_global_ranking"]) ||
-          Boolean(row["enriched"]),
-      };
-      const list = byAddress.get(address);
-      if (list) list.push(entry);
-      else byAddress.set(address, [entry]);
+      const rows = (data ?? []) as Row[];
+      for (const row of rows) {
+        const address = row["contract_address"] as string | null;
+        const runId = row["scan_run_id"] as string;
+        if (!address || !runAt.has(runId)) continue;
+        const entry: RecurrenceAppearance = {
+          runId,
+          runAt: runAt.get(runId)!,
+          setups: (row["discovery_lanes"] as string[] | null) ?? [],
+          quantitativePriority: (row["quantitative_priority"] as number | null) ?? null,
+          activityState: (row["activity_state"] as string | null) ?? null,
+          persistenceSignal: (row["persistence_signal"] as string | null) ?? null,
+          reaccelerationSignal: (row["reacceleration_signal"] as string | null) ?? null,
+          selectedAsSurvivor:
+            Boolean(row["selected_by_lane_reservation"]) ||
+            Boolean(row["selected_by_global_ranking"]) ||
+            Boolean(row["enriched"]),
+        };
+        const list = byAddress.get(address);
+        if (list) list.push(entry);
+        else byAddress.set(address, [entry]);
+      }
+      if (rows.length < PAGE) break;
     }
   }
+
 
   return { recentRunIds: runIds, byAddress };
 }

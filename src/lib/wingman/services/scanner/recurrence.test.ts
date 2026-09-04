@@ -125,6 +125,28 @@ describe("scan recurrence", () => {
     expect(r.lastSelectedAsSurvivorAt).toBe("2026-08-30T00:00:00.000Z");
   });
 
+  it("cannot remain NEW once the exact mint appeared in an earlier completed scan", () => {
+    const r = deriveRecurrence({
+      current,
+      appearances: [appearance()],
+      recentRunIds: ["run-1"],
+    });
+    expect(r.state).not.toBe("NEW");
+    expect(["REPEAT", "CHANGED", "RETURNING"]).toContain(r.state);
+  });
+
+  it("does not turn a failed scan between appearances into RETURNING", () => {
+    // recentRunIds only ever contains COMPLETED runs, so an aborted run in
+    // between leaves the token immediately adjacent to its prior appearance.
+    const r = deriveRecurrence({
+      current,
+      appearances: [appearance({ runId: "run-2", runAt: "2026-08-31T00:00:00.000Z" })],
+      recentRunIds: ["run-2"],
+    });
+    expect(r.state).toBe("REPEAT");
+    expect(r.missedScans).toBe(0);
+  });
+
   it("is deterministic for identical inputs regardless of appearance order", () => {
     const appearances = [
       appearance({ runId: "run-2", runAt: "2026-08-31T00:00:00.000Z" }),

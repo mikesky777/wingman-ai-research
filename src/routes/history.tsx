@@ -13,7 +13,9 @@ import { HistoryCohortService } from "@/lib/wingman/services/history/cohort-serv
 import {
   HISTORY_SETUPS,
   cohortFor,
+  sortCohort,
   summarizeCohort,
+  type CohortSort,
   type HistorySetup,
 } from "@/lib/wingman/services/history/cohort";
 import { LIVE_REFRESH_INTERVAL_MS } from "@/lib/wingman/services/history/live-market";
@@ -97,8 +99,9 @@ function CohortView({ setup }: { setup: HistorySetup }) {
     queryFn: () => HistoryCohortService.calledTokens(),
   });
   const [selected, setSelected] = useState<string | null>(null);
+  const [sort, setSort] = useState<CohortSort>("RECENT");
 
-  const cohort = useMemo(() => cohortFor(tokens, setup), [tokens, setup]);
+  const cohort = useMemo(() => sortCohort(cohortFor(tokens, setup), sort), [tokens, setup, sort]);
   const addresses = useMemo(
     () => cohort.map((t) => t.contractAddress).filter((a): a is string => Boolean(a)),
     [cohort],
@@ -152,6 +155,28 @@ function CohortView({ setup }: { setup: HistorySetup }) {
         title={`${setup} cohort`}
         description="Unique tokens with a frozen First Wingman Call. Descriptive historical measurement — not simulated trading returns."
       >
+        <div className="mb-3 flex flex-wrap items-center gap-1">
+          <span className="label-xs mr-1">Sort</span>
+          {(
+            [
+              ["RECENT", "Most recent"],
+              ["PEAK", "Highest peak call"],
+            ] as [CohortSort, string][]
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setSort(key)}
+              className={cn(
+                "rounded border px-2.5 py-1 font-mono text-[10px] tracking-wide transition-colors",
+                sort === key
+                  ? "border-primary/50 bg-primary/10 text-primary"
+                  : "border-border-strong text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         {isLoading ? (
           <p className="text-xs text-muted-foreground">Loading cohort…</p>
         ) : cohort.length === 0 ? (
