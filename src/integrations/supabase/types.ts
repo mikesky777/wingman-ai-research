@@ -1009,6 +1009,10 @@ export type Database = {
           min_price_since_first_seen: number | null
           observation_count: number
           outcome_version: string | null
+          peak_market_cap_since_call_at: string | null
+          peak_market_cap_since_call_pct: number | null
+          peak_price_since_call_at: string | null
+          peak_since_call_pct: number | null
           price_change_since_first_call_pct: number | null
           price_change_since_first_seen_pct: number | null
           token_id: string
@@ -1052,6 +1056,10 @@ export type Database = {
           min_price_since_first_seen?: number | null
           observation_count?: number
           outcome_version?: string | null
+          peak_market_cap_since_call_at?: string | null
+          peak_market_cap_since_call_pct?: number | null
+          peak_price_since_call_at?: string | null
+          peak_since_call_pct?: number | null
           price_change_since_first_call_pct?: number | null
           price_change_since_first_seen_pct?: number | null
           token_id: string
@@ -1095,6 +1103,10 @@ export type Database = {
           min_price_since_first_seen?: number | null
           observation_count?: number
           outcome_version?: string | null
+          peak_market_cap_since_call_at?: string | null
+          peak_market_cap_since_call_pct?: number | null
+          peak_price_since_call_at?: string | null
+          peak_since_call_pct?: number | null
           price_change_since_first_call_pct?: number | null
           price_change_since_first_seen_pct?: number | null
           token_id?: string
