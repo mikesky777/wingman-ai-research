@@ -686,6 +686,14 @@ export const ScannerService = {
         drawdownTroughMarketCapSinceCall: num("drawdown_trough_market_cap_since_call"),
         drawdownTroughSinceCallAt: (row["drawdown_trough_since_call_at"] as string | null) ?? null,
         observationCount: (row["observation_count"] as number | null) ?? 0,
+        currentMarketValidity:
+          ((row["current_market_validity"] as string | null) as
+            | "VALID"
+            | "INVALID_MARKET"
+            | "UNKNOWN"
+            | null) ?? "UNKNOWN",
+        lastValidObservationAt: (row["last_valid_observation_at"] as string | null) ?? null,
+        invalidObservationCount: (row["invalid_observation_count"] as number | null) ?? 0,
       };
     }
     return out;
