@@ -70,7 +70,7 @@ export interface EntryBatchResult {
 }
 
 interface ThesisInput {
-  thesisReportId: string;
+  thesisReportId: string | null;
   tokenId: string | null;
   mint: string;
   chain: string;
@@ -129,6 +129,44 @@ async function loadThesisInputs(options: {
       createdAt: (r["created_at"] as string) ?? "",
     });
     if (out.length >= options.limit) break;
+  }
+  return out;
+}
+
+/**
+ * Calibration only: top up the cohort with researched candidates that have a
+ * Research Packet but no thesis yet, so the timing layer can be audited across
+ * varied setups. These rows carry NO thesis score — Entry never invents one.
+ */
+async function loadCalibrationTopUp(exclude: Set<string>, need: number): Promise<ThesisInput[]> {
+  if (need <= 0) return [];
+  const { data } = await supabaseAdmin
+    .from("research_packets")
+    .select("id, token_id, contract_address, chain, packet_version, created_at")
+    .order("created_at", { ascending: false })
+    .limit(300);
+  const out: ThesisInput[] = [];
+  for (const r of ((data as Row[]) ?? [])) {
+    const mint = (r["contract_address"] as string) ?? "";
+    if (!mint || exclude.has(mint)) continue;
+    exclude.add(mint);
+    out.push({
+      thesisReportId: null,
+      tokenId: (r["token_id"] as string) ?? null,
+      mint,
+      chain: (r["chain"] as string) ?? "solana",
+      symbol: null,
+      name: null,
+      thesisScore: null,
+      evidenceConfidence: null,
+      verdict: null,
+      researchPacketId: r["id"] as string,
+      researchPacketVersion: (r["packet_version"] as string) ?? null,
+      deepResearchReportId: null,
+      setups: [],
+      createdAt: (r["created_at"] as string) ?? "",
+    });
+    if (out.length >= need) break;
   }
   return out;
 }
@@ -289,11 +327,17 @@ export async function runEntryStateBatch(
   const asOf = options.asOf ?? null;
   const refreshMarket = options.refreshMarket ?? !asOf;
 
-  const inputs = await loadThesisInputs({
+  const inputs: ThesisInput[] = await loadThesisInputs({
     isCalibration,
     limit,
     ...(options.mints?.length ? { mints: options.mints } : {}),
   });
+  if (isCalibration && !options.mints?.length && inputs.length < limit) {
+    inputs.push(
+      ...(await loadCalibrationTopUp(new Set(inputs.map((i) => i.mint)), limit - inputs.length)),
+    );
+  }
+
   if (inputs.length === 0) {
     return {
       mode,
