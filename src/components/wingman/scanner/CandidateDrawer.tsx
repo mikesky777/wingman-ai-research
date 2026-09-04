@@ -524,6 +524,120 @@ export function CandidateDrawer({
             })()}
           </Block>
 
+          <Block title="Participation quality (shadow)">
+            {(() => {
+              const pq = c.participationDetail;
+              const status = c.participationStatus ?? "UNKNOWN";
+              const windows = pq?.windows ?? null;
+              const order = ["30m", "1h", "4h", "24h"] as const;
+              return (
+                <>
+                  <p className="mb-2 text-[11px] text-muted-foreground">
+                    Descriptive market-structure observation only — never a veto, never an input to
+                    priority, setups, structural status or Survivor selection. Repetitive trading and
+                    narrow participant breadth are patterns, not proof of any actor's intent.
+                  </p>
+                  <Row
+                    label="Status"
+                    value={
+                      <span className="rounded border border-border-strong px-1 py-0.5 font-mono text-[10px] text-muted-foreground">
+                        {status}
+                      </span>
+                    }
+                  />
+                  <Row label="Policy" value={c.participationPolicyVersion ?? "participation/v1"} />
+                  {windows ? (
+                    <div className="mt-2 overflow-x-auto">
+                      <table className="w-full text-[11px]">
+                        <thead>
+                          <tr className="label-xs text-left">
+                            <th className="py-1 pr-2">Window</th>
+                            <th className="py-1 pr-2 text-right">Trades</th>
+                            <th className="py-1 pr-2 text-right">Wallets</th>
+                            <th className="py-1 pr-2 text-right">Trades/wallet</th>
+                            <th className="py-1 pr-2 text-right">Volume</th>
+                            <th className="py-1 text-right">Vol/wallet</th>
+                          </tr>
+                        </thead>
+                        <tbody className="tabular">
+                          {order.map((w) => {
+                            const m = windows[w];
+                            if (!m) return null;
+                            return (
+                              <tr key={w} className="border-t border-border/60">
+                                <td className="py-1 pr-2">{w}</td>
+                                <td className="py-1 pr-2 text-right">{formatNum(m.trades)}</td>
+                                <td className="py-1 pr-2 text-right">
+                                  {formatNum(m.uniqueWallets)}
+                                </td>
+                                <td className="py-1 pr-2 text-right">
+                                  {m.tradesPerWallet == null ? "—" : m.tradesPerWallet.toFixed(2)}
+                                </td>
+                                <td className="py-1 pr-2 text-right">
+                                  {m.volumeUsd == null ? "—" : formatUsd(m.volumeUsd)}
+                                </td>
+                                <td className="py-1 text-right">
+                                  {m.volumeUsdPerWallet == null
+                                    ? "—"
+                                    : formatUsd(m.volumeUsdPerWallet)}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-[11px] text-muted-foreground">
+                      No participation evidence observed for this candidate.
+                    </p>
+                  )}
+                  {windows ? (
+                    <div className="mt-2">
+                      <Row
+                        label="Activity/breadth divergence"
+                        value={
+                          order
+                            .filter((w) => windows[w]?.activityBreadthDivergence)
+                            .join(", ") || "none observed"
+                        }
+                      />
+                      <Row
+                        label="Wallet growth (1h)"
+                        value={
+                          windows["1h"]?.walletGrowthPct == null
+                            ? "—"
+                            : `${windows["1h"]!.walletGrowthPct!.toFixed(1)}%`
+                        }
+                      />
+                      <Row
+                        label="Trade growth (1h)"
+                        value={
+                          windows["1h"]?.tradeGrowthPct == null
+                            ? "—"
+                            : `${windows["1h"]!.tradeGrowthPct!.toFixed(1)}%`
+                        }
+                      />
+                    </div>
+                  ) : null}
+                  <Row
+                    label="Volume / liquidity (24h)"
+                    value={formatRatioPct(c.volumeToLiquidity24h)}
+                  />
+                  <Row label="Turnover (24h)" value={formatRatioPct(c.volumeToMarketCap24h)} />
+                  {pq?.reasons?.length ? (
+                    <ul className="mt-2 space-y-1 text-[11px] text-muted-foreground">
+                      {pq.reasons.map((reason) => (
+                        <li key={reason}>· {reason}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </>
+              );
+            })()}
+          </Block>
+
+
           <Block title="Price / launch integrity (shadow)">
             <p className="mb-2 text-[11px] text-muted-foreground">
               Calibration only — never affects priority, setups, structural status or Survivor
