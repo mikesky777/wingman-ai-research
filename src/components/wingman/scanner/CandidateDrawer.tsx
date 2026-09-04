@@ -514,40 +514,75 @@ export function CandidateDrawer({
 
           <Block title="Recent market damage">
             {(() => {
-              const damage = assessRecentMarketDamage(c.priceChange1h);
+              const damage = timeline;
+              const badge = (status: string) =>
+                cn(
+                  "rounded border px-1 py-0.5 font-mono text-[10px]",
+                  status === "FAIL"
+                    ? "border-destructive/40 bg-destructive/10 text-destructive"
+                    : status === "PASS"
+                      ? "border-positive/40 bg-positive/10 text-positive"
+                      : "border-border-strong text-muted-foreground",
+                );
+              const pct = (v: number | null) => (v === null ? "—" : `${v.toFixed(2)}%`);
               return (
                 <>
                   <p className="mb-2 text-[11px] text-muted-foreground">
-                    Current-market Survivor gate only. Temporary — never a structural verdict, a
-                    priority input or a permanent exclusion. Missing data stays UNKNOWN.
+                    Current-market gate only. Temporary — never a structural verdict, a priority
+                    input or a permanent exclusion. Missing data stays UNKNOWN.
                   </p>
+                  <div className="mb-2 flex flex-wrap items-center gap-2">
+                    <span className={badge(damage.state === "ELIGIBLE" ? "PASS" : damage.state === "UNKNOWN" ? "UNKNOWN" : "FAIL")}>
+                      {damage.state === "POST_CALL_COLLAPSE"
+                        ? "POST-CALL COLLAPSE · CURRENTLY BLOCKED"
+                        : damage.state === "CURRENTLY_BLOCKED"
+                          ? "CURRENTLY BLOCKED"
+                          : damage.state === "BLOCKED_AT_CALL"
+                            ? "BLOCKED AT CALL"
+                            : damage.state}
+                    </span>
+                    <span className="font-mono text-[10px] text-muted-foreground">
+                      {damage.researchEligibleNow
+                        ? "AI research: eligible"
+                        : "AI research: excluded while current FAIL"}
+                    </span>
+                  </div>
+
+                  <div className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                    Call-time eligibility (frozen at selection)
+                  </div>
+                  <Row label="1h change at selection" value={pct(damage.callTime.priceChange1hPct)} />
                   <Row
-                    label="1h change"
-                    value={
-                      c.priceChange1h === null || c.priceChange1h === undefined
-                        ? "—"
-                        : `${c.priceChange1h.toFixed(2)}%`
-                    }
+                    label="Status at selection"
+                    value={<span className={badge(damage.callTime.status)}>{damage.callTime.status}</span>}
                   />
-                  <Row label="Threshold" value={`${damage.thresholdPct}% or lower`} />
                   <Row
-                    label="Status"
-                    value={
-                      <span
-                        className={cn(
-                          "rounded border px-1 py-0.5 font-mono text-[10px]",
-                          damage.status === "FAIL"
-                            ? "border-destructive/40 bg-destructive/10 text-destructive"
-                            : damage.status === "PASS"
-                              ? "border-positive/40 bg-positive/10 text-positive"
-                              : "border-border-strong text-muted-foreground",
-                        )}
-                      >
-                        {damage.status}
-                      </span>
-                    }
+                    label="Evaluated at"
+                    value={damage.callTimeAt ? formatOutcomeTime(damage.callTimeAt) : "—"}
                   />
-                  {damage.reason ? <Row label="Rejection reason" value={damage.reason} /> : null}
+                  {damage.callTime.reason ? (
+                    <Row label="Rejection reason" value={damage.callTime.reason} />
+                  ) : null}
+
+                  <div className="mb-1 mt-3 text-[10px] uppercase tracking-wide text-muted-foreground">
+                    Current eligibility (live, display only)
+                  </div>
+                  <Row label="1h change now" value={pct(damage.current.priceChange1hPct)} />
+                  <Row
+                    label="Status now"
+                    value={<span className={badge(damage.current.status)}>{damage.current.status}</span>}
+                  />
+                  <Row
+                    label="Observed at"
+                    value={damage.currentAt ? formatOutcomeTime(damage.currentAt) : "—"}
+                  />
+                  <Row label="Threshold" value={`${damage.current.thresholdPct}% or lower`} />
+                  {damage.postCallCollapse ? (
+                    <p className="pt-2 text-[11px] text-muted-foreground">
+                      Passed at selection and collapsed afterwards. The historical Survivor row,
+                      First Call baseline and outcome tracking are preserved unchanged.
+                    </p>
+                  ) : null}
                 </>
               );
             })()}
