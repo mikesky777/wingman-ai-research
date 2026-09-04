@@ -523,6 +523,13 @@ function ScannerPage() {
                     >
                       Peak call
                     </th>
+                    <th
+                      className="text-right"
+                      title="Worst observed market-cap move below Wingman's first Survivor call."
+                    >
+                      Max DD call
+                    </th>
+
                     <th className="text-right">Priority</th>
                     <th className="w-8" title="Refresh current market data for this token." />
                   </tr>
