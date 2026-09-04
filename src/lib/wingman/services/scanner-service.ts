@@ -7,6 +7,7 @@ import type {
   PriceIntegrityCoverage,
   PriceIntegrityFeatures,
 } from "./scanner/price-integrity";
+import type { ParticipationWindowMetrics } from "./scanner/participation";
 
 interface ScanRunRow {
   id: string;
