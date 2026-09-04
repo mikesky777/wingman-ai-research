@@ -42,6 +42,18 @@ import type { CandidateSource, ExclusionReason } from "./types";
 
 type Row = Record<string, unknown>;
 
+/** Flat, serializable provider usage counters as reported by the provider. */
+export type TriageUsage = Record<string, number | string | null>;
+
+function sanitizeUsage(usage: unknown): TriageUsage | null {
+  if (!usage || typeof usage !== "object") return null;
+  const out: TriageUsage = {};
+  for (const [key, value] of Object.entries(usage as Record<string, unknown>)) {
+    if (typeof value === "number" || typeof value === "string" || value === null) out[key] = value;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
 export type TriageRunStatus =
   | "completed"
   | "failed"
@@ -74,7 +86,7 @@ export interface TriageRunResult {
   /** Wall-clock duration of the provider call, ms. */
   providerLatencyMs: number | null;
   /** Provider-reported token usage, verbatim. Never fabricated. */
-  providerUsage: Record<string, unknown> | null;
+  providerUsage: TriageUsage | null;
   responseBytes: number | null;
   decisions: ComparedDecision[];
   blockedMints: { mint: string; reasons: ExclusionReason[] }[];
@@ -531,7 +543,7 @@ export async function runAiTriage(options: RunAiTriageOptions = {}): Promise<Tri
     inputPolicyVersion: TRIAGE_INPUT_POLICY_VERSION,
     shuffleSeed: options.shuffleSeed ?? null,
     providerLatencyMs,
-    providerUsage: (diagnostics["usage"] as Record<string, unknown> | null) ?? null,
+    providerUsage: sanitizeUsage(diagnostics["usage"]),
     responseBytes: new TextEncoder().encode(responseText).length,
     decisions: compared,
     blockedMints: blocked.map((b) => ({ mint: b.packet.mint, reasons: b.reasons })),

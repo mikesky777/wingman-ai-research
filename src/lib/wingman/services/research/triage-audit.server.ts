@@ -9,7 +9,7 @@
  * scanner selection, Quantitative Research Priority or history.
  */
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { runAiTriage, type TriageRunResult } from "./triage.server";
+import { runAiTriage, type TriageRunResult, type TriageUsage } from "./triage.server";
 import {
   TRIAGE_INPUT_POLICY_VERSION,
   TRIAGE_POLICY_VERSION,
@@ -40,7 +40,7 @@ export interface TriageAuditRunSummary {
   promptBytes: number;
   responseBytes: number | null;
   providerLatencyMs: number | null;
-  providerUsage: Record<string, unknown> | null;
+  providerUsage: TriageUsage | null;
   milestonesCreated: number;
   error: string | null;
 }
