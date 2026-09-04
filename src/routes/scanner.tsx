@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { ChevronDown, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/wingman/AppShell";
@@ -13,7 +13,13 @@ import {
   useRunDiagnostics,
   useWorkbenchCandidates,
 } from "@/lib/wingman/hooks";
-import { runScan } from "@/lib/wingman/scanner.functions";
+import { getScanRunStatus, runScan } from "@/lib/wingman/scanner.functions";
+import {
+  scanStatusMessage,
+  scanUiState,
+  shouldRefreshCandidates,
+  type ScanAttempt,
+} from "@/lib/wingman/services/scanner/run-lifecycle";
 import { getStrategySettings } from "@/lib/wingman/strategy.functions";
 import { formatNumber, formatUsd } from "@/lib/wingman/format";
 import {
@@ -170,7 +176,6 @@ function ScannerPage() {
   const { data: funnel } = useLatestFunnel();
   const { data: rawCandidates = [] } = useWorkbenchCandidates(funnel?.runId);
   const { data: diagnostics } = useRunDiagnostics(funnel?.runId);
-  const [message, setMessage] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("SURVIVORS");
   const [recurrence, setRecurrence] = useState<RecurrenceFilter>("ALL");
   const [selected, setSelected] = useState<string | null>(null);
@@ -191,18 +196,39 @@ function ScannerPage() {
       !c.selectedByGlobalRanking,
   }));
 
+  // The attempt result is kept separately from persisted state: a resolved
+  // POST is never treated as completion on its own.
+  const [attempt, setAttempt] = useState<ScanAttempt | null>(null);
+  const readRunStatus = useServerFn(getScanRunStatus);
+  const watchedRunId = attempt?.runId ?? attempt?.activeRunId ?? null;
+
   const mutation = useMutation({
     mutationFn: () => scan({ data: {} }),
     onSuccess: (result) => {
-      setMessage(
-        result.ok
+      setAttempt({
+        code: result.code,
+        runId: result.runId,
+        activeRunId: result.activeRunId,
+        message: result.ok
           ? `Scan complete — ${result.summary?.tokensDiscovered ?? 0} tokens discovered, ${result.summary?.enriched ?? 0} enriched.`
           : (result.message ?? "Scan failed."),
-      );
-      void queryClient.invalidateQueries({ queryKey: ["wingman"] });
+      });
     },
-    onError: (error: Error) => setMessage(error.message),
+    onError: (error: Error) =>
+      setAttempt({ code: "FAILED", runId: null, activeRunId: null, message: error.message }),
   });
+
+  // Poll the real run row while a watched run is still open.
+  const { data: runStatus } = useQuery({
+    queryKey: ["wingman", "scan-run-status", watchedRunId],
+    queryFn: () => readRunStatus({ data: { runId: watchedRunId } }),
+    enabled: watchedRunId !== null,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status === "completed" || status === "failed" ? false : 3000;
+    },
+  });
+
 
   const counts: Record<string, number | null> = {
     discovered: funnel?.discovered ?? 0,
@@ -216,9 +242,24 @@ function ScannerPage() {
   const rows = applyRecurrenceFilter(applyFilter(candidates, filter), recurrence);
   const active = candidates.find((c) => c.id === selected) ?? null;
 
-  const runState = mutation.isPending
-    ? "RUNNING"
-    : (diagnostics?.status ?? funnel?.status ?? "IDLE").toUpperCase();
+  // UI state comes from the real persisted run this session is watching —
+  // never from the latest historical run, and never from a resolved POST.
+  const runState = scanUiState({
+    pending: mutation.isPending,
+    attempt,
+    watchedRunStatus: runStatus?.status ?? null,
+  });
+  const message =
+    runState === "FAILED" && runStatus?.errorMessage
+      ? runStatus.errorMessage
+      : scanStatusMessage(runState, attempt);
+
+  // Candidate data refreshes only after a watched run is persisted COMPLETED.
+  const completedRunKey = shouldRefreshCandidates(runState) ? watchedRunId : null;
+  useEffect(() => {
+    if (!completedRunKey) return;
+    void queryClient.invalidateQueries({ queryKey: ["wingman"] });
+  }, [completedRunKey, queryClient]);
 
   return (
     <AppShell
@@ -230,8 +271,12 @@ function ScannerPage() {
             {funnel?.scannerVersion ?? "scanner/v1"}
             {funnel?.calibrationMode ? " · calibration" : ""}
           </span>
-          <Button size="sm" onClick={() => mutation.mutate()} disabled={mutation.isPending}>
-            {mutation.isPending ? (
+          <Button
+            size="sm"
+            onClick={() => mutation.mutate()}
+            disabled={mutation.isPending || runState === "RUNNING" || runState === "ALREADY_RUNNING"}
+          >
+            {mutation.isPending || runState === "RUNNING" || runState === "ALREADY_RUNNING" ? (
               <>
                 <Loader2 className="size-3.5 animate-spin" /> Scanning
               </>
@@ -250,7 +295,15 @@ function ScannerPage() {
         ) : null}
 
         <div className="panel flex flex-wrap items-center gap-x-2 gap-y-1 px-4 py-3 font-mono text-xs">
-          <span className={runState === "COMPLETED" ? "text-positive" : "text-foreground"}>
+          <span
+            className={
+              runState === "COMPLETED"
+                ? "text-positive"
+                : runState === "FAILED"
+                  ? "text-negative"
+                  : "text-foreground"
+            }
+          >
             {runState}
           </span>
           <span className="text-muted-foreground">·</span>
