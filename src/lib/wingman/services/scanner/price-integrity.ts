@@ -716,11 +716,21 @@ export function evaluatePriceIntegrity(
   const distortionSignals = signals.filter((s) => !contextOnly.has(s));
   const hasLaunchDistortion = concentratedPeak && rapidSurrender;
 
+  // v1.1 repair-consistency fix: for the DAMAGED gate, effective reclaim is
+  // weak when the sustained reclaim is weak OR the repair has since been
+  // substantially surrendered (current repair below minCurrentRepairFraction).
+  // A bounce that was surrendered since must not keep protecting the token.
+  // Thresholds unchanged; `repaired` semantics unchanged; diagnostics unchanged.
+  const surrenderedRepair =
+    features.currentRepairFraction !== null &&
+    features.currentRepairFraction < cal.minCurrentRepairFraction;
+  const weakEffectiveReclaim = weakNormalizedReclaim || surrenderedRepair;
+
   let status: PriceIntegrityStatus = "HEALTHY";
   if (
     (hasLaunchDistortion || lateBlowoff) &&
     !repaired &&
-    weakNormalizedReclaim &&
+    weakEffectiveReclaim &&
     signals.length >= cal.minDamageSignals &&
     distortionSignals.length >= 3
   ) {
