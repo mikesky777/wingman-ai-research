@@ -135,8 +135,15 @@ export function DeepResearchPanel() {
                   <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
                     <span className="tabular">coverage {r.coveragePct ?? 0}%</span>
                     <span className="tabular">{r.sourceCount} sources</span>
+                    <span
+                      className={`tabular ${r.independentSourceCount === 0 ? "text-warning" : ""}`}
+                      title="Sources not published by the token itself"
+                    >
+                      {r.independentSourceCount} independent
+                    </span>
                     <span className="tabular">{r.conflictingClaimCount} conflicts</span>
                     <span>{relativeTime(r.createdAt)}</span>
+
                     <Button variant="ghost" size="sm" onClick={() => setOpenId(open ? null : r.id)}>
                       {open ? "Hide" : "Open dossier"}
                     </Button>

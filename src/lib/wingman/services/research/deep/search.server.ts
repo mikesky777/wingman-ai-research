@@ -16,6 +16,18 @@ export interface SearchHit {
   query: string;
 }
 
+/**
+ * Raised when the search provider itself could not answer (network error,
+ * rate limit, bot challenge). Distinct from "the provider answered, nothing
+ * matched" — an unavailable provider never proves an absence of evidence.
+ */
+export class SearchProviderUnavailableError extends Error {
+  constructor(readonly detail: string) {
+    super(`Search provider unavailable: ${detail}`);
+    this.name = "SearchProviderUnavailableError";
+  }
+}
+
 export interface WebSearchProvider {
   readonly name: string;
   search(query: string, limit: number): Promise<SearchHit[]>;
@@ -105,9 +117,20 @@ export function createDuckDuckGoSearchProvider(options: { timeoutMs?: number } =
           body: new URLSearchParams({ q: query }).toString(),
           signal,
         });
-        if (!res.ok) throw new Error(`search ${res.status}`);
-        return res.text();
-      }, timeoutMs);
+        if (res.status !== 200) throw new SearchProviderUnavailableError(`http ${res.status}`);
+        const body = await res.text();
+        // DuckDuckGo answers bot challenges with a 200/202 shell that carries no
+        // result markup at all. Treat that as unavailability, not as zero results.
+        if (!/result__a|result__snippet|results_links/.test(body)) {
+          throw new SearchProviderUnavailableError("no result markup (challenge page)");
+        }
+        return body;
+      }, timeoutMs).catch((error: unknown) => {
+        if (error instanceof SearchProviderUnavailableError) throw error;
+        throw new SearchProviderUnavailableError(
+          error instanceof Error ? error.message : String(error),
+        );
+      });
 
       const hits: SearchHit[] = [];
       const anchor = /<a[^>]+class="[^"]*result__a[^"]*"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
