@@ -184,6 +184,6 @@ describe("candle-derived price integrity", () => {
   it("remains shadow-only", () => {
     const result = evaluateFromCandles(candles([{ minute: 0, close: 1 }]), LAUNCH, ["BASE"]);
     expect(result.shadowMode).toBe(true);
-    expect(result.policyVersion).toBe("price_integrity/v1");
+    expect(result.policyVersion).toBe("price_integrity/v1.1");
   });
 });
