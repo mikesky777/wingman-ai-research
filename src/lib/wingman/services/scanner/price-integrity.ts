@@ -15,7 +15,7 @@
  *     Eligibility, Survivor selection or outcomes.
  */
 
-export const PRICE_INTEGRITY_POLICY_VERSION = "price_integrity/v1";
+export const PRICE_INTEGRITY_POLICY_VERSION = "price_integrity/v1.1";
 
 /** Shadow mode: evaluation is observational only. Never a veto. */
 export const PRICE_INTEGRITY_SHADOW_MODE = true;
@@ -52,10 +52,35 @@ export const PRICE_INTEGRITY_CALIBRATION = {
   poorLiquidityRetention: 0.25,
   /** Window (minutes from first observation) counted as launch-era volume. */
   earlyVolumeWindowMinutes: 6 * 60,
-  /** Launch-era share of observed volume above this is concentrated. */
+  /** Launch-era share of observed volume above this is concentrated (context only in v1.1). */
   concentratedEarlyVolumeShare: 0.6,
+  /** Fixed short launch windows, in minutes, measured from the first observation. */
+  fixedVolumeWindowsMinutes: [30, 60, 180] as number[],
+  /** Window used for the launch volume RATE (USD/min). */
+  launchRateWindowMinutes: 60,
+  /**
+   * Age-normalized concentration: launch USD/min divided by later USD/min.
+   * This, not the 12h share, is what may contribute to classification.
+   */
+  concentratedVolumeRateRatio: 6,
+  /** Volume traded within +/- this many minutes of the peak counts as peak-window volume. */
+  peakVolumeWindowMinutes: 30,
   /** Peak / stabilized value above this is an extreme spike (context only). */
   extremePeakToStabilizedRatio: 15,
+  /** Normalized repair: fraction of peak→low damage reclaimed. */
+  repairedPeakFraction: 0.25,
+  /** A reclaimed level must be held this long to count as sustained. */
+  sustainedReclaimMinutes: 60,
+  /** A repair given back entirely is not a repair. */
+  minCurrentRepairFraction: 0.15,
+  /** Below this, the reclaim of the original peak is weak (normalized). */
+  weakPeakRepairFraction: 0.15,
+  /** Current value at or above this fraction of the original peak = repaired. */
+  repairedCurrentToPeakRatio: 0.5,
+  /** A late peak this many times the pre-peak baseline is a blowoff candidate. */
+  blowoffPeakToBaselineRatio: 5,
+  /** Minutes before the peak used to compute the pre-peak baseline. */
+  prePeakBaselineMinutes: 120,
   /** Damage requires at least this many independent damage signals. */
   minDamageSignals: 4,
   /** Concern requires at least this many. */
@@ -125,10 +150,44 @@ export interface PriceIntegrityFeatures {
   liquidityRetention: number | null;
   /** Early peak / current (stabilized) value. Never damage on its own. */
   peakToStabilizedRatio: number | null;
-  /** Share of observed USD volume traded inside the launch window. */
+  /** Share of observed USD volume traded inside the 12h fetch window (context only). */
   earlyVolumeShare: number | null;
   earlyVolumeUsd: number | null;
   laterVolumeUsd: number | null;
+
+  // --- v1.1 normalized post-collapse repair (peak-relative, never low-relative) ---
+  /** Best value observed after the collapse (or after the post-peak low). */
+  postCollapseMaxHigh: number | null;
+  /** postCollapseMaxHigh / original peak. */
+  postCollapseHighToOriginalPeakRatio: number | null;
+  /** current / original peak. */
+  currentToOriginalPeakRatio: number | null;
+  /** (postCollapseMaxHigh − postPeakLow) / (peak − postPeakLow). */
+  peakRepairFraction: number | null;
+  /** Highest post-collapse level held for a full sustained-reclaim window. */
+  postCollapseSustainedHigh: number | null;
+  /** Where the current value sits inside the peak→low damage span. */
+  currentRepairFraction: number | null;
+
+  // --- v1.1 fixed-window volume concentration (age-normalized) ---
+  first30mVolumeShare: number | null;
+  first1hVolumeShare: number | null;
+  first3hVolumeShare: number | null;
+  /** USD/min traded inside the launch rate window. */
+  launchVolumeRateUsdPerMin: number | null;
+  /** USD/min traded across the remaining observed lifecycle. */
+  laterVolumeRateUsdPerMin: number | null;
+  /** launch rate / later rate. Age-normalized, unlike a raw share. */
+  launchToLaterVolumeRateRatio: number | null;
+  /** Share of observed USD volume traded within ±window of the peak. */
+  peakWindowVolumeShare: number | null;
+
+  // --- v1.1 lifecycle blowoff context ---
+  /** Median value in the window preceding the peak. */
+  prePeakBaselineValue: number | null;
+  /** peak / pre-peak baseline. */
+  peakToPrePeakBaselineRatio: number | null;
+
   basis: "market_cap" | "price" | "none";
 }
 
@@ -168,6 +227,21 @@ const EMPTY_FEATURES: PriceIntegrityFeatures = {
   earlyVolumeShare: null,
   earlyVolumeUsd: null,
   laterVolumeUsd: null,
+  postCollapseMaxHigh: null,
+  postCollapseHighToOriginalPeakRatio: null,
+  currentToOriginalPeakRatio: null,
+  peakRepairFraction: null,
+  postCollapseSustainedHigh: null,
+  currentRepairFraction: null,
+  first30mVolumeShare: null,
+  first1hVolumeShare: null,
+  first3hVolumeShare: null,
+  launchVolumeRateUsdPerMin: null,
+  laterVolumeRateUsdPerMin: null,
+  launchToLaterVolumeRateRatio: null,
+  peakWindowVolumeShare: null,
+  prePeakBaselineValue: null,
+  peakToPrePeakBaselineRatio: null,
   basis: "none",
 };
 
@@ -329,6 +403,105 @@ export function deriveFeatures(input: PriceIntegrityInput): PriceIntegrityFeatur
       ? currentLiquidity / peakEraLiquidity
       : null;
 
+  // --- v1.1: repair normalized against the ORIGINAL peak, never the crash low.
+  // A 20x off a near-zero low is not repair; reclaiming the peak is.
+  const repairWindow = collapseAt
+    ? afterCollapse
+    : lowIndex >= 0
+      ? after.slice(lowIndex + 1)
+      : [];
+  const postCollapseMaxHigh =
+    repairWindow.length > 0 ? repairWindow.reduce((m, p) => (p.high > m ? p.high : m), repairWindow[0]!.high) : null;
+  // Sustained reclaim: the highest level actually HELD for a full window, so a
+  // single bounce wick off the crash low can never read as repaired structure.
+  const holdMs = PRICE_INTEGRITY_CALIBRATION.sustainedReclaimMinutes * 60_000;
+  let postCollapseSustainedHigh: number | null = null;
+  for (let i = 0; i < repairWindow.length; i += 1) {
+    const startMs = new Date(repairWindow[i]!.at).getTime();
+    let floor = repairWindow[i]!.value;
+    let covered = false;
+    for (let j = i; j < repairWindow.length; j += 1) {
+      const t = new Date(repairWindow[j]!.at).getTime();
+      if (t - startMs > holdMs) {
+        covered = true;
+        break;
+      }
+      if (repairWindow[j]!.value < floor) floor = repairWindow[j]!.value;
+    }
+    if (!covered) break;
+    if (postCollapseSustainedHigh === null || floor > postCollapseSustainedHigh) {
+      postCollapseSustainedHigh = floor;
+    }
+  }
+  const postCollapseHighToOriginalPeakRatio =
+    postCollapseMaxHigh !== null && peak.value > 0 ? postCollapseMaxHigh / peak.value : null;
+  const currentToOriginalPeakRatio = peak.value > 0 ? lastPoint.value / peak.value : null;
+  const damageSpan = low ? peak.value - low.value : null;
+  const normalize = (v: number | null): number | null =>
+    v !== null && low && damageSpan !== null && damageSpan > 0
+      ? Math.max(0, Math.min(1, (v - low.value) / damageSpan))
+      : null;
+  const peakRepairFraction = normalize(postCollapseSustainedHigh);
+  const currentRepairFraction = normalize(lastPoint.value);
+
+  // --- v1.1: fixed short launch windows + age-normalized volume RATES.
+  // The 12h high-resolution fetch window is a data strategy, not a behaviour.
+  const firstMs = new Date(firstPoint.at).getTime();
+  const lastMs = new Date(lastPoint.at).getTime();
+  const volumeInFirst = (minutes: number): number | null => {
+    if (volumePoints.length === 0) return null;
+    const end = firstMs + minutes * 60_000;
+    return volumePoints
+      .filter((p) => new Date(p.at).getTime() <= end)
+      .reduce((s, p) => s + p.volumeUsd!, 0);
+  };
+  const shareOfTotal = (usd: number | null): number | null =>
+    usd !== null && totalVolume !== null && totalVolume > 0 ? usd / totalVolume : null;
+  const first30mVolumeShare = shareOfTotal(volumeInFirst(30));
+  const first1hVolumeShare = shareOfTotal(volumeInFirst(60));
+  const first3hVolumeShare = shareOfTotal(volumeInFirst(180));
+
+  const rateWindow = PRICE_INTEGRITY_CALIBRATION.launchRateWindowMinutes;
+  const observedMinutes = (lastMs - firstMs) / 60_000;
+  const launchUsd = volumeInFirst(rateWindow);
+  const launchMinutes = Math.min(rateWindow, Math.max(1, observedMinutes));
+  const laterMinutes = observedMinutes - launchMinutes;
+  const launchVolumeRateUsdPerMin = launchUsd !== null ? launchUsd / launchMinutes : null;
+  const laterVolumeRateUsdPerMin =
+    launchUsd !== null && totalVolume !== null && laterMinutes >= 1
+      ? Math.max(0, totalVolume - launchUsd) / laterMinutes
+      : null;
+  const launchToLaterVolumeRateRatio =
+    launchVolumeRateUsdPerMin !== null &&
+    laterVolumeRateUsdPerMin !== null &&
+    laterVolumeRateUsdPerMin > 0
+      ? launchVolumeRateUsdPerMin / laterVolumeRateUsdPerMin
+      : null;
+
+  const peakWindowMs = PRICE_INTEGRITY_CALIBRATION.peakVolumeWindowMinutes * 60_000;
+  const peakMs = new Date(peak.at).getTime();
+  const peakWindowUsd =
+    volumePoints.length > 0
+      ? volumePoints
+          .filter((p) => Math.abs(new Date(p.at).getTime() - peakMs) <= peakWindowMs)
+          .reduce((s, p) => s + p.volumeUsd!, 0)
+      : null;
+  const peakWindowVolumeShare = shareOfTotal(peakWindowUsd);
+
+  // --- v1.1: pre-peak baseline, so a LATE blowoff is visible as a blowoff.
+  const baselineStartMs = peakMs - PRICE_INTEGRITY_CALIBRATION.prePeakBaselineMinutes * 60_000;
+  const baselineValues = series
+    .slice(0, peakIndex)
+    .filter((p) => new Date(p.at).getTime() >= baselineStartMs)
+    .map((p) => p.value)
+    .sort((a, b) => a - b);
+  const prePeakBaselineValue =
+    baselineValues.length > 0 ? baselineValues[Math.floor(baselineValues.length / 2)]! : null;
+  const peakToPrePeakBaselineRatio =
+    prePeakBaselineValue !== null && prePeakBaselineValue > 0
+      ? peak.value / prePeakBaselineValue
+      : null;
+
   return {
     earliestValue: firstPoint.value,
     peakValue: peak.value,
@@ -353,6 +526,21 @@ export function deriveFeatures(input: PriceIntegrityInput): PriceIntegrityFeatur
     earlyVolumeShare,
     earlyVolumeUsd,
     laterVolumeUsd,
+    postCollapseMaxHigh,
+    postCollapseHighToOriginalPeakRatio,
+    currentToOriginalPeakRatio,
+    peakRepairFraction,
+    postCollapseSustainedHigh,
+    currentRepairFraction,
+    first30mVolumeShare,
+    first1hVolumeShare,
+    first3hVolumeShare,
+    launchVolumeRateUsdPerMin,
+    laterVolumeRateUsdPerMin,
+    launchToLaterVolumeRateRatio,
+    peakWindowVolumeShare,
+    prePeakBaselineValue,
+    peakToPrePeakBaselineRatio,
     basis,
   };
 }
@@ -463,28 +651,88 @@ export function evaluatePriceIntegrity(
     );
   }
 
-  const concentratedVolume =
+  // v1.1: the 12h share is DESCRIPTIVE ONLY. It never forms a signal, because a
+  // young token whose whole life sits inside 12h would otherwise be penalized.
+  if (
     features.earlyVolumeShare !== null &&
-    features.earlyVolumeShare >= cal.concentratedEarlyVolumeShare;
-  if (concentratedVolume) {
-    signals.push("LAUNCH_CONCENTRATED_VOLUME");
+    features.earlyVolumeShare >= cal.concentratedEarlyVolumeShare
+  ) {
     reasons.push(
-      `${Math.round(features.earlyVolumeShare! * 100)}% of observed USD volume traded inside the launch window.`,
+      `${Math.round(features.earlyVolumeShare! * 100)}% of observed USD volume traded inside the 12h high-resolution window (descriptive context only).`,
     );
   }
 
-  // Drawdown alone is never damage: damage needs launch-distortion evidence.
+  // v1.1: age-normalized concentration. USD/min in the launch hour vs later.
+  const concentratedVolume =
+    features.launchToLaterVolumeRateRatio !== null &&
+    features.launchToLaterVolumeRateRatio >= cal.concentratedVolumeRateRatio;
+  if (concentratedVolume) {
+    signals.push("LAUNCH_CONCENTRATED_VOLUME");
+    reasons.push(
+      `Launch-hour volume rate is ${features.launchToLaterVolumeRateRatio!.toFixed(1)}x the later-lifecycle rate (${Math.round((features.first1hVolumeShare ?? 0) * 100)}% of observed volume in the first hour).`,
+    );
+  }
+
+  // v1.1: repair is measured against the ORIGINAL peak, never the crash low.
+  const weakNormalizedReclaim =
+    features.peakRepairFraction !== null &&
+    features.peakRepairFraction < cal.weakPeakRepairFraction;
+  if (weakNormalizedReclaim) {
+    signals.push("WEAK_NORMALIZED_RECLAIM");
+    reasons.push(
+      `Only ${Math.round(features.peakRepairFraction! * 100)}% of the peak→low damage was reclaimed (normalized against the original peak).`,
+    );
+  }
+  const repaired =
+    (features.peakRepairFraction !== null &&
+      features.peakRepairFraction >= cal.repairedPeakFraction &&
+      features.currentRepairFraction !== null &&
+      features.currentRepairFraction >= cal.minCurrentRepairFraction) ||
+    (features.currentToOriginalPeakRatio !== null &&
+      features.currentToOriginalPeakRatio >= cal.repairedCurrentToPeakRatio);
+  if (repaired) {
+    reasons.push(
+      `Structure repaired on a peak-normalized basis (reclaimed ${Math.round((features.peakRepairFraction ?? 0) * 100)}% of the damage; now ${Math.round((features.currentToOriginalPeakRatio ?? 0) * 100)}% of the original peak).`,
+    );
+  }
+
+  // v1.1: blowoffs are not only a launch phenomenon.
+  const lateBlowoff =
+    !concentratedPeak &&
+    features.peakToPrePeakBaselineRatio !== null &&
+    features.peakToPrePeakBaselineRatio >= cal.blowoffPeakToBaselineRatio &&
+    rapidSurrender &&
+    weakNormalizedReclaim &&
+    !repaired;
+  if (lateBlowoff) {
+    signals.push("LIFECYCLE_BLOWOFF_COLLAPSE");
+    reasons.push(
+      `Late-lifecycle blowoff: peak was ${features.peakToPrePeakBaselineRatio!.toFixed(1)}x the preceding baseline, surrendered rapidly and was never reclaimed.`,
+    );
+  }
+
+  // Drawdown alone is never damage: damage needs distortion + failed repair.
   const contextOnly = new Set(["SEVERE_DRAWDOWN", "EXTREME_PEAK_TO_STABILIZED_RATIO"]);
   const distortionSignals = signals.filter((s) => !contextOnly.has(s));
   const hasLaunchDistortion = concentratedPeak && rapidSurrender;
 
   let status: PriceIntegrityStatus = "HEALTHY";
-  if (hasLaunchDistortion && signals.length >= cal.minDamageSignals && distortionSignals.length >= 3) {
+  if (
+    (hasLaunchDistortion || lateBlowoff) &&
+    !repaired &&
+    weakNormalizedReclaim &&
+    signals.length >= cal.minDamageSignals &&
+    distortionSignals.length >= 3
+  ) {
     status = "DAMAGED";
-    reasons.unshift("Concentrated launch peak, rapid surrender and no repaired structure.");
-  } else if (distortionSignals.length >= cal.minConcernSignals) {
+    reasons.unshift(
+      lateBlowoff
+        ? "Lifecycle blowoff, rapid surrender and no peak-normalized repair."
+        : "Concentrated launch peak, rapid surrender and no peak-normalized repair.",
+    );
+  } else if (distortionSignals.length >= cal.minConcernSignals && !repaired) {
     status = "CONCERN";
-    reasons.unshift("Some launch-distortion evidence, but not enough to call the lifecycle damaged.");
+    reasons.unshift("Some distortion evidence, but not enough to call the lifecycle damaged.");
   } else {
     reasons.unshift(
       "Observed lifecycle is consistent with constructive cooldown and consolidation.",
