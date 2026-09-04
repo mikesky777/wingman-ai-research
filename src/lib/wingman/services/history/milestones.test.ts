@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   FUNNEL_STAGES,
-  deriveSetupQualifiedMilestone,
+  deriveSetupMilestone,
+  deriveSetupQualifiedMilestones,
   deriveSurvivorMilestone,
   emptyProvenance,
   filterStageRows,
@@ -9,6 +10,7 @@ import {
   sortStageRows,
   survivorRowFromCohortToken,
   uniqueStageRows,
+  type QualifyingSetup,
   type StageAppearance,
   type StageRow,
 } from "./milestones";
@@ -30,47 +32,70 @@ function appearance(over: Partial<StageAppearance> = {}): StageAppearance {
   };
 }
 
+const setupMilestone = (list: StageAppearance[], setup: QualifyingSetup = "BASE") =>
+  deriveSetupMilestone(identity, list, setup);
+
 describe("SETUP_QUALIFIED milestones", () => {
   it("freezes the first BASE qualification", () => {
-    const m = deriveSetupQualifiedMilestone(identity, [
+    const m = setupMilestone([
       appearance({ scanRunId: "scan-2", completedAt: "2026-09-02T00:00:00.000Z", marketCap: 500_000 }),
       appearance({ scanRunId: "scan-1", completedAt: "2026-09-01T00:00:00.000Z" }),
     ]);
     expect(m?.firstEnteredAt).toBe("2026-09-01T00:00:00.000Z");
     expect(m?.marketCapAtEntry).toBe(100_000);
     expect(m?.firstSetup).toBe("BASE");
+    expect(m?.setupKey).toBe("BASE");
     expect(m?.provenance.sourceScanId).toBe("scan-1");
     expect(m?.provenance.sourceType).toBe("SCANNER");
   });
 
   it("later appearances never rewrite an existing milestone", () => {
-    const first = deriveSetupQualifiedMilestone(identity, [appearance()])!;
-    const later = deriveSetupQualifiedMilestone(identity, [
+    const first = setupMilestone([appearance()])!;
+    const later = setupMilestone([
       appearance({ scanRunId: "scan-9", completedAt: "2026-09-09T00:00:00.000Z" }),
     ]);
     expect(keepFirstMilestone(first, later)).toBe(first);
   });
 
+  it("keeps a separate frozen baseline for BASE and REACCEL", () => {
+    const list = [
+      appearance({ setups: ["BASE"], completedAt: "2026-09-01T00:00:00.000Z", scanRunId: "r1", marketCap: 100_000 }),
+      appearance({ setups: ["REACCEL"], completedAt: "2026-09-05T00:00:00.000Z", scanRunId: "r2", marketCap: 900_000 }),
+    ];
+    const milestones = deriveSetupQualifiedMilestones(identity, list);
+    expect(milestones).toHaveLength(2);
+    const base = milestones.find((m) => m.setupKey === "BASE")!;
+    const reaccel = milestones.find((m) => m.setupKey === "REACCEL")!;
+    expect(base.firstEnteredAt).toBe("2026-09-01T00:00:00.000Z");
+    expect(base.marketCapAtEntry).toBe(100_000);
+    // REACCEL must measure from its OWN entry, never the earlier BASE entry.
+    expect(reaccel.firstEnteredAt).toBe("2026-09-05T00:00:00.000Z");
+    expect(reaccel.marketCapAtEntry).toBe(900_000);
+    expect(reaccel.provenance.sourceScanId).toBe("r2");
+  });
+
   it("records the first REACCEL qualification and setup-specific timestamps", () => {
-    const m = deriveSetupQualifiedMilestone(identity, [
-      appearance({ setups: ["REACCEL"], completedAt: "2026-09-01T00:00:00.000Z", scanRunId: "r1" }),
-      appearance({ setups: ["BASE"], completedAt: "2026-09-03T00:00:00.000Z", scanRunId: "r2" }),
-    ]);
+    const m = setupMilestone(
+      [
+        appearance({ setups: ["REACCEL"], completedAt: "2026-09-01T00:00:00.000Z", scanRunId: "r1" }),
+        appearance({ setups: ["BASE"], completedAt: "2026-09-03T00:00:00.000Z", scanRunId: "r2" }),
+      ],
+      "REACCEL",
+    );
     expect(m?.firstSetup).toBe("REACCEL");
     expect(m?.firstReaccelAt).toBe("2026-09-01T00:00:00.000Z");
     expect(m?.firstBaseAt).toBe("2026-09-03T00:00:00.000Z");
   });
 
   it("NONE never qualifies", () => {
+    expect(setupMilestone([appearance({ setups: [] }), appearance({ setups: ["NONE"] })])).toBeNull();
     expect(
-      deriveSetupQualifiedMilestone(identity, [appearance({ setups: [] }), appearance({ setups: ["NONE"] })]),
-    ).toBeNull();
+      deriveSetupQualifiedMilestones(identity, [appearance({ setups: ["NONE"] })]),
+    ).toHaveLength(0);
   });
 
   it("missing baselines stay unavailable rather than zeroed", () => {
-    const m = deriveSetupQualifiedMilestone(identity, [
-      appearance({ marketCap: null, priceUsd: null, liquidityUsd: null }),
-    ]);
+    const m = setupMilestone([appearance({ marketCap: null, priceUsd: null, liquidityUsd: null })]);
     expect(m?.marketCapAtEntry).toBeNull();
     expect(m?.priceAtEntry).toBeNull();
     expect(m?.baselineComplete).toBe(false);
@@ -78,6 +103,7 @@ describe("SETUP_QUALIFIED milestones", () => {
 });
 
 describe("SURVIVOR milestones", () => {
+
   const record = {
     tokenId: "t1",
     contractAddress: "MintAAA",
@@ -113,7 +139,7 @@ describe("stage enums and provenance", () => {
   it("supports the future AI stages without creating records", () => {
     expect(FUNNEL_STAGES).toContain("AI_SHORTLIST");
     expect(FUNNEL_STAGES).toContain("THESIS_CALL");
-    const scanner = deriveSetupQualifiedMilestone(identity, [appearance()])!;
+    const scanner = setupMilestone([appearance()])!;
     expect(scanner.stage).toBe("SETUP_QUALIFIED");
     expect(scanner.provenance.researchPacketId).toBeNull();
     expect(scanner.provenance.researchRunId).toBeNull();
@@ -157,6 +183,7 @@ function row(over: Partial<StageRow> = {}): StageRow {
     name: "Token",
     symbol: "TKN",
     stage: "SETUP_QUALIFIED",
+    setupKey: "ALL",
     setups: ["BASE"],
     enteredAt: "2026-09-01T00:00:00.000Z",
     entryMarketCap: 100_000,
@@ -205,6 +232,37 @@ describe("stage read model", () => {
     const rows = [row({ tokenId: "a", setups: [] }), row({ tokenId: "b", setups: ["BASE"] })];
     expect(filterStageRows(rows, "NONE").map((r) => r.tokenId)).toEqual(["a"]);
   });
+
+  it("BASE and REACCEL History each use their own frozen baseline", () => {
+    const dual = [
+      row({
+        tokenId: "dual",
+        setupKey: "BASE",
+        setups: ["BASE"],
+        enteredAt: "2026-09-01T00:00:00.000Z",
+        entryMarketCap: 100_000,
+      }),
+      row({
+        tokenId: "dual",
+        setupKey: "REACCEL",
+        setups: ["REACCEL"],
+        enteredAt: "2026-09-05T00:00:00.000Z",
+        entryMarketCap: 900_000,
+      }),
+    ];
+    const base = filterStageRows(dual, "BASE");
+    const reaccel = filterStageRows(dual, "REACCEL");
+    expect(base).toHaveLength(1);
+    expect(base[0]?.entryMarketCap).toBe(100_000);
+    expect(reaccel).toHaveLength(1);
+    expect(reaccel[0]?.entryMarketCap).toBe(900_000);
+    // Headline "All" counts the token once, using its earliest entry.
+    const all = filterStageRows(dual, "ALL");
+    expect(all).toHaveLength(1);
+    expect(all[0]?.enteredAt).toBe("2026-09-01T00:00:00.000Z");
+  });
+
+
 
   it("sorts by most recent and puts missing peaks last", () => {
     const rows = [

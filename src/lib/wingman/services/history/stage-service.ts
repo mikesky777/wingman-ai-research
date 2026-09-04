@@ -157,6 +157,7 @@ export const StageMilestoneService = {
           ? ((currentMarketCap - entryMarketCap) / entryMarketCap) * 100
           : null;
       const setupAtEntry = (m["setup_at_entry"] as string | null) ?? null;
+      const setupKey = ((m["setup_key"] as string | null) ?? "ALL") as StageRow["setupKey"];
 
       return {
         tokenId,
@@ -164,6 +165,7 @@ export const StageMilestoneService = {
         name: (token["name"] as string | null) ?? "Unknown token",
         symbol: (token["symbol"] as string | null) ?? "—",
         stage,
+        setupKey,
         setups: setupAtEntry ? setupAtEntry.split("+").filter(Boolean) : [],
         enteredAt: (m["first_entered_at"] as string | null) ?? null,
         entryMarketCap,

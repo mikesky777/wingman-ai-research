@@ -69,12 +69,22 @@ export function emptyProvenance(sourceType: MilestoneSourceType): StageProvenanc
   };
 }
 
-/** A frozen first entry into one funnel stage. */
+/**
+ * Setup dimension of a milestone.
+ *
+ * SETUP_QUALIFIED is measured per setup: BASE and REACCEL can first occur at
+ * different times and market states, so each keeps its OWN frozen baseline.
+ * Every other stage is one first entry per mint and uses "ALL".
+ */
+export type MilestoneSetupKey = "ALL" | QualifyingSetup;
+
+/** A frozen first entry into one funnel stage (per setup where applicable). */
 export interface StageMilestone {
   tokenId: string;
   contractAddress: string;
   chain: string;
   stage: FunnelStage;
+  setupKey: MilestoneSetupKey;
   firstEnteredAt: string;
   setupAtEntry: string | null;
   firstSetup: QualifyingSetup | null;
@@ -111,30 +121,32 @@ function qualifyingSetups(appearance: StageAppearance): QualifyingSetup[] {
 }
 
 /**
- * First qualification for a recognized setup (BASE or REACCEL). NONE and any
- * unrecognized tag never qualify. Later appearances never rewrite the entry;
- * they only contribute the setup-specific first timestamps.
+ * ONE setup-specific first qualification. The baseline is the market state of
+ * the earliest completed scan where this exact mint carried this exact setup —
+ * a later BASE entry never measures from an earlier REACCEL entry, or vice
+ * versa. NONE and unrecognized tags never qualify.
  */
-export function deriveSetupQualifiedMilestone(
+export function deriveSetupMilestone(
   identity: { tokenId: string; contractAddress: string; chain?: string },
   appearances: StageAppearance[],
+  setup: QualifyingSetup,
 ): StageMilestone | null {
   const ordered = [...appearances].sort(byTime);
-  const first = ordered.find((a) => qualifyingSetups(a).length > 0);
+  const first = ordered.find((a) => a.setups.includes(setup));
   if (!first) return null;
 
   const firstBase = ordered.find((a) => a.setups.includes("BASE")) ?? null;
   const firstReaccel = ordered.find((a) => a.setups.includes("REACCEL")) ?? null;
-  const setups = qualifyingSetups(first);
 
   return {
     tokenId: identity.tokenId,
     contractAddress: identity.contractAddress,
     chain: identity.chain ?? "solana",
     stage: "SETUP_QUALIFIED",
+    setupKey: setup,
     firstEnteredAt: first.completedAt,
-    setupAtEntry: setups.join("+"),
-    firstSetup: setups[0] ?? null,
+    setupAtEntry: qualifyingSetups(first).join("+") || setup,
+    firstSetup: setup,
     firstBaseAt: firstBase?.completedAt ?? null,
     firstReaccelAt: firstReaccel?.completedAt ?? null,
     marketCapAtEntry: isNum(first.marketCap) ? first.marketCap : null,
@@ -152,6 +164,17 @@ export function deriveSetupQualifiedMilestone(
     },
   };
 }
+
+/** Every setup-specific SETUP_QUALIFIED milestone this mint has earned. */
+export function deriveSetupQualifiedMilestones(
+  identity: { tokenId: string; contractAddress: string; chain?: string },
+  appearances: StageAppearance[],
+): StageMilestone[] {
+  return QUALIFYING_SETUPS.map((setup) => deriveSetupMilestone(identity, appearances, setup)).filter(
+    (m): m is StageMilestone => m !== null,
+  );
+}
+
 
 /** The existing frozen First Call record, exactly as outcome tracking stores it. */
 export interface FirstCallRecord {
@@ -179,6 +202,7 @@ export function deriveSurvivorMilestone(
     contractAddress: record.contractAddress,
     chain: "solana",
     stage: "SURVIVOR",
+    setupKey: "ALL",
     firstEnteredAt: record.firstCallAt,
     setupAtEntry: callAppearance ? (callAppearance.setups.join("+") || "NONE") : null,
     firstSetup: setups[0] ?? null,
@@ -212,13 +236,15 @@ export function keepFirstMilestone(
 /* Stage read model                                                    */
 /* ------------------------------------------------------------------ */
 
-/** One unique token inside one stage cohort. */
+/** One token inside one stage cohort (per setup for SETUP_QUALIFIED). */
 export interface StageRow {
   tokenId: string;
   contractAddress: string | null;
   name: string;
   symbol: string;
   stage: FunnelStage;
+  /** Which frozen baseline this row measures from: BASE, REACCEL or ALL. */
+  setupKey: MilestoneSetupKey;
   /** Setup(s) recorded at stage entry. */
   setups: string[];
   enteredAt: string | null;
@@ -287,6 +313,7 @@ export function survivorRowFromCohortToken(token: CohortToken, provenance?: Stag
     name: token.name,
     symbol: token.symbol,
     stage: "SURVIVOR",
+    setupKey: "ALL",
     setups: token.setups,
     enteredAt: token.firstCallAt,
     entryMarketCap: token.firstCallMarketCap,
@@ -314,23 +341,47 @@ export function survivorRowFromCohortToken(token: CohortToken, provenance?: Stag
   };
 }
 
-/** One row per token inside a stage cohort. */
+/**
+ * One row per token. Used for headline unique-token counts only — it never
+ * merges two setup-specific baselines into one measurement, because callers
+ * filter to a single setup before measuring. The EARLIEST entry wins.
+ */
 export function uniqueStageRows(rows: StageRow[]): StageRow[] {
   const byId = new Map<string, StageRow>();
-  for (const row of rows) if (!byId.has(row.tokenId)) byId.set(row.tokenId, row);
+  for (const row of rows) {
+    const prior = byId.get(row.tokenId);
+    if (!prior) {
+      byId.set(row.tokenId, row);
+      continue;
+    }
+    const a = prior.enteredAt ? Date.parse(prior.enteredAt) : Number.POSITIVE_INFINITY;
+    const b = row.enteredAt ? Date.parse(row.enteredAt) : Number.POSITIVE_INFINITY;
+    if (b < a) byId.set(row.tokenId, row);
+  }
   return [...byId.values()];
 }
 
 export type StageSetupFilter = "ALL" | "BASE" | "REACCEL" | "NONE";
 
+/**
+ * BASE and REACCEL select the setup-specific frozen baseline, so REACCEL
+ * History can never measure from a token's earlier BASE entry, or vice versa.
+ */
 export function filterStageRows(rows: StageRow[], filter: StageSetupFilter): StageRow[] {
-  const unique = uniqueStageRows(rows);
-  if (filter === "ALL") return unique;
+  if (filter === "ALL") return uniqueStageRows(rows);
   if (filter === "NONE") {
-    return unique.filter((r) => !QUALIFYING_SETUPS.some((s) => r.setups.includes(s)));
+    return uniqueStageRows(
+      rows.filter(
+        (r) => r.setupKey === "ALL" && !QUALIFYING_SETUPS.some((s) => r.setups.includes(s)),
+      ),
+    );
   }
-  return unique.filter((r) => r.setups.includes(filter));
+  const setupSpecific = rows.filter((r) => r.setupKey === filter);
+  if (setupSpecific.length > 0) return uniqueStageRows(setupSpecific);
+  // Stages without a setup dimension (SURVIVOR) fall back to entry setups.
+  return uniqueStageRows(rows.filter((r) => r.setups.includes(filter)));
 }
+
 
 export type StageSort = "RECENT" | "PEAK";
 

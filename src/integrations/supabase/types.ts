@@ -1394,6 +1394,7 @@ export type Database = {
           research_report_id: string | null
           research_run_id: string | null
           setup_at_entry: string | null
+          setup_key: string
           source_id: string | null
           source_ref: string | null
           source_scan_id: string | null
@@ -1425,6 +1426,7 @@ export type Database = {
           research_report_id?: string | null
           research_run_id?: string | null
           setup_at_entry?: string | null
+          setup_key?: string
           source_id?: string | null
           source_ref?: string | null
           source_scan_id?: string | null
@@ -1456,6 +1458,7 @@ export type Database = {
           research_report_id?: string | null
           research_run_id?: string | null
           setup_at_entry?: string | null
+          setup_key?: string
           source_id?: string | null
           source_ref?: string | null
           source_scan_id?: string | null

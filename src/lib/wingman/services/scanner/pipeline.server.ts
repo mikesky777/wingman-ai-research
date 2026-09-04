@@ -82,6 +82,7 @@ import {
   startScanRun,
 } from "./persistence.server";
 import { refreshOutcomes } from "../outcomes/outcome-persistence.server";
+import { recordScanMilestones } from "../history/milestones.server";
 import { loadActiveStrategy } from "./settings.server";
 import { TelemetryRecorder } from "./telemetry";
 import {
@@ -700,7 +701,42 @@ export async function runScannerPipeline(
       notes: `${SCANNER_VERSION} · ${DISCOVERY_CONFIG_VERSION}`,
     });
 
+    // AUTOMATIC funnel milestones. Written from the exact evidence of THIS run,
+    // append-only and idempotent: an earlier frozen first entry always wins, and
+    // nothing here influences selection, ranking or outcomes.
+    try {
+      const survivorAddresses = new Set(survivors.map((s) => s.token.contractAddress));
+      await recordScanMilestones({
+        scanRunId: runId,
+        completedAt,
+        candidates: toPersist.flatMap((c) => {
+          const tokenId = tokenIds.get(c.token.contractAddress);
+          if (!tokenId) return [];
+          return [
+            {
+              tokenId,
+              contractAddress: c.token.contractAddress,
+              chain: "solana",
+              setups: c.lanes,
+              survivor: survivorAddresses.has(c.token.contractAddress),
+              marketCap: c.token.marketCap,
+              priceUsd: c.token.priceUsd,
+              liquidityUsd: c.token.liquidityUsd,
+              quantitativePriority: c.quantitativePriority,
+            },
+          ];
+        }),
+      });
+    } catch (milestoneError) {
+      // Milestone bookkeeping never fails a completed scan; Sync can repair it.
+      console.error(
+        "recordScanMilestones failed",
+        milestoneError instanceof Error ? milestoneError.message : milestoneError,
+      );
+    }
+
     // Outcome tracking runs LAST, once the run is completed, and is purely
+
     // observational: nothing it writes is ever read back into ranking,
     // filtering, setup classification or survivor selection.
     try {
