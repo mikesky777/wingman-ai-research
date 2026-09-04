@@ -89,7 +89,12 @@ export const HistoryCohortService = {
       // Prefer the exact First Call scan row; fall back to any persisted row.
       const call =
         candidates.find((c) => c["scan_run_id"] === callScanId) ?? candidates[0] ?? ({} as Row);
+      // Most recent scanner observation of this token, by candidate created_at.
+      const latest = [...candidates].sort((a, b) =>
+        String(b["created_at"] ?? "").localeCompare(String(a["created_at"] ?? "")),
+      )[0];
       const token = tokensById.get(tokenId) ?? ({} as Row);
+
 
       return {
         tokenId,
