@@ -76,3 +76,11 @@ export {
   type RefreshDiagnostics,
   type RefreshState,
 } from "./refresh";
+
+export {
+  assessRecentMarketDamage,
+  isRecentMarketDamageEligible,
+  RECENT_CATASTROPHIC_COLLAPSE,
+  type MarketDamageAssessment,
+  type MarketDamageStatus,
+} from "./market-damage";
