@@ -164,6 +164,10 @@ export interface PriceIntegrityFeatures {
   currentToOriginalPeakRatio: number | null;
   /** (postCollapseMaxHigh − postPeakLow) / (peak − postPeakLow). */
   peakRepairFraction: number | null;
+  /** Highest post-collapse level held for a full sustained-reclaim window. */
+  postCollapseSustainedHigh: number | null;
+  /** Where the current value sits inside the peak→low damage span. */
+  currentRepairFraction: number | null;
 
   // --- v1.1 fixed-window volume concentration (age-normalized) ---
   first30mVolumeShare: number | null;
