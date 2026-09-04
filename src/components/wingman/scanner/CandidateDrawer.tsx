@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Check, Copy, ExternalLink, Loader2, ShieldQuestion } from "lucide-react";
 import {
@@ -13,7 +13,12 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { formatUsd } from "@/lib/wingman/format";
-import { checkTokenHolders, setCandidateLabel } from "@/lib/wingman/workbench.functions";
+import {
+  checkTokenHolders,
+  getCandidateCandles,
+  setCandidateLabel,
+} from "@/lib/wingman/workbench.functions";
+import { PriceIntegrityChart } from "./PriceIntegrityChart";
 import type { WorkbenchCandidate } from "@/lib/wingman/services/scanner-service";
 import { evaluateFromCandidateRowSummary } from "@/lib/wingman/services/scanner/price-integrity";
 import {
@@ -75,6 +80,7 @@ export function CandidateDrawer({
   const queryClient = useQueryClient();
   const holderCheck = useServerFn(checkTokenHolders);
   const labelFn = useServerFn(setCandidateLabel);
+  const loadCandles = useServerFn(getCandidateCandles);
   const [note, setNote] = useState("");
   const [copied, setCopied] = useState(false);
 
@@ -86,6 +92,14 @@ export function CandidateDrawer({
           tokenId: candidate?.tokenId ?? null,
         },
       }),
+  });
+
+  // Persisted candles only. Storage read — never a provider request.
+  const candlesQuery = useQuery({
+    queryKey: ["wingman", "candles", candidate?.contractAddress ?? null],
+    queryFn: () => loadCandles({ data: { contractAddress: candidate!.contractAddress! } }),
+    enabled: Boolean(candidate?.contractAddress),
+    staleTime: Infinity,
   });
 
   const label = useMutation({
@@ -486,7 +500,112 @@ export function CandidateDrawer({
                 </li>
               ))}
             </ul>
+            {(persistedIntegrity?.signals ?? []).length > 0 ? (
+              <div className="mt-2 flex flex-wrap gap-1">
+                {(persistedIntegrity?.signals ?? []).map((s) => (
+                  <span
+                    key={s}
+                    className="rounded border border-border-strong px-1 py-0.5 font-mono text-[9px] tracking-wide text-muted-foreground"
+                  >
+                    {s}
+                  </span>
+                ))}
+              </div>
+            ) : null}
           </Block>
+
+          <Block title="Historical candles (as evaluated)">
+            <p className="mb-2 text-[11px] text-muted-foreground">
+              The exact stored candle dataset Price Integrity read. Served from Wingman storage —
+              opening this drawer never requests new provider history.
+            </p>
+            {candlesQuery.isLoading ? (
+              <p className="text-[11px] text-muted-foreground">Loading stored candles…</p>
+            ) : (
+              <>
+                <PriceIntegrityChart
+                  candles={candlesQuery.data?.candles ?? []}
+                  levels={{
+                    peakValue: persistedIntegrity?.features.peakValue ?? null,
+                    postPeakLowValue: persistedIntegrity?.features.postPeakLowValue ?? null,
+                    sustainedHigh: persistedIntegrity?.features.postCollapseSustainedHigh ?? null,
+                    currentValue: persistedIntegrity?.features.currentValue ?? null,
+                  }}
+                />
+                <div className="mt-2 border-t border-border pt-2">
+                  <Row
+                    label="Candles stored"
+                    value={`${candlesQuery.data?.candles.length ?? 0} · ${
+                      candlesQuery.data?.intervals.join(", ") || "n/a"
+                    }`}
+                  />
+                  <Row
+                    label="Window"
+                    value={`${formatOutcomeTime(candlesQuery.data?.firstCandleAt ?? null)} → ${formatOutcomeTime(
+                      candlesQuery.data?.lastCandleAt ?? null,
+                    )}`}
+                  />
+                  <Row
+                    label="Status"
+                    value={persistedIntegrity ? (c.priceIntegrityStatus ?? "UNKNOWN") : "UNKNOWN"}
+                  />
+                  <Row
+                    label="Peak → stabilized ratio"
+                    value={
+                      persistedIntegrity?.features.peakToStabilizedRatio != null
+                        ? `${persistedIntegrity.features.peakToStabilizedRatio.toFixed(1)}x`
+                        : "unavailable"
+                    }
+                  />
+                  <Row
+                    label="Peak drawdown"
+                    value={fmtPct(persistedIntegrity?.features.drawdownFromPeak)}
+                  />
+                  <Row
+                    label="Current repair fraction"
+                    value={fmtPct(persistedIntegrity?.features.currentRepairFraction)}
+                  />
+                  <Row
+                    label="Sustained repair fraction"
+                    value={fmtPct(persistedIntegrity?.features.peakRepairFraction)}
+                  />
+                  <Row
+                    label="First observation → peak"
+                    value={
+                      persistedIntegrity?.features.minutesFirstObservationToPeak != null
+                        ? formatAge(persistedIntegrity.features.minutesFirstObservationToPeak)
+                        : "unavailable"
+                    }
+                  />
+                  <Row
+                    label="Peak → major collapse"
+                    value={
+                      persistedIntegrity?.features.minutesPeakToMajorDrawdown != null
+                        ? formatAge(persistedIntegrity.features.minutesPeakToMajorDrawdown)
+                        : "unavailable"
+                    }
+                  />
+                  <Row
+                    label="Volume 30m / 1h / 3h"
+                    value={`${fmtPct(persistedIntegrity?.features.first30mVolumeShare)} / ${fmtPct(
+                      persistedIntegrity?.features.first1hVolumeShare,
+                    )} / ${fmtPct(persistedIntegrity?.features.first3hVolumeShare)}`}
+                  />
+                  <Row
+                    label="Lifecycle blowoff"
+                    value={
+                      (persistedIntegrity?.signals ?? []).includes("LIFECYCLE_BLOWOFF_COLLAPSE")
+                        ? "LIFECYCLE_BLOWOFF_COLLAPSE"
+                        : persistedIntegrity?.features.peakToPrePeakBaselineRatio != null
+                          ? `no · peak/baseline ${persistedIntegrity.features.peakToPrePeakBaselineRatio.toFixed(1)}x`
+                          : "unavailable"
+                    }
+                  />
+                </div>
+              </>
+            )}
+          </Block>
+
 
 
           <Block title="Outcome since Wingman observation">

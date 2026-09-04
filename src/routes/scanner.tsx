@@ -64,7 +64,29 @@ export const Route = createFileRoute("/scanner")({
 });
 
 
-type Filter = "SURVIVORS" | "ALL" | "NEAR_MISS" | "OUT_OF_SCOPE" | (typeof LANES)[number];
+type Filter =
+  | "SURVIVORS"
+  | "ALL"
+  | "NEAR_MISS"
+  | "OUT_OF_SCOPE"
+  | "PI_HEALTHY"
+  | "PI_CONCERN"
+  | "PI_DAMAGED"
+  | "PI_UNKNOWN"
+  | "PI_DAMAGED_EXCLUDED"
+  | (typeof LANES)[number];
+
+/**
+ * Price Integrity calibration views. Every evaluated candidate — including
+ * DAMAGED ones vetoed from Survivor selection — stays persisted and clickable.
+ */
+const PRICE_INTEGRITY_FILTERS: { key: Filter; label: string }[] = [
+  { key: "PI_HEALTHY", label: "PI: healthy" },
+  { key: "PI_CONCERN", label: "PI: concern" },
+  { key: "PI_DAMAGED", label: "PI: damaged" },
+  { key: "PI_UNKNOWN", label: "PI: unknown" },
+  { key: "PI_DAMAGED_EXCLUDED", label: "Excluded: PRICE_INTEGRITY_DAMAGED" },
+];
 
 type StrategyShape = { setups: Record<string, { enabled: boolean }> } | null;
 
@@ -82,6 +104,7 @@ function calibrationFilters(strategy: StrategyShape): { key: Filter; label: stri
     { key: "ALL" as Filter, label: "All candidates" },
     { key: "NEAR_MISS" as Filter, label: "Near misses" },
     { key: "OUT_OF_SCOPE" as Filter, label: "Out of mandate" },
+    ...PRICE_INTEGRITY_FILTERS,
     ...disabledSetups(strategy).map((lane) => ({
       key: lane as Filter,
       label: `${laneLabel(lane)} (disabled)`,
@@ -106,6 +129,24 @@ function applyFilter(candidates: Row[], filter: Filter): Row[] {
     case "OUT_OF_SCOPE":
       // Mandate exclusions: retained and inspectable, never silently dropped.
       return candidates.filter((c) => c.universeEligibility === "OUT_OF_SCOPE");
+    case "PI_HEALTHY":
+    case "PI_CONCERN":
+    case "PI_DAMAGED":
+      return candidates.filter((c) => c.priceIntegrityStatus === filter.slice(3));
+    case "PI_UNKNOWN":
+      // Evaluated but not classifiable. Excludes candidates never evaluated.
+      return candidates.filter(
+        (c) => c.priceIntegrityStatus === "UNKNOWN" || (c.priceIntegrityPolicyVersion !== null && c.priceIntegrityStatus === null),
+      );
+    case "PI_DAMAGED_EXCLUDED":
+      // Vetoed from Survivor selection by Price Integrity; retained and inspectable.
+      return candidates.filter(
+        (c) =>
+          c.rejectionReason === "PRICE_INTEGRITY_DAMAGED" ||
+          (c.priceIntegrityStatus === "DAMAGED" &&
+            !c.selectedByLaneReservation &&
+            !c.selectedByGlobalRanking),
+      );
     case "NEAR_MISS":
       // Passed the mechanical filters but was never enriched.
       return candidates.filter(
@@ -428,8 +469,8 @@ function ScannerPage() {
                       className="cursor-pointer transition-colors hover:bg-secondary/50 [&>td]:border-t [&>td]:border-border [&>td]:py-3 [&>td]:pr-4 [&>td:last-child]:pr-0"
                     >
                       <td className="tabular text-xs text-muted-foreground">
-                        {filter !== "ALL" && filter !== "SURVIVORS" && filter !== "NEAR_MISS"
-                          ? (c.laneRanks[filter] ?? "—")
+                        {LANES.includes(filter as (typeof LANES)[number])
+                          ? (c.laneRanks[filter as (typeof LANES)[number]] ?? "—")
                           : (c.globalRank ?? "—")}
                       </td>
                       <td className="pr-3">
