@@ -208,6 +208,8 @@ function row(over: Partial<StageRow> = {}): StageRow {
     latestRecurrenceState: null,
     provenance: null,
     baselineComplete: true,
+    policyEpoch: "CURRENT_V1",
+    selectionPolicyVersion: "scanner_selection/v1",
     ...over,
   };
 }

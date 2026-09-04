@@ -16,6 +16,7 @@ import {
   type StageRow,
 } from "@/lib/wingman/services/history/milestones";
 import type { LiveMarketValues } from "@/lib/wingman/services/history/live-market";
+import { POLICY_LABELS } from "@/lib/wingman/services/history/policy-epochs";
 
 function pct(value: number | null | undefined): string {
   if (value === null || value === undefined) return "—";
