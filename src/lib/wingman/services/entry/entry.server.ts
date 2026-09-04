@@ -176,6 +176,40 @@ async function loadCalibrationTopUp(
   return out;
 }
 
+/**
+ * Coarse price series built from Wingman's own immutable market snapshots.
+ * Used only when candle history is unavailable; each bar is one observation.
+ */
+async function loadSnapshotSeries(tokenId: string, asOf: string | null): Promise<EntryCandle[]> {
+  let q = supabaseAdmin
+    .from("token_snapshots")
+    .select("captured_at, price_usd, volume_1h")
+    .eq("token_id", tokenId)
+    .not("price_usd", "is", null)
+    .order("captured_at", { ascending: true })
+    .limit(400);
+  if (asOf) q = q.lte("captured_at", asOf);
+  const { data } = await q;
+  const rows = ((data as Row[]) ?? []).filter((r) => Number(r["price_usd"]) > 0);
+  const out: EntryCandle[] = [];
+  let prev: number | null = null;
+  for (const r of rows) {
+    const close = Number(r["price_usd"]);
+    const open = prev ?? close;
+    out.push({
+      interval: "snapshot",
+      unixTime: Math.floor(new Date(r["captured_at"] as string).getTime() / 1000),
+      open,
+      high: Math.max(open, close),
+      low: Math.min(open, close),
+      close,
+      volumeUsd: r["volume_1h"] === null ? null : Number(r["volume_1h"]),
+    });
+    prev = close;
+  }
+  return out;
+}
+
 interface MarketEvidence {
   snapshotId: string | null;
   observedAt: string | null;
@@ -486,7 +520,23 @@ async function evaluateOne(args: {
     }
   }
 
-  const features: TimingFeatures | null = computeTimingFeatures(candles, evaluationUnix);
+  // Fallback: Wingman's own persisted market observations form a coarse
+  // price series when the candle provider cannot serve history. Lower
+  // resolution is recorded explicitly; nothing is fabricated.
+  let featureSource: "CANDLES" | "SNAPSHOT_SERIES" | "NONE" = "CANDLES";
+  let features: TimingFeatures | null = computeTimingFeatures(candles, evaluationUnix);
+  if (!features && (tokenId ?? market.tokenId)) {
+    const snapshotSeries = await loadSnapshotSeries((tokenId ?? market.tokenId)!, asOf);
+    const snapshotFeatures = computeTimingFeatures(snapshotSeries, evaluationUnix);
+    if (snapshotFeatures) {
+      features = snapshotFeatures;
+      featureSource = "SNAPSHOT_SERIES";
+    } else {
+      featureSource = "NONE";
+    }
+  } else if (!features) {
+    featureSource = "NONE";
+  }
 
   // 3. Price-attention divergence (never decides the state alone).
   const divergence: DivergenceResult = classifyDivergence({
@@ -607,6 +657,7 @@ async function evaluateOne(args: {
         marketRefreshed: market.refreshed,
         marketError: market.error,
         candleCount: candles.length,
+        featureSource,
         historyError,
         notes: score?.notes ?? [],
         asOf,
