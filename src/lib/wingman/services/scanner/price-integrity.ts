@@ -402,14 +402,37 @@ export function deriveFeatures(input: PriceIntegrityInput): PriceIntegrityFeatur
       : [];
   const postCollapseMaxHigh =
     repairWindow.length > 0 ? repairWindow.reduce((m, p) => (p.high > m ? p.high : m), repairWindow[0]!.high) : null;
+  // Sustained reclaim: the highest level actually HELD for a full window, so a
+  // single bounce wick off the crash low can never read as repaired structure.
+  const holdMs = PRICE_INTEGRITY_CALIBRATION.sustainedReclaimMinutes * 60_000;
+  let postCollapseSustainedHigh: number | null = null;
+  for (let i = 0; i < repairWindow.length; i += 1) {
+    const startMs = new Date(repairWindow[i]!.at).getTime();
+    let floor = repairWindow[i]!.value;
+    let covered = false;
+    for (let j = i; j < repairWindow.length; j += 1) {
+      const t = new Date(repairWindow[j]!.at).getTime();
+      if (t - startMs > holdMs) {
+        covered = true;
+        break;
+      }
+      if (repairWindow[j]!.value < floor) floor = repairWindow[j]!.value;
+    }
+    if (!covered) break;
+    if (postCollapseSustainedHigh === null || floor > postCollapseSustainedHigh) {
+      postCollapseSustainedHigh = floor;
+    }
+  }
   const postCollapseHighToOriginalPeakRatio =
     postCollapseMaxHigh !== null && peak.value > 0 ? postCollapseMaxHigh / peak.value : null;
   const currentToOriginalPeakRatio = peak.value > 0 ? lastPoint.value / peak.value : null;
   const damageSpan = low ? peak.value - low.value : null;
-  const peakRepairFraction =
-    postCollapseMaxHigh !== null && low && damageSpan !== null && damageSpan > 0
-      ? Math.max(0, Math.min(1, (postCollapseMaxHigh - low.value) / damageSpan))
+  const normalize = (v: number | null): number | null =>
+    v !== null && low && damageSpan !== null && damageSpan > 0
+      ? Math.max(0, Math.min(1, (v - low.value) / damageSpan))
       : null;
+  const peakRepairFraction = normalize(postCollapseSustainedHigh);
+  const currentRepairFraction = normalize(lastPoint.value);
 
   // --- v1.1: fixed short launch windows + age-normalized volume RATES.
   // The 12h high-resolution fetch window is a data strategy, not a behaviour.
