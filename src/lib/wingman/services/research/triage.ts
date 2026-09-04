@@ -13,7 +13,45 @@
 import type { CandidateSource } from "./types";
 
 export const TRIAGE_POLICY_VERSION = "ai_triage/v1";
-export const TRIAGE_PROMPT_VERSION = "ai_triage_prompt/v1";
+export const TRIAGE_PROMPT_VERSION = "ai_triage_prompt/v1.1";
+
+/**
+ * Input-serialization policy for triage. Stage 2 must never see information
+ * that only exists BECAUSE of what happened after its own evidence snapshot,
+ * otherwise calibration against historical packets rewards hindsight instead
+ * of judgement. Realized outcome performance stays in the full Research
+ * Packet for audit; it is stripped from the model input here.
+ */
+export const TRIAGE_INPUT_POLICY_VERSION = "ai_triage_input/v1_no_outcomes";
+
+/** Compact packet keys removed before the model ever sees a candidate. */
+export const TRIAGE_REDACTED_KEYS = ["outcomes"] as const;
+
+/** Pure, deterministic: strip post-snapshot outcome information. */
+export function redactCompactForTriage(
+  compact: Record<string, unknown>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(compact)) {
+    if ((TRIAGE_REDACTED_KEYS as readonly string[]).includes(key)) continue;
+    out[key] = value;
+  }
+  return out;
+}
+
+/** Deterministic seeded ordering, for presentation-order stability testing. */
+export function orderCandidates<T extends { mint: string }>(rows: T[], seed: number | null): T[] {
+  if (seed === null || seed === undefined) return rows;
+  const hash = (s: string) => {
+    let h = (seed >>> 0) ^ 2166136261;
+    for (let i = 0; i < s.length; i += 1) {
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 16777619) >>> 0;
+    }
+    return h;
+  };
+  return [...rows].sort((a, b) => hash(a.mint) - hash(b.mint) || a.mint.localeCompare(b.mint));
+}
 
 export interface TriageConfig {
   /** MAXIMUM number of DEEP_RESEARCH decisions. Never a quota to fill. */
