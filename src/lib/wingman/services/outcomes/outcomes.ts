@@ -1,9 +1,3 @@
-import {
-  assessMarketValidity,
-  isMetricUsable,
-  type OutcomeMarketValidity,
-} from "./market-validity";
-
 /**
  * Scanner outcome derivation (pure, deterministic, server- and browser-safe).
  *
@@ -19,6 +13,12 @@ import {
  *   - Values are only ever read from already-persisted observations. Nothing
  *     is interpolated, extrapolated or fabricated.
  */
+
+import {
+  assessMarketValidity,
+  isMetricUsable,
+  type OutcomeMarketValidity,
+} from "./market-validity";
 
 export const OUTCOME_VERSION = "outcomes/v2";
 
