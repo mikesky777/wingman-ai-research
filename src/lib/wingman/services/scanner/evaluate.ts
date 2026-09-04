@@ -243,7 +243,13 @@ export interface SurvivorSelection {
   globalCount: number;
   /** Ranked candidates removed by the structural FAIL veto before allocation. */
   structurallyVetoed: EvaluatedCandidate[];
+  /**
+   * Ranked candidates removed by the Recent Catastrophic Collapse gate before
+   * allocation. Temporary and current-market only.
+   */
+  marketDamageVetoed: EvaluatedCandidate[];
 }
+
 
 
 /**
