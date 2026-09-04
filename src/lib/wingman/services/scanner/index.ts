@@ -42,6 +42,7 @@ export {
 export { applyHardFilters } from "./hard-filters";
 export {
   NO_VALID_DEX_MARKET,
+  MARKET_LOOKUP_UNAVAILABLE,
   assessMarket,
   marketRejection,
   type MarketResolution,

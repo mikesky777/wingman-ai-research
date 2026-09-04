@@ -34,16 +34,32 @@ export const HistoryCohortService = {
 
     const tokenIds = [...new Set(outcomes.map((r) => r["token_id"] as string))];
 
-    const [{ data: candidateRows }, { data: tokenRows }] = await Promise.all([
-      supabase
-        .from("scan_candidates")
-        .select(
-          "token_id, scan_run_id, discovery_lanes, contract_address, market_cap, liquidity_usd, volume_24h, price_integrity_status, structural_status, participation_status",
-        )
-        .in("token_id", tokenIds)
-        .limit(4000),
+    // The Data API caps any single response at 1000 rows, so candidate rows are
+    // read in token chunks. Without this, a growing scan history silently
+    // truncates the join and whole cohorts disappear from the UI.
+    const CHUNK = 40;
+    const chunks: string[][] = [];
+    for (let i = 0; i < tokenIds.length; i += CHUNK) chunks.push(tokenIds.slice(i, i + CHUNK));
+
+    const [candidateChunks, { data: tokenRows }] = await Promise.all([
+      Promise.all(
+        chunks.map(async (ids) => {
+          const { data, error: candidateError } = await supabase
+            .from("scan_candidates")
+            .select(
+              "token_id, scan_run_id, discovery_lanes, contract_address, market_cap, liquidity_usd, volume_24h, price_integrity_status, structural_status, participation_status",
+            )
+            .in("token_id", ids)
+            .order("created_at", { ascending: false })
+            .limit(1000);
+          if (candidateError) throw candidateError;
+          return (data ?? []) as unknown as Row[];
+        }),
+      ),
       supabase.from("tokens").select("id, name, symbol, dex_pair_address").in("id", tokenIds),
     ]);
+    const candidateRows = candidateChunks.flat();
+
 
     const candidatesByToken = new Map<string, Row[]>();
     for (const row of (candidateRows ?? []) as unknown as Row[]) {

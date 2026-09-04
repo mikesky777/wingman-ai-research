@@ -14,6 +14,8 @@ import { ACTIVITY_FLOOR } from "./config";
 import type { HardFilterRejection } from "./types";
 
 export const NO_VALID_DEX_MARKET = "NO_VALID_DEX_MARKET";
+/** Provider lookup failed — NOT evidence that the token has no market. */
+export const MARKET_LOOKUP_UNAVAILABLE = "MARKET_LOOKUP_UNAVAILABLE";
 
 const SOLANA_ADDRESS_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 
@@ -134,7 +136,7 @@ export function marketRejection(
   resolution: MarketResolution | undefined | null,
 ): HardFilterRejection {
   return {
-    reason: NO_VALID_DEX_MARKET,
+    reason: resolution?.providerFailure ? MARKET_LOOKUP_UNAVAILABLE : NO_VALID_DEX_MARKET,
     detail:
       resolution?.reasonDetail ??
       "No valid DexScreener Solana market could be resolved for this token.",
