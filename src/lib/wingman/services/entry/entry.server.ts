@@ -138,7 +138,11 @@ async function loadThesisInputs(options: {
  * Research Packet but no thesis yet, so the timing layer can be audited across
  * varied setups. These rows carry NO thesis score — Entry never invents one.
  */
-async function loadCalibrationTopUp(exclude: Set<string>, need: number): Promise<ThesisInput[]> {
+async function loadCalibrationTopUp(
+  exclude: Set<string>,
+  need: number,
+  onlyMints?: string[],
+): Promise<ThesisInput[]> {
   if (need <= 0) return [];
   const { data } = await supabaseAdmin
     .from("research_packets")
@@ -149,6 +153,7 @@ async function loadCalibrationTopUp(exclude: Set<string>, need: number): Promise
   for (const r of ((data as Row[]) ?? [])) {
     const mint = (r["contract_address"] as string) ?? "";
     if (!mint || exclude.has(mint)) continue;
+    if (onlyMints?.length && !onlyMints.includes(mint)) continue;
     exclude.add(mint);
     out.push({
       thesisReportId: null,
@@ -332,9 +337,13 @@ export async function runEntryStateBatch(
     limit,
     ...(options.mints?.length ? { mints: options.mints } : {}),
   });
-  if (isCalibration && !options.mints?.length && inputs.length < limit) {
+  if (isCalibration && inputs.length < limit) {
     inputs.push(
-      ...(await loadCalibrationTopUp(new Set(inputs.map((i) => i.mint)), limit - inputs.length)),
+      ...(await loadCalibrationTopUp(
+        new Set(inputs.map((i) => i.mint)),
+        limit - inputs.length,
+        options.mints,
+      )),
     );
   }
 
