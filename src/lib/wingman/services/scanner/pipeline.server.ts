@@ -605,6 +605,25 @@ export async function runScannerPipeline(
       (c.laneRejections["BASE"] ?? "").startsWith("BASE_VOLUME_24H_UNAVAILABLE"),
     ).length;
 
+    // Survivor composition. `survivorLimit` is a MAXIMUM, never a target: a run
+    // legitimately returns fewer survivors when the market offers no more.
+    const setupSurvivors = (setup: "BASE" | "REACCEL" | "MOMENTUM") =>
+      survivors.filter((s) => s.lanes.includes(setup)).length;
+    const survivorDiagnostics = {
+      survivorLimit: config.survivorEnrichmentLimit,
+      survivorCount: survivors.length,
+      baseSurvivors: setupSurvivors("BASE"),
+      reaccelSurvivors: setupSurvivors("REACCEL"),
+      momentumSurvivors: setupSurvivors("MOMENTUM"),
+      reservationSurvivors: selection.reservedCount,
+      recognizedGlobalSurvivors: selection.recognizedGlobalCount,
+      noneGlobalSurvivors: selection.noneGlobalCount,
+      maxNoneGlobalSurvivors: selection.maxNoneGlobalSurvivors,
+      noneSkippedByCap: selection.noneSkippedByCap.length,
+      unusedCapacity: selection.unusedCapacity,
+      underFilled: selection.unusedCapacity > 0,
+    };
+
     const summary: ScanRunSummary = {
       runId,
       scannerVersion: SCANNER_VERSION,
@@ -638,6 +657,7 @@ export async function runScannerPipeline(
       },
       priceIntegrity,
       participation,
+      survivors: survivorDiagnostics,
     };
 
     await completeScanRun({
@@ -658,6 +678,7 @@ export async function runScannerPipeline(
       baseVolumeFloorDiagnostics: summary.baseVolumeFloor,
       priceIntegrityDiagnostics: priceIntegrity,
       participationDiagnostics: participation,
+      survivorDiagnostics,
       notes: `${SCANNER_VERSION} · ${DISCOVERY_CONFIG_VERSION}`,
     });
 
