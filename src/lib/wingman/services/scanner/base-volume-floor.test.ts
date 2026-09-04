@@ -210,7 +210,7 @@ describe("price integrity v1.1 normalized repair and lifecycle blowoff", () => {
     const spec = [
       { minute: 0, close: 1, volumeUsd: 400_000 },
       { minute: 45, close: 1, volumeUsd: 100_000 },
-      { minute: 200, close: 1, volumeUsd: 10_000 },
+      { minute: 120, close: 1, volumeUsd: 10_000 },
     ];
     for (let m = 300; m <= 2_800; m += 60) spec.push({ minute: m, close: 1, volumeUsd: 1_000 });
     const f = evaluateFromCandles(candles(spec), LAUNCH, ["BASE"], NOW_ISO).features;
