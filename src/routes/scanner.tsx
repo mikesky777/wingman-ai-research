@@ -535,7 +535,38 @@ function ScannerPage() {
             </div>
           }
         >
-          {rows.length === 0 ? (
+          {filter === "SUSPECT" ? (
+            <>
+              <div className="mb-3 flex flex-wrap items-center gap-1">
+                {SUSPECT_FILTER_GROUPS.map((group) => (
+                  <div key={group.key} className="flex items-center gap-1">
+                    <span className="label-xs pl-1 pr-0.5">{group.label}</span>
+                    {group.options.map((option) => {
+                      const activeOption = suspectFilters[group.key] === option;
+                      return (
+                        <button
+                          key={`${group.key}-${option}`}
+                          onClick={() =>
+                            setSuspectFilters((prev) => ({ ...prev, [group.key]: option }))
+                          }
+                          className={cn(
+                            "rounded border px-2 py-1 font-mono text-[10px] tracking-wide transition-colors",
+                            activeOption
+                              ? "border-primary/50 bg-primary/10 text-primary"
+                              : "border-border-strong text-muted-foreground hover:text-foreground",
+                          )}
+                        >
+                          {option === "ALL" ? "all" : option}
+                        </button>
+                      );
+                    })}
+                    <span className="mx-1 h-4 w-px bg-border" />
+                  </div>
+                ))}
+              </div>
+              <SuspectTable rows={suspectRows} onSelect={setSelected} />
+            </>
+          ) : rows.length === 0 ? (
             <EmptyState
               title="No candidates in this view"
               description="Change the filter, or run a scan to populate live candidates."
