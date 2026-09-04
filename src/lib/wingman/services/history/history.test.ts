@@ -28,6 +28,8 @@ function token(overrides: Partial<CohortToken> & { tokenId: string }): CohortTok
     symbol: "TKN",
     setups: ["BASE"],
     firstCallAt: "2026-09-01T00:00:00.000Z",
+    latestObservationAt: null,
+    latestRecurrenceState: null,
     firstCallMarketCap: 100_000,
     firstCallPriceUsd: 0.001,
     sinceCallPct: 10,
