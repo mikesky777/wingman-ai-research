@@ -75,6 +75,7 @@ const DAY = 24 * HOUR;
 
 export const DEFAULT_FRESHNESS: FreshnessConfig = {
   market: 5 * MINUTE,
+  participation: 45 * MINUTE,
   social: 30 * MINUTE,
   holders: 6 * HOUR,
   creator: 7 * DAY,

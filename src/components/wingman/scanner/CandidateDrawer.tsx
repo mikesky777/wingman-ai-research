@@ -624,7 +624,7 @@ export function CandidateDrawer({
                     label="Volume / liquidity (24h)"
                     value={formatRatioPct(c.volumeToLiquidity24h)}
                   />
-                  <Row label="Turnover (24h)" value={formatRatioPct(c.volumeToMarketCap24h)} />
+                  <Row label="Turnover (24h)" value={formatRatioPct(c.turnover24h)} />
                   {pq?.reasons?.length ? (
                     <ul className="mt-2 space-y-1 text-[11px] text-muted-foreground">
                       {pq.reasons.map((reason) => (
