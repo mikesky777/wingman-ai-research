@@ -271,8 +271,12 @@ function ScannerPage() {
             {funnel?.scannerVersion ?? "scanner/v1"}
             {funnel?.calibrationMode ? " · calibration" : ""}
           </span>
-          <Button size="sm" onClick={() => mutation.mutate()} disabled={mutation.isPending}>
-            {mutation.isPending ? (
+          <Button
+            size="sm"
+            onClick={() => mutation.mutate()}
+            disabled={mutation.isPending || runState === "RUNNING" || runState === "ALREADY_RUNNING"}
+          >
+            {mutation.isPending || runState === "RUNNING" || runState === "ALREADY_RUNNING" ? (
               <>
                 <Loader2 className="size-3.5 animate-spin" /> Scanning
               </>
