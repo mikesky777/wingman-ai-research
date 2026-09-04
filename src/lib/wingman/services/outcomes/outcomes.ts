@@ -203,8 +203,14 @@ export function emptyOutcome(): OutcomeMetrics {
     minPrice: null,
     minMarketCap: null,
     maxAdverseChangePct: null,
+    minMarketCapAt: null,
     maxPeakToTroughDrawdownPct: null,
+    drawdownPeakMarketCap: null,
+    drawdownPeakAt: null,
+    drawdownTroughMarketCap: null,
+    drawdownTroughAt: null,
     elapsedMinutes: null,
+
     observationCount: 0,
     horizons: {},
   };
