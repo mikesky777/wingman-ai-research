@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { syncStageMilestones } from "@/lib/wingman/history.functions";
 import { Loader2, RefreshCw } from "lucide-react";
 import { AppShell } from "@/components/wingman/AppShell";
 import { Section } from "@/components/wingman/Section";
@@ -10,14 +12,19 @@ import { Button } from "@/components/ui/button";
 import { useOutcomes } from "@/lib/wingman/hooks";
 import { OutcomeService } from "@/lib/wingman/services";
 import { HistoryCohortService } from "@/lib/wingman/services/history/cohort-service";
+import { StageMilestoneService } from "@/lib/wingman/services/history/stage-service";
 import {
-  HISTORY_SETUPS,
-  cohortFor,
-  sortCohort,
-  summarizeCohort,
-  type CohortSort,
-  type HistorySetup,
-} from "@/lib/wingman/services/history/cohort";
+  FUNNEL_STAGES,
+  STAGE_TERMS,
+  filterStageRows,
+  sortStageRows,
+  summarizeStageRows,
+  survivorRowFromCohortToken,
+  type FunnelStage,
+  type StageRow,
+  type StageSetupFilter,
+  type StageSort,
+} from "@/lib/wingman/services/history/milestones";
 import { LIVE_REFRESH_INTERVAL_MS } from "@/lib/wingman/services/history/live-market";
 import { CohortSummaryCards } from "@/components/wingman/history/CohortSummary";
 import { CohortTable } from "@/components/wingman/history/CohortTable";
@@ -27,7 +34,6 @@ import { formatDate, formatUsd, relativeTime } from "@/lib/wingman/format";
 import { MOCK_DATA_NOTICE } from "@/lib/wingman/config";
 import { cn } from "@/lib/utils";
 
-
 export const Route = createFileRoute("/history")({
   head: () => ({
     meta: [
@@ -35,12 +41,12 @@ export const Route = createFileRoute("/history")({
       {
         name: "description",
         content:
-          "Past Wingman recommendations with peak market cap, maximum gain and drawdown, used to measure whether the scoring system works.",
+          "Wingman funnel history by stage: setup qualified, survivors and future AI stages, each measured from its own frozen baseline.",
       },
       { property: "og:title", content: "History & learning — Wingman AI" },
       {
         property: "og:description",
-        content: "Hit rates by thesis score band across past Wingman shortlists.",
+        content: "Funnel-stage cohorts with frozen entry baselines and live market overlay.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -56,21 +62,54 @@ const STATUS_TONE: Record<string, string> = {
   INVALIDATED: "border-destructive/40 bg-destructive/10 text-destructive",
 };
 
-type Tab = "OUTCOMES" | HistorySetup;
+type Tab = "OUTCOMES" | FunnelStage;
 
 function HistoryPage() {
-  const [tab, setTab] = useState<Tab>("OUTCOMES");
-  const cohortActive = tab !== "OUTCOMES";
+  const [tab, setTab] = useState<Tab>("SURVIVOR");
+  const queryClient = useQueryClient();
+  const sync = useServerFn(syncStageMilestones);
+  const [syncing, setSyncing] = useState(false);
+  const [syncNote, setSyncNote] = useState<string | null>(null);
+
+  // Appends missing stage milestones from persisted scanner/outcome records.
+  // Existing milestones are never rewritten and no AI stage row is created.
+  const runSync = async () => {
+    setSyncing(true);
+    setSyncNote(null);
+    try {
+      const result = await sync({} as never);
+      setSyncNote(
+        `Setup qualified ${result.setupQualifiedTotal} · Survivors ${result.survivorTotal} · mismatches ${result.reconciliationMismatches.length} · incomplete baselines ${result.incompleteBaselines}`,
+      );
+      await queryClient.invalidateQueries({ queryKey: ["wingman"] });
+    } catch (error) {
+      setSyncNote(error instanceof Error ? error.message : "Milestone sync failed");
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   return (
     <AppShell
       title="History"
-      subtitle="Did Wingman's scores actually predict anything? Measurement lives here."
-      actions={<span className="text-[11px] text-muted-foreground">{MOCK_DATA_NOTICE}</span>}
+      subtitle="Every funnel stage measured from its own frozen baseline."
+      actions={
+        <div className="flex items-center gap-3">
+          {syncNote ? (
+            <span className="tabular text-[11px] text-muted-foreground">{syncNote}</span>
+          ) : (
+            <span className="text-[11px] text-muted-foreground">{MOCK_DATA_NOTICE}</span>
+          )}
+          <Button size="sm" variant="outline" onClick={runSync} disabled={syncing}>
+            <RefreshCw className={cn("size-3.5", syncing && "animate-spin")} /> Sync stage
+            milestones
+          </Button>
+        </div>
+      }
     >
       <div className="space-y-6">
         <div className="flex flex-wrap items-center gap-1">
-          {(["OUTCOMES", ...HISTORY_SETUPS] as Tab[]).map((key) => (
+          {([...FUNNEL_STAGES, "OUTCOMES"] as Tab[]).map((key) => (
             <button
               key={key}
               onClick={() => setTab(key)}
@@ -81,48 +120,92 @@ function HistoryPage() {
                   : "border-border-strong text-muted-foreground hover:text-foreground",
               )}
             >
-              {key}
+              {key === "OUTCOMES" ? "Outcomes" : STAGE_TERMS[key as FunnelStage].title}
             </button>
           ))}
         </div>
 
-        {cohortActive ? <CohortView setup={tab as HistorySetup} /> : <OutcomesView />}
+        {tab === "OUTCOMES" ? <OutcomesView /> : <StageView stage={tab as FunnelStage} />}
       </div>
     </AppShell>
   );
 }
 
-/** BASE / REACCEL cohort view with the live market overlay. */
-function CohortView({ setup }: { setup: HistorySetup }) {
-  const { data: tokens = [], isLoading } = useQuery({
+/** One funnel-stage cohort with the live market overlay. */
+function StageView({ stage }: { stage: FunnelStage }) {
+  const isSurvivor = stage === "SURVIVOR";
+
+  // Survivors keep the existing frozen First Call cohort exactly as it is.
+  const survivorQuery = useQuery({
     queryKey: ["wingman", "history-cohort"],
     queryFn: () => HistoryCohortService.calledTokens(),
+    enabled: isSurvivor,
   });
-  const [selected, setSelected] = useState<string | null>(null);
-  const [sort, setSort] = useState<CohortSort>("RECENT");
+  const survivorProvenance = useQuery({
+    queryKey: ["wingman", "stage-provenance", "SURVIVOR"],
+    queryFn: () => StageMilestoneService.provenanceByToken("SURVIVOR"),
+    enabled: isSurvivor,
+  });
+  const stageQuery = useQuery({
+    queryKey: ["wingman", "stage-cohort", stage],
+    queryFn: () => StageMilestoneService.stageCohort(stage),
+    enabled: !isSurvivor,
+  });
 
-  const cohort = useMemo(() => sortCohort(cohortFor(tokens, setup), sort), [tokens, setup, sort]);
+  const isLoading = isSurvivor ? survivorQuery.isLoading : stageQuery.isLoading;
+
+  const rows = useMemo<StageRow[]>(() => {
+    if (!isSurvivor) return stageQuery.data ?? [];
+    return (survivorQuery.data ?? [])
+      .filter((t) => t.firstCallAt !== null)
+      .map((t) => survivorRowFromCohortToken(t, survivorProvenance.data?.get(t.tokenId) ?? null));
+  }, [isSurvivor, stageQuery.data, survivorQuery.data, survivorProvenance.data]);
+
+  const [selected, setSelected] = useState<string | null>(null);
+  const [sort, setSort] = useState<StageSort>("RECENT");
+  const [setupFilter, setSetupFilter] = useState<StageSetupFilter>("ALL");
+
+  const cohort = useMemo(
+    () => sortStageRows(filterStageRows(rows, setupFilter), sort),
+    [rows, setupFilter, sort],
+  );
   const addresses = useMemo(
     () => cohort.map((t) => t.contractAddress).filter((a): a is string => Boolean(a)),
     [cohort],
   );
 
   const live = useLiveMarket(addresses, true);
-  const liveByToken = useMemo(() => {
-    const map = new Map<string, { marketCap: number | null }>();
-    for (const [address, value] of Object.entries(live.values)) {
-      map.set(address, { marketCap: value.marketCap });
-    }
+  const liveByAddress = useMemo(() => {
+    const map = new Map<string, number | null>();
+    for (const [address, value] of Object.entries(live.values)) map.set(address, value.marketCap);
     return map;
   }, [live.values]);
 
   const summary = useMemo(
-    () => summarizeCohort(tokens, setup, liveByToken),
-    [tokens, setup, liveByToken],
+    () => summarizeStageRows(stage, cohort, liveByAddress),
+    [stage, cohort, liveByAddress],
   );
 
   const active = cohort.find((t) => t.tokenId === selected) ?? null;
   const activeLive = active?.contractAddress ? (live.values[active.contractAddress] ?? null) : null;
+  const terms = STAGE_TERMS[stage];
+
+  if (stage === "AI_SHORTLIST" || stage === "THESIS_CALL") {
+    return (
+      <Section
+        title={terms.title}
+        description="Reserved for AI triage and thesis synthesis. Nothing is simulated here."
+      >
+        <EmptyState
+          title="No stage entries yet"
+          description="This stage is created only by a real AI run, with the exact research packet it saw."
+        />
+      </Section>
+    );
+  }
+
+  const setupFilters: StageSetupFilter[] =
+    stage === "SURVIVOR" ? ["ALL", "BASE", "REACCEL", "NONE"] : ["ALL", "BASE", "REACCEL"];
 
   return (
     <div className="space-y-6">
@@ -136,7 +219,9 @@ function CohortView({ setup }: { setup: HistorySetup }) {
         </span>
         <span className="text-muted-foreground">·</span>
         <span className="tabular text-muted-foreground">
-          {live.lastRefreshedAt ? `updated ${relativeTime(live.lastRefreshedAt)}` : "awaiting first update"}
+          {live.lastRefreshedAt
+            ? `updated ${relativeTime(live.lastRefreshedAt)}`
+            : "awaiting first update"}
         </span>
         {live.isRefreshing ? (
           <span className="flex items-center gap-1 text-muted-foreground">
@@ -152,16 +237,35 @@ function CohortView({ setup }: { setup: HistorySetup }) {
       <CohortSummaryCards summary={summary} />
 
       <Section
-        title={`${setup} cohort`}
-        description="Unique tokens with a frozen First Wingman Call. Descriptive historical measurement — not simulated trading returns."
+        title={`${terms.title} cohort`}
+        description={
+          stage === "SURVIVOR"
+            ? "Unique tokens with a frozen First Survivor selection. Descriptive historical measurement — not thesis returns or simulated trading."
+            : "Unique tokens the first time they qualified for a recognized BASE or REACCEL setup."
+        }
       >
         <div className="mb-3 flex flex-wrap items-center gap-1">
-          <span className="label-xs mr-1">Sort</span>
+          <span className="label-xs mr-1">Setup</span>
+          {setupFilters.map((key) => (
+            <button
+              key={key}
+              onClick={() => setSetupFilter(key)}
+              className={cn(
+                "rounded border px-2.5 py-1 font-mono text-[10px] tracking-wide transition-colors",
+                setupFilter === key
+                  ? "border-primary/50 bg-primary/10 text-primary"
+                  : "border-border-strong text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {key}
+            </button>
+          ))}
+          <span className="label-xs mr-1 ml-4">Sort</span>
           {(
             [
               ["RECENT", "Most recent"],
-              ["PEAK", "Highest peak call"],
-            ] as [CohortSort, string][]
+              ["PEAK", `Highest ${terms.peak.toLowerCase()}`],
+            ] as [StageSort, string][]
           ).map(([key, label]) => (
             <button
               key={key}
@@ -181,11 +285,15 @@ function CohortView({ setup }: { setup: HistorySetup }) {
           <p className="text-xs text-muted-foreground">Loading cohort…</p>
         ) : cohort.length === 0 ? (
           <EmptyState
-            title={`No ${setup} calls yet`}
-            description="A token joins this cohort once it is selected as a Wingman Survivor with this setup."
+            title="No stage entries yet"
+            description={
+              stage === "SURVIVOR"
+                ? "A token joins this cohort once it is selected as a Wingman Survivor."
+                : "A token joins this cohort the first time it qualifies for BASE or REACCEL."
+            }
           />
         ) : (
-          <CohortTable tokens={cohort} live={live.values} onSelect={setSelected} />
+          <CohortTable stage={stage} tokens={cohort} live={live.values} onSelect={setSelected} />
         )}
       </Section>
 
@@ -249,35 +357,37 @@ function OutcomesView() {
       </div>
 
       <Section
-        title="Previous Recommendations"
-        description="Every token that reached the Wingman shortlist."
+        title="Recorded outcomes"
+        description="Descriptive measurement of past Wingman discoveries."
       >
         {isLoading ? (
           <p className="text-xs text-muted-foreground">Loading outcomes…</p>
         ) : outcomes.length === 0 ? (
           <EmptyState
-            title="No recorded outcomes yet"
-            description="Outcome tracking begins once promoted opportunities have measurable history."
+            title="No outcomes recorded yet"
+            description="Outcomes appear once discoveries have been tracked over time."
           />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1000px] text-left">
+            <table className="w-full min-w-[900px] text-left">
               <thead>
-                <tr className="[&>th]:label-xs [&>th]:pb-2.5 [&>th]:font-medium">
+                <tr className="[&>th]:label-xs [&>th]:pb-2.5 [&>th]:pr-4 [&>th]:font-medium">
                   <th>Token</th>
-                  <th className="text-right">Thesis @ discovery</th>
-                  <th className="text-right">Entry score</th>
+                  <th className="text-right">Thesis</th>
                   <th className="text-right">MC @ discovery</th>
                   <th className="text-right">Peak MC</th>
                   <th className="text-right">Max gain</th>
-                  <th className="text-right">Max drawdown</th>
+                  <th className="text-right">Max DD</th>
                   <th>Status</th>
                   <th className="text-right">Discovered</th>
                 </tr>
               </thead>
               <tbody>
                 {outcomes.map((o) => (
-                  <tr key={o.id} className="[&>td]:border-t [&>td]:border-border [&>td]:py-3">
+                  <tr
+                    key={o.id}
+                    className="[&>td]:border-t [&>td]:border-border [&>td]:py-3 [&>td]:pr-4"
+                  >
                     <td>
                       <span className="text-sm font-medium">{o.token.name}</span>
                       <span className="tabular block text-[11px] text-muted-foreground">
@@ -285,7 +395,6 @@ function OutcomesView() {
                       </span>
                     </td>
                     <td className="tabular text-right text-sm">{o.thesisScoreAtDiscovery}</td>
-                    <td className="tabular text-right text-sm">{o.entryScoreAtDiscovery}/10</td>
                     <td className="tabular text-right text-sm">
                       {formatUsd(o.marketCapAtDiscoveryUsd)}
                     </td>
@@ -294,14 +403,14 @@ function OutcomesView() {
                     <td className="tabular text-right text-sm text-destructive">
                       {o.maxDrawdownPct}%
                     </td>
-                    <td className="px-3">
+                    <td>
                       <span
                         className={cn(
                           "rounded border px-1.5 py-0.5 font-mono text-[10px] tracking-wide",
-                          STATUS_TONE[o.status],
+                          STATUS_TONE[o.status] ?? "border-border-strong text-muted-foreground",
                         )}
                       >
-                        {o.status.replace("_", " ")}
+                        {o.status}
                       </span>
                     </td>
                     <td className="tabular text-right text-xs text-muted-foreground">

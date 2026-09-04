@@ -1,5 +1,5 @@
 /**
- * History live-mode server functions.
+ * History live-mode + funnel-stage server functions.
  *
  * Read + lightweight-observation surface only. No scan run is ever created,
  * no historical scan row is mutated, no baseline is rewritten.
@@ -9,6 +9,10 @@ import {
   refreshLiveMarkets,
   type LiveMarketRefreshResult,
 } from "./services/history/live-market.server";
+import {
+  backfillStageMilestones,
+  type MilestoneBackfillResult,
+} from "./services/history/milestones.server";
 
 export const refreshHistoryLiveMarkets = createServerFn({ method: "POST" })
   .inputValidator((input: { addresses: string[]; persist?: boolean }) => ({
@@ -19,3 +23,12 @@ export const refreshHistoryLiveMarkets = createServerFn({ method: "POST" })
     async ({ data }): Promise<LiveMarketRefreshResult> =>
       refreshLiveMarkets(data.addresses, { persist: data.persist }),
   );
+
+/**
+ * Append missing SETUP_QUALIFIED / SURVIVOR milestones derived from persisted
+ * scanner and outcome records. Existing milestones are never rewritten and no
+ * AI stage record is ever created here.
+ */
+export const syncStageMilestones = createServerFn({ method: "POST" }).handler(
+  async (): Promise<MilestoneBackfillResult> => backfillStageMilestones(),
+);
