@@ -523,6 +523,13 @@ function ScannerPage() {
                     >
                       Peak call
                     </th>
+                    <th
+                      className="text-right"
+                      title="Worst observed market-cap move below Wingman's first Survivor call."
+                    >
+                      Max DD call
+                    </th>
+
                     <th className="text-right">Priority</th>
                     <th className="w-8" title="Refresh current market data for this token." />
                   </tr>
@@ -668,6 +675,18 @@ function ScannerPage() {
                           ? formatOutcomePct(c.outcome.peakMarketCapSinceCallPct)
                           : "—"}
                       </td>
+                      <td
+                        className={cn(
+                          "tabular text-right text-sm",
+                          outcomeTone(c.outcome?.maxAdverseSinceCallPctV2),
+                        )}
+                        title="Worst observed market-cap move below Wingman's first Survivor call."
+                      >
+                        {c.outcome?.firstCallAt
+                          ? formatOutcomePct(c.outcome.maxAdverseSinceCallPctV2)
+                          : "—"}
+                      </td>
+
                       <td className="tabular text-right text-sm font-semibold">
                         {c.quantitativePriority ?? "—"}
                       </td>

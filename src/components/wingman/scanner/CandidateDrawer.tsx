@@ -798,7 +798,69 @@ export function CandidateDrawer({
                 c.outcome?.firstCallAt ? formatOutcomePct(c.outcome.drawdownSinceCallPct) : "—"
               }`}
             />
+            <Row
+              label="Max adverse since call"
+              value={
+                <span className={outcomeTone(c.outcome?.maxAdverseSinceCallPctV2)}>
+                  {c.outcome?.firstCallAt
+                    ? formatOutcomePct(c.outcome.maxAdverseSinceCallPctV2)
+                    : "—"}
+                </span>
+              }
+            />
+            <Row
+              label="Post-call low MC / at"
+              value={`${
+                c.outcome?.firstCallAt && c.outcome.maxAdverseMarketCapSinceCall != null
+                  ? formatUsd(c.outcome.maxAdverseMarketCapSinceCall)
+                  : "—"
+              } · ${
+                c.outcome?.maxAdverseSinceCallAt
+                  ? formatOutcomeTime(c.outcome.maxAdverseSinceCallAt)
+                  : "—"
+              }`}
+            />
+            <Row
+              label="Max peak-to-trough drawdown since call"
+              value={
+                <span className={outcomeTone(c.outcome?.drawdownSinceCallPctV2)}>
+                  {c.outcome?.firstCallAt
+                    ? formatOutcomePct(c.outcome.drawdownSinceCallPctV2)
+                    : "—"}
+                </span>
+              }
+            />
+            <Row
+              label="Drawdown peak MC / at"
+              value={`${
+                c.outcome?.firstCallAt && c.outcome.drawdownPeakMarketCapSinceCall != null
+                  ? formatUsd(c.outcome.drawdownPeakMarketCapSinceCall)
+                  : "—"
+              } · ${
+                c.outcome?.drawdownPeakSinceCallAt
+                  ? formatOutcomeTime(c.outcome.drawdownPeakSinceCallAt)
+                  : "—"
+              }`}
+            />
+            <Row
+              label="Drawdown trough MC / at"
+              value={`${
+                c.outcome?.firstCallAt && c.outcome.drawdownTroughMarketCapSinceCall != null
+                  ? formatUsd(c.outcome.drawdownTroughMarketCapSinceCall)
+                  : "—"
+              } · ${
+                c.outcome?.drawdownTroughSinceCallAt
+                  ? formatOutcomeTime(c.outcome.drawdownTroughSinceCallAt)
+                  : "—"
+              }`}
+            />
+            <p className="pt-1 text-[11px] text-muted-foreground">
+              Max adverse and peak-to-trough drawdown are historical market-cap observations
+              measured from Wingman's frozen first Survivor call — not simulated or realized trade
+              P&amp;L, and not a stop-loss recommendation.
+            </p>
             <Row label="Stored observations" value={c.outcome?.observationCount ?? 0} />
+
           </Block>
 
           <Block title="Lifecycle signals">

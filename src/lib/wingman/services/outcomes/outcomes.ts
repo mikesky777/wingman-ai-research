@@ -162,12 +162,21 @@ export interface OutcomeMetrics {
   minMarketCap: number | null;
   /** Worst market-cap move against the baseline, as a negative percentage. */
   maxAdverseChangePct: number | null;
+  /** Timestamp of the observation carrying the post-baseline market-cap low. */
+  minMarketCapAt: string | null;
   /** Worst decline from a post-baseline market-cap peak, as a negative percentage. */
   maxPeakToTroughDrawdownPct: number | null;
+  /** Market cap / timestamp of the peak that began the worst drawdown. */
+  drawdownPeakMarketCap: number | null;
+  drawdownPeakAt: string | null;
+  /** Market cap / timestamp of the trough that completed the worst drawdown. */
+  drawdownTroughMarketCap: number | null;
+  drawdownTroughAt: string | null;
   elapsedMinutes: number | null;
   observationCount: number;
   horizons: HorizonMap;
 }
+
 
 export interface OutcomeInput {
   baselineAt: string;
@@ -194,8 +203,14 @@ export function emptyOutcome(): OutcomeMetrics {
     minPrice: null,
     minMarketCap: null,
     maxAdverseChangePct: null,
+    minMarketCapAt: null,
     maxPeakToTroughDrawdownPct: null,
+    drawdownPeakMarketCap: null,
+    drawdownPeakAt: null,
+    drawdownTroughMarketCap: null,
+    drawdownTroughAt: null,
     elapsedMinutes: null,
+
     observationCount: 0,
     horizons: {},
   };
@@ -261,32 +276,70 @@ export function deriveOutcome(input: OutcomeInput): OutcomeMetrics {
   out.maxPriceAt =
     out.maxPrice === null ? null : (series.find((o) => o.priceUsd === out.maxPrice)?.at ?? null);
   out.maxAdverseChangePct = changePct(input.baselineMarketCap, out.minMarketCap);
+  out.minMarketCapAt =
+    out.minMarketCap === null
+      ? null
+      : (series.find((o) => o.marketCap === out.minMarketCap)?.at ?? null);
 
-  out.maxPeakToTroughDrawdownPct = peakToTroughDrawdownPct(
-    input.baselineMarketCap,
-    series.map((o) => o.marketCap),
-  );
+  const drawdown = peakToTroughDrawdown(input.baselineMarketCap, input.baselineAt, series);
+  out.maxPeakToTroughDrawdownPct = drawdown.declinePct;
+  out.drawdownPeakMarketCap = drawdown.peakMarketCap;
+  out.drawdownPeakAt = drawdown.peakAt;
+  out.drawdownTroughMarketCap = drawdown.troughMarketCap;
+  out.drawdownTroughAt = drawdown.troughAt;
 
   out.horizons = deriveHorizons(input, series, baseTime);
   return out;
 }
 
-/** Worst decline from any running peak (baseline included as the first peak). */
-function peakToTroughDrawdownPct(baseline: number | null, caps: (number | null)[]): number | null {
-  let peak = isNumber(baseline) ? baseline : null;
-  let worst: number | null = null;
-  for (const cap of caps) {
+export interface DrawdownDetail {
+  declinePct: number | null;
+  peakMarketCap: number | null;
+  peakAt: string | null;
+  troughMarketCap: number | null;
+  troughAt: string | null;
+}
+
+/**
+ * Worst decline from any running peak to a strictly later trough (the baseline
+ * counts as the first peak). Chronological only: a trough before its peak can
+ * never pair with it. Nothing is interpolated.
+ */
+function peakToTroughDrawdown(
+  baseline: number | null,
+  baselineAt: string,
+  series: Observation[],
+): DrawdownDetail {
+  let peak: number | null = isNumber(baseline) ? baseline : null;
+  let peakAt: string | null = isNumber(baseline) ? baselineAt : null;
+  const out: DrawdownDetail = {
+    declinePct: null,
+    peakMarketCap: null,
+    peakAt: null,
+    troughMarketCap: null,
+    troughAt: null,
+  };
+  for (const observation of series) {
+    const cap = observation.marketCap;
     if (!isNumber(cap)) continue;
     if (peak === null || cap > peak) {
       peak = cap;
+      peakAt = observation.at;
       continue;
     }
     if (peak === 0) continue;
     const decline = ((cap - peak) / peak) * 100;
-    if (worst === null || decline < worst) worst = decline;
+    if (out.declinePct === null || decline < out.declinePct) {
+      out.declinePct = decline;
+      out.peakMarketCap = peak;
+      out.peakAt = peakAt;
+      out.troughMarketCap = cap;
+      out.troughAt = observation.at;
+    }
   }
-  return worst;
+  return out;
 }
+
 
 function deriveHorizons(
   input: OutcomeInput,

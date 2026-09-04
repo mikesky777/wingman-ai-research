@@ -273,6 +273,20 @@ function toRow(
       ? call.maxPeakToTroughDrawdownPct
       : null,
 
+    // Since-Call drawdown metrics. Market-cap based, post-call observations
+    // only, exact observation timestamps preserved. Null without a First Call.
+    max_adverse_since_call_pct: firstCall ? call.maxAdverseChangePct : null,
+    max_adverse_since_call_at: firstCall ? call.minMarketCapAt : null,
+    max_adverse_market_cap_since_call: firstCall ? call.minMarketCap : null,
+    max_peak_to_trough_drawdown_since_call_pct: firstCall
+      ? call.maxPeakToTroughDrawdownPct
+      : null,
+    drawdown_peak_market_cap_since_call: firstCall ? call.drawdownPeakMarketCap : null,
+    drawdown_peak_since_call_at: firstCall ? call.drawdownPeakAt : null,
+    drawdown_trough_market_cap_since_call: firstCall ? call.drawdownTroughMarketCap : null,
+    drawdown_trough_since_call_at: firstCall ? call.drawdownTroughAt : null,
+
+
     // Peak Since Call. Market-cap % is primary; price % is the fallback view.
     // Null without a First Call baseline — never silently backed by First Seen.
     peak_market_cap_since_call_pct: firstCall ? call.maxGainPct : null,
