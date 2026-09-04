@@ -26,6 +26,7 @@ import {
 import { PriceIntegrityChart } from "./PriceIntegrityChart";
 import type { WorkbenchCandidate } from "@/lib/wingman/services/scanner-service";
 import { evaluateFromCandidateRowSummary } from "@/lib/wingman/services/scanner/price-integrity";
+import { assessRecentMarketDamage } from "@/lib/wingman/services/scanner/market-damage";
 import {
   COMPONENT_LABELS,
   EXTENSION_TONE,
@@ -480,6 +481,47 @@ export function CandidateDrawer({
                 ))}
               </div>
             ) : null}
+          </Block>
+
+          <Block title="Recent market damage">
+            {(() => {
+              const damage = assessRecentMarketDamage(c.priceChange1h);
+              return (
+                <>
+                  <p className="mb-2 text-[11px] text-muted-foreground">
+                    Current-market Survivor gate only. Temporary — never a structural verdict, a
+                    priority input or a permanent exclusion. Missing data stays UNKNOWN.
+                  </p>
+                  <Row
+                    label="1h change"
+                    value={
+                      c.priceChange1h === null || c.priceChange1h === undefined
+                        ? "—"
+                        : `${c.priceChange1h.toFixed(2)}%`
+                    }
+                  />
+                  <Row label="Threshold" value={`${damage.thresholdPct}% or lower`} />
+                  <Row
+                    label="Status"
+                    value={
+                      <span
+                        className={cn(
+                          "rounded border px-1 py-0.5 font-mono text-[10px]",
+                          damage.status === "FAIL"
+                            ? "border-destructive/40 bg-destructive/10 text-destructive"
+                            : damage.status === "PASS"
+                              ? "border-positive/40 bg-positive/10 text-positive"
+                              : "border-border-strong text-muted-foreground",
+                        )}
+                      >
+                        {damage.status}
+                      </span>
+                    }
+                  />
+                  {damage.reason ? <Row label="Rejection reason" value={damage.reason} /> : null}
+                </>
+              );
+            })()}
           </Block>
 
           <Block title="Price / launch integrity (shadow)">
