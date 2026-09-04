@@ -530,6 +530,8 @@ export function deriveFeatures(input: PriceIntegrityInput): PriceIntegrityFeatur
     postCollapseHighToOriginalPeakRatio,
     currentToOriginalPeakRatio,
     peakRepairFraction,
+    postCollapseSustainedHigh,
+    currentRepairFraction,
     first30mVolumeShare,
     first1hVolumeShare,
     first3hVolumeShare,
