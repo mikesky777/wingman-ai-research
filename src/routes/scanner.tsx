@@ -518,6 +518,18 @@ function ScannerPage() {
                           >
                             NONE
                           </span>
+                        ) : null}
+                        {c.lanes.length === 0 && c.priceIntegrityStatus ? (
+                          <span
+                            className={cn(
+                              "ml-1 rounded border px-1.5 py-0.5 font-mono text-[10px] tracking-wide",
+                              PRICE_INTEGRITY_TONE[c.priceIntegrityStatus] ??
+                                "border-border-strong",
+                            )}
+                            title={PRICE_INTEGRITY_HINT[c.priceIntegrityStatus] ?? ""}
+                          >
+                            · {c.priceIntegrityStatus}
+                          </span>
                         ) : (
                           <div className="flex items-center gap-1.5">
                             <span

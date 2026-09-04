@@ -501,6 +501,10 @@ export function CandidateDrawer({
               value={c.priceIntegrityPolicyVersion ?? priceIntegrity.policyVersion}
             />
             <Row
+              label="Selection effect"
+              value="None — label only (Universe and Structural remain the gates)"
+            />
+            <Row
               label="Historical candles"
               value={
                 persistedIntegrity
