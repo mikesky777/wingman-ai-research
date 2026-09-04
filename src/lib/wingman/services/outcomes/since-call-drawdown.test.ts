@@ -83,13 +83,16 @@ describe("max peak-to-trough drawdown since call", () => {
 
   it("requires the peak to precede the trough", () => {
     const out = since([obs(0, 100_000), obs(30, 180_000), obs(60, 300_000)], 0, 100_000);
-    // The 180K low happened before the 300K peak, so it cannot pair with it.
-    expect(out.maxPeakToTroughDrawdownPct).toBeNull();
+    // The 180K low happened before the 300K peak, so it cannot pair with it:
+    // the only decline available is the flat baseline observation.
+    expect(out.maxPeakToTroughDrawdownPct).toBeCloseTo(0, 6);
+    expect(out.drawdownTroughMarketCap).toBe(100_000);
   });
 
   it("differs from max adverse: gains given back, still above the call", () => {
     const out = since([obs(0, 100_000), obs(30, 300_000), obs(60, 180_000)], 0, 100_000);
-    expect(out.maxAdverseChangePct).toBeCloseTo(80, 6);
+    // Never below the call itself, yet 40% of the post-call run was given back.
+    expect(out.maxAdverseChangePct).toBeCloseTo(0, 6);
     expect(out.maxPeakToTroughDrawdownPct).toBeCloseTo(-40, 6);
   });
 });
