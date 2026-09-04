@@ -720,6 +720,11 @@ export async function runScannerPipeline(
       await recordScanMilestones({
         scanRunId: runId,
         completedAt,
+        run: {
+          status: "completed",
+          tokensDiscovered: deduped.length,
+          discoveryHealth: discoveryHealth.state,
+        },
         candidates: toPersist.flatMap((c) => {
           const tokenId = tokenIds.get(c.token.contractAddress);
           if (!tokenId) return [];
