@@ -28,6 +28,27 @@ import { DexScreenerEmbed } from "@/components/wingman/history/DexScreenerEmbed"
 import type { WorkbenchCandidate } from "@/lib/wingman/services/scanner-service";
 import { evaluateFromCandidateRowSummary } from "@/lib/wingman/services/scanner/price-integrity";
 import { deriveDamageTimeline } from "@/lib/wingman/services/scanner/market-damage";
+import { buildResearchPacket } from "@/lib/wingman/services/research/packet";
+import { compactJson } from "@/lib/wingman/services/research/serialize";
+import {
+  RESEARCH_COMPACT_VERSION,
+  type CandidateSource,
+} from "@/lib/wingman/services/research/types";
+
+/** Evidence domains a v1 packet carries. Display only. */
+const RESEARCH_PACKET_DOMAINS = [
+  "identity",
+  "scanner",
+  "eligibility",
+  "market",
+  "universe",
+  "structural",
+  "market_damage",
+  "price_integrity",
+  "participation",
+  "holders",
+  "outcomes",
+] as const;
 import { useLiveMarket } from "@/components/wingman/history/useLiveMarket";
 import {
   COMPONENT_LABELS,
