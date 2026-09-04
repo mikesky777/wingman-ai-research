@@ -90,6 +90,11 @@ export function CandidateDrawer({
 }) {
   const queryClient = useQueryClient();
   const marketRefresh = useMarketRefresh(candidate?.contractAddress ?? null);
+  // Display-only live reading for CURRENT eligibility. Never rewrites the scan row.
+  const live = useLiveMarket(
+    candidate?.contractAddress ? [candidate.contractAddress] : [],
+    Boolean(candidate?.contractAddress),
+  );
   const holderCheck = useServerFn(checkTokenHolders);
   const labelFn = useServerFn(setCandidateLabel);
   const loadCandles = useServerFn(getCandidateCandles);
