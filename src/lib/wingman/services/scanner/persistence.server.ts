@@ -157,6 +157,8 @@ export interface CompleteRunInput {
   baseVolumeFloorDiagnostics?: unknown;
   /** Price / Launch Integrity shadow-mode counts and history cost. */
   priceIntegrityDiagnostics?: unknown;
+  /** Participation Quality shadow-mode counts and provider cost. */
+  participationDiagnostics?: unknown;
 }
 
 export async function completeScanRun(input: CompleteRunInput): Promise<void> {
@@ -186,6 +188,7 @@ export async function completeScanRun(input: CompleteRunInput): Promise<void> {
       structural_diagnostics: (input.structuralDiagnostics ?? null) as never,
       base_volume_floor_diagnostics: (input.baseVolumeFloorDiagnostics ?? null) as never,
       price_integrity_diagnostics: (input.priceIntegrityDiagnostics ?? null) as never,
+      participation_diagnostics: (input.participationDiagnostics ?? null) as never,
       notes: input.notes ?? null,
     } as never)
     .eq("id", input.runId);
@@ -398,6 +401,24 @@ export async function persistCandidates(
               reasons: c.priceIntegrity.reasons,
               shadowMode: c.priceIntegrity.shadowMode,
               evaluatedAt: c.priceIntegrity.evaluatedAt,
+            }
+          : null,
+        // Participation Quality (shadow): descriptive, never a veto.
+        participation_status: c.participation?.status ?? null,
+        participation_policy_version: c.participation?.policyVersion ?? null,
+        participation_detail: c.participation
+          ? {
+              windows: c.participation.windows,
+              context: c.participation.context,
+              signals: c.participation.signals,
+              reasons: c.participation.reasons,
+              holders: c.participation.holders,
+              observedAt: c.participation.observedAt,
+              capturedAt: c.participation.capturedAt,
+              sourceReference: c.participation.sourceReference,
+              evidenceMissing: c.participation.evidenceMissing,
+              shadowMode: c.participation.shadowMode,
+              evaluatedAt: c.participation.evaluatedAt,
             }
           : null,
         // Mandate eligibility. Never a quality or safety judgement.

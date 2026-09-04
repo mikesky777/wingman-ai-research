@@ -14,6 +14,7 @@ import type { RefreshDecision, RefreshPlan } from "./refresh";
 import type { UniverseAssessment } from "./universe";
 import type { StructuralEvaluation } from "./structural";
 import type { PriceIntegrityEvaluation } from "./price-integrity";
+import type { ParticipationEvaluation } from "./participation";
 
 export const SCANNER_VERSION = "scanner/v2";
 
