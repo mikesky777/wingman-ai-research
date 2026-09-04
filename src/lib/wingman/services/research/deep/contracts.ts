@@ -144,7 +144,9 @@ export type StopReason =
   | "BUDGET_TIME"
   | "SUFFICIENT_EVIDENCE"
   | "NO_MORE_QUERIES"
-  | "NO_SOURCES_FOUND";
+  | "NO_SOURCES_FOUND"
+  /** Every external search attempt failed: absence of sources is unproven. */
+  | "SEARCH_PROVIDER_UNAVAILABLE";
 
 export interface SearchState {
   startedAt: number;
@@ -400,6 +402,7 @@ export function computeCoverage(
     coveragePct: Math.round((covered.length / RESEARCH_DOMAINS.length) * 100),
     sourceCount: sources.length,
     primarySourceCount: sources.filter((s) => s.reliabilityClass === "PRIMARY").length,
+    independentSourceCount: sources.filter((s) => s.sourceType !== "OFFICIAL_TOKEN_LINK").length,
     sourceDomainDiversity: hosts.size,
     conflictingClaimCount: claims.filter((c) => c.status === "CONFLICTING").length,
   };
