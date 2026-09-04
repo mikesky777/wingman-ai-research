@@ -50,8 +50,7 @@ describe("market resolution resilience", () => {
       .mockRejectedValueOnce(new Error("PROVIDER_UNAVAILABLE"))
       .mockRejectedValueOnce(new Error("PROVIDER_UNAVAILABLE"));
 
-    let result;
-    try { result = await resolveMarketsDetailed([ADDRESS]); } catch (e) { console.log("ESCAPED", e); throw e; }
+    const result = await resolveMarketsDetailed([ADDRESS]);
     expect(result.batches).toBe(1);
     expect(result.failedBatches).toBe(1);
     const resolution = result.resolutions.get(ADDRESS)!;
