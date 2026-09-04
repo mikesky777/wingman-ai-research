@@ -27,6 +27,8 @@ import { StrategySettingsPanel } from "@/components/wingman/scanner/StrategySett
 import {
   LANES,
   LANE_TONE,
+  PRICE_INTEGRITY_HINT,
+  PRICE_INTEGRITY_TONE,
   RECURRENCE_HINT,
   RECURRENCE_STATES,
   RECURRENCE_TONE,
@@ -526,6 +528,21 @@ function ScannerPage() {
                             >
                               {laneLabel(c.lanes[0] ?? "UNKNOWN")}
                             </span>
+                            {c.priceIntegrityStatus ? (
+                              <span
+                                className={cn(
+                                  "rounded border px-1.5 py-0.5 font-mono text-[10px] tracking-wide",
+                                  PRICE_INTEGRITY_TONE[c.priceIntegrityStatus] ??
+                                    "border-border-strong",
+                                )}
+                                title={
+                                  PRICE_INTEGRITY_HINT[c.priceIntegrityStatus] ??
+                                  "Price Integrity label only — no selection effect."
+                                }
+                              >
+                                · {c.priceIntegrityStatus}
+                              </span>
+                            ) : null}
                             {c.lanes.length > 1 ? (
                               <span className="font-mono text-[10px] text-muted-foreground">
                                 +{c.lanes.length - 1}
@@ -599,7 +616,7 @@ function ScannerPage() {
             </div>
           )}
           <p className="mt-3 text-[11px] text-muted-foreground">
-            Setup labels describe observable market behaviour only. The scanner produces no thesis scores and creates no opportunities. Research reports and
+            Gate hierarchy: Universe OUT_OF_SCOPE excludes, Structural FAIL vetoes, Price Integrity is a label only and never removes a candidate from Survivor selection. Setup labels describe observable market behaviour only. The scanner produces no thesis scores and creates no opportunities. Research reports and
             opportunity records elsewhere in Wingman remain simulated demo data.
           </p>
         </Section>
