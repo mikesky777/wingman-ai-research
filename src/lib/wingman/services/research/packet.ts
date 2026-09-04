@@ -15,7 +15,7 @@ import type {
 } from "../scanner-service";
 
 /**
- * The exact persisted candidate fields a packet reads. `PacketCandidate`
+ * The exact persisted candidate fields a packet reads. `WorkbenchCandidate`
  * satisfies this structurally, so the pure layer never depends on the browser
  * read service or on any database row shape.
  */
