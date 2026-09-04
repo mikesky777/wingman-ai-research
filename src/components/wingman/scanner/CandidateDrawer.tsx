@@ -24,6 +24,7 @@ import {
   useMarketRefresh,
 } from "./RefreshMarketButton";
 import { PriceIntegrityChart } from "./PriceIntegrityChart";
+import { DexScreenerEmbed } from "@/components/wingman/history/DexScreenerEmbed";
 import type { WorkbenchCandidate } from "@/lib/wingman/services/scanner-service";
 import { evaluateFromCandidateRowSummary } from "@/lib/wingman/services/scanner/price-integrity";
 import { assessRecentMarketDamage } from "@/lib/wingman/services/scanner/market-damage";
@@ -191,6 +192,18 @@ export function CandidateDrawer({
               ) : null}
             </div>
           ) : null}
+
+          <Block title="Live DexScreener chart (visual only)">
+            <p className="mb-2 text-[11px] text-muted-foreground">
+              The exact pair Wingman resolved. Visual reference only — no Wingman calculation ever
+              reads this embed.
+            </p>
+            <DexScreenerEmbed
+              pairAddress={marketRefresh.result?.pair?.pairAddress ?? null}
+              contractAddress={c.contractAddress}
+              height={360}
+            />
+          </Block>
 
           {marketRefresh.result?.ok && marketRefresh.result.values ? (
             <Block title="Refreshed market (current, not scan-time)">
