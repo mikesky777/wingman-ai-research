@@ -1,17 +1,20 @@
 /**
- * History token drawer.
+ * History stage drawer.
  *
  * Read-only inspection: the live DexScreener chart for the exact pair Wingman
- * resolved, current lightweight market values, and the immutable scan-time /
- * outcome record beside them. Opening it never creates a scan run and never
- * mutates historical data.
+ * resolved, current lightweight market values, the immutable stage-entry
+ * baseline, and the milestone provenance. Opening it never creates a scan run
+ * and never mutates historical data.
  */
 import { X } from "lucide-react";
 import { KeyValue } from "@/components/wingman/Section";
 import { DexScreenerEmbed } from "./DexScreenerEmbed";
 import { formatDate, formatUsd, relativeTime } from "@/lib/wingman/format";
-import type { CohortToken } from "@/lib/wingman/services/history/cohort";
-import { liveSinceCallPct } from "@/lib/wingman/services/history/cohort";
+import {
+  STAGE_TERMS,
+  liveSinceStagePct,
+  type StageRow,
+} from "@/lib/wingman/services/history/milestones";
 import type { LiveMarketValues } from "@/lib/wingman/services/history/live-market";
 
 function pct(value: number | null | undefined): string {
@@ -24,13 +27,15 @@ export function HistoryTokenDrawer({
   live,
   onClose,
 }: {
-  token: CohortToken | null;
+  token: StageRow | null;
   live: LiveMarketValues | null;
   onClose: () => void;
 }) {
   if (!token) return null;
-  const since = liveSinceCallPct(token, live ? { marketCap: live.marketCap } : null);
+  const terms = STAGE_TERMS[token.stage];
+  const since = liveSinceStagePct(token, live?.marketCap ?? null);
   const pairAddress = live?.pairAddress ?? token.dexPairAddress;
+  const p = token.provenance;
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-background/70 backdrop-blur-sm">
@@ -40,8 +45,8 @@ export function HistoryTokenDrawer({
           <div>
             <h2 className="text-base font-semibold">{token.name}</h2>
             <p className="tabular text-[11px] text-muted-foreground">
-              {token.symbol} · {token.setups.join(" + ") || "NONE"} · first call{" "}
-              {token.firstCallAt ? formatDate(token.firstCallAt) : "—"}
+              {token.symbol} · {token.setups.join(" + ") || "NONE"} · {terms.title} entry{" "}
+              {token.enteredAt ? formatDate(token.enteredAt) : "—"}
             </p>
           </div>
           <button
@@ -93,37 +98,54 @@ export function HistoryTokenDrawer({
           </section>
 
           <section>
-            <h3 className="label-xs mb-2">Scan-time & outcome record (immutable)</h3>
+            <h3 className="label-xs mb-2">Stage baseline & outcome record (immutable)</h3>
             <KeyValue
               columns={2}
               items={[
+                { label: "Stage", value: token.stage },
+                { label: "First entered", value: token.enteredAt ? formatDate(token.enteredAt) : "—" },
                 {
-                  label: "MC @ first call",
+                  label: terms.entry,
+                  value: token.entryMarketCap !== null ? formatUsd(token.entryMarketCap) : "—",
+                },
+                {
+                  label: "Price @ entry",
                   value:
-                    token.firstCallMarketCap !== null ? formatUsd(token.firstCallMarketCap) : "—",
+                    token.entryPriceUsd !== null ? `$${token.entryPriceUsd.toPrecision(4)}` : "—",
                 },
                 {
-                  label: "MC @ scan",
-                  value: token.scanMarketCap !== null ? formatUsd(token.scanMarketCap) : "—",
-                },
-                {
-                  label: "Liquidity @ scan",
+                  label: "Liquidity @ entry",
                   value:
-                    token.scanLiquidityUsd !== null ? formatUsd(token.scanLiquidityUsd) : "—",
+                    token.entryLiquidityUsd !== null ? formatUsd(token.entryLiquidityUsd) : "—",
                 },
-                {
-                  label: "24h volume @ scan",
-                  value: token.scanVolume24h !== null ? formatUsd(token.scanVolume24h) : "—",
-                },
-                { label: "Since call (live)", value: pct(since) },
-                { label: "Since call (persisted)", value: pct(token.sinceCallPct) },
-                { label: "Peak call", value: pct(token.peakSinceCallPct) },
-                { label: "Max DD call", value: pct(token.maxAdverseSinceCallPct) },
-                { label: "Peak-to-trough", value: pct(token.drawdownSinceCallPct) },
+                { label: `${terms.since} (live)`, value: pct(since) },
+                { label: `${terms.since} (persisted)`, value: pct(token.sincePct) },
+                { label: terms.peak, value: pct(token.peakPct) },
+                { label: terms.maxDd, value: pct(token.maxAdversePct) },
+                { label: "Peak-to-trough", value: pct(token.drawdownPct) },
+                { label: "Baseline complete", value: token.baselineComplete ? "YES" : "NO" },
                 { label: "Price integrity", value: token.priceIntegrityStatus ?? "—" },
                 { label: "Structural", value: token.structuralStatus ?? "—" },
                 { label: "Participation", value: token.participationStatus ?? "—" },
                 { label: "Observations", value: token.observationCount },
+              ]}
+            />
+          </section>
+
+          <section>
+            <h3 className="label-xs mb-2">Milestone provenance</h3>
+            <KeyValue
+              columns={2}
+              items={[
+                { label: "Source type", value: p?.sourceType ?? "—" },
+                { label: "Originating run", value: p?.sourceScanId ?? p?.sourceId ?? "—" },
+                { label: "Source ref", value: p?.sourceRef ?? "—" },
+                { label: "Research packet", value: p?.researchPacketId ?? "—" },
+                { label: "Packet version", value: p?.researchPacketVersion ?? "—" },
+                { label: "AI / thesis run", value: p?.researchRunId ?? "—" },
+                { label: "Research report", value: p?.researchReportId ?? "—" },
+                { label: "Policy version", value: p?.policyVersion ?? "—" },
+                { label: "Milestone version", value: p?.milestoneVersion ?? "—" },
               ]}
             />
           </section>

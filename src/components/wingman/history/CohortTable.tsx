@@ -1,13 +1,17 @@
 /**
- * History cohort table — one row per UNIQUE token.
+ * History stage table — one row per UNIQUE token inside one funnel stage.
  *
- * Scan-time values stay visible next to LIVE values so the distinction
+ * Stage-entry values stay visible next to LIVE values so the distinction
  * between immutable history and the current market remains auditable.
  */
 import { formatDate, formatUsd, relativeTime } from "@/lib/wingman/format";
 import { cn } from "@/lib/utils";
-import type { CohortToken } from "@/lib/wingman/services/history/cohort";
-import { liveSinceCallPct } from "@/lib/wingman/services/history/cohort";
+import {
+  STAGE_TERMS,
+  liveSinceStagePct,
+  type FunnelStage,
+  type StageRow,
+} from "@/lib/wingman/services/history/milestones";
 import type { LiveMarketValues } from "@/lib/wingman/services/history/live-market";
 
 function pct(value: number | null): string {
@@ -23,21 +27,25 @@ function tone(value: number | null): string {
 }
 
 export function CohortTable({
+  stage,
   tokens,
   live,
   onSelect,
 }: {
-  tokens: CohortToken[];
+  stage: FunnelStage;
+  tokens: StageRow[];
   live: Record<string, LiveMarketValues>;
   onSelect: (tokenId: string) => void;
 }) {
+  const terms = STAGE_TERMS[stage];
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[1100px] text-left">
         <thead>
           <tr className="[&>th]:label-xs [&>th]:pb-2.5 [&>th]:pr-4 [&>th]:font-medium [&>th]:whitespace-nowrap">
             <th>Token</th>
-            <th className="text-right">MC @ call</th>
+            <th>Setup</th>
+            <th className="text-right">{terms.entry}</th>
             <th className="text-right" title="Current market cap from the live overlay.">
               Live MC
             </th>
@@ -45,10 +53,10 @@ export function CohortTable({
             <th className="text-right">Live 24h vol</th>
             <th className="text-right">1h</th>
             <th className="text-right">24h</th>
-            <th className="text-right">Since call</th>
-            <th className="text-right">Peak call</th>
-            <th className="text-right">Max DD call</th>
-            <th className="text-right">First call</th>
+            <th className="text-right">{terms.since}</th>
+            <th className="text-right">{terms.peak}</th>
+            <th className="text-right">{terms.maxDd}</th>
+            <th className="text-right">Entered</th>
             <th>Seen now</th>
             <th className="text-right">Last seen</th>
           </tr>
@@ -56,7 +64,7 @@ export function CohortTable({
         <tbody>
           {tokens.map((t) => {
             const l = t.contractAddress ? live[t.contractAddress] : undefined;
-            const since = liveSinceCallPct(t, l ? { marketCap: l.marketCap } : null);
+            const since = liveSinceStagePct(t, l?.marketCap ?? null);
             return (
               <tr
                 key={t.tokenId}
@@ -67,8 +75,13 @@ export function CohortTable({
                   <span className="text-sm font-medium">{t.name}</span>
                   <span className="tabular block text-[11px] text-muted-foreground">{t.symbol}</span>
                 </td>
+                <td>
+                  <span className="rounded border border-border-strong px-1.5 py-0.5 font-mono text-[10px] tracking-wide text-muted-foreground">
+                    {t.setups.length > 0 ? t.setups.join("+") : "NONE"}
+                  </span>
+                </td>
                 <td className="tabular text-right text-sm text-muted-foreground">
-                  {t.firstCallMarketCap === null ? "—" : formatUsd(t.firstCallMarketCap)}
+                  {t.entryMarketCap === null ? "—" : formatUsd(t.entryMarketCap)}
                 </td>
                 <td className="tabular text-right text-sm">
                   {l?.marketCap != null
@@ -90,14 +103,12 @@ export function CohortTable({
                   {pct(l?.priceChange24h ?? null)}
                 </td>
                 <td className={cn("tabular text-right text-sm", tone(since))}>{pct(since)}</td>
-                <td className="tabular text-right text-sm text-primary">
-                  {pct(t.peakSinceCallPct)}
-                </td>
+                <td className="tabular text-right text-sm text-primary">{pct(t.peakPct)}</td>
                 <td className="tabular text-right text-sm text-destructive">
-                  {pct(t.maxAdverseSinceCallPct)}
+                  {pct(t.maxAdversePct)}
                 </td>
                 <td className="tabular text-right text-xs text-muted-foreground">
-                  {t.firstCallAt ? formatDate(t.firstCallAt) : "—"}
+                  {t.enteredAt ? formatDate(t.enteredAt) : "—"}
                 </td>
                 <td>
                   {t.latestRecurrenceState ? (

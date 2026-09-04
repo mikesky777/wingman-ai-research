@@ -1369,6 +1369,145 @@ export type Database = {
           },
         ]
       }
+      token_stage_milestones: {
+        Row: {
+          baseline_complete: boolean
+          chain: string
+          contract_address: string
+          created_at: string
+          evidence_observation_id: string | null
+          first_base_at: string | null
+          first_entered_at: string
+          first_reaccel_at: string | null
+          first_setup: string | null
+          id: string
+          liquidity_at_entry: number | null
+          market_cap_at_entry: number | null
+          market_snapshot_id: string | null
+          metadata: Json | null
+          milestone_version: string
+          policy_version: string | null
+          price_at_entry: number | null
+          quantitative_priority_at_entry: number | null
+          research_packet_id: string | null
+          research_packet_version: string | null
+          research_report_id: string | null
+          research_run_id: string | null
+          setup_at_entry: string | null
+          source_id: string | null
+          source_ref: string | null
+          source_scan_id: string | null
+          source_type: string
+          stage: string
+          token_id: string
+        }
+        Insert: {
+          baseline_complete?: boolean
+          chain?: string
+          contract_address: string
+          created_at?: string
+          evidence_observation_id?: string | null
+          first_base_at?: string | null
+          first_entered_at: string
+          first_reaccel_at?: string | null
+          first_setup?: string | null
+          id?: string
+          liquidity_at_entry?: number | null
+          market_cap_at_entry?: number | null
+          market_snapshot_id?: string | null
+          metadata?: Json | null
+          milestone_version?: string
+          policy_version?: string | null
+          price_at_entry?: number | null
+          quantitative_priority_at_entry?: number | null
+          research_packet_id?: string | null
+          research_packet_version?: string | null
+          research_report_id?: string | null
+          research_run_id?: string | null
+          setup_at_entry?: string | null
+          source_id?: string | null
+          source_ref?: string | null
+          source_scan_id?: string | null
+          source_type: string
+          stage: string
+          token_id: string
+        }
+        Update: {
+          baseline_complete?: boolean
+          chain?: string
+          contract_address?: string
+          created_at?: string
+          evidence_observation_id?: string | null
+          first_base_at?: string | null
+          first_entered_at?: string
+          first_reaccel_at?: string | null
+          first_setup?: string | null
+          id?: string
+          liquidity_at_entry?: number | null
+          market_cap_at_entry?: number | null
+          market_snapshot_id?: string | null
+          metadata?: Json | null
+          milestone_version?: string
+          policy_version?: string | null
+          price_at_entry?: number | null
+          quantitative_priority_at_entry?: number | null
+          research_packet_id?: string | null
+          research_packet_version?: string | null
+          research_report_id?: string | null
+          research_run_id?: string | null
+          setup_at_entry?: string | null
+          source_id?: string | null
+          source_ref?: string | null
+          source_scan_id?: string | null
+          source_type?: string
+          stage?: string
+          token_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "token_stage_milestones_evidence_observation_id_fkey"
+            columns: ["evidence_observation_id"]
+            isOneToOne: false
+            referencedRelation: "evidence_observations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "token_stage_milestones_market_snapshot_id_fkey"
+            columns: ["market_snapshot_id"]
+            isOneToOne: false
+            referencedRelation: "token_snapshots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "token_stage_milestones_research_packet_id_fkey"
+            columns: ["research_packet_id"]
+            isOneToOne: false
+            referencedRelation: "research_packets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "token_stage_milestones_research_report_id_fkey"
+            columns: ["research_report_id"]
+            isOneToOne: false
+            referencedRelation: "research_reports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "token_stage_milestones_source_scan_id_fkey"
+            columns: ["source_scan_id"]
+            isOneToOne: false
+            referencedRelation: "scan_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "token_stage_milestones_token_id_fkey"
+            columns: ["token_id"]
+            isOneToOne: false
+            referencedRelation: "tokens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tokens: {
         Row: {
           chain: string
