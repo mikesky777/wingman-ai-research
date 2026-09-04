@@ -111,6 +111,11 @@ async function execute<T>(
   }
 
   if (payload?.success === false) {
+    // Hard quota exhaustion is definitive and must never be retried; ordinary
+    // rate limits are transient and stay retryable.
+    if (/compute unit|usage limit|quota/i.test(payload.message ?? "")) {
+      throw new BirdeyeError("QUOTA_EXHAUSTED", payload.message ?? undefined);
+    }
     if (/too many requests/i.test(payload.message ?? "")) throw new BirdeyeError("RATE_LIMITED");
     if (/not found/i.test(payload.message ?? "")) throw new BirdeyeError("TOKEN_NOT_FOUND");
     throw new BirdeyeError("MALFORMED_RESPONSE");
