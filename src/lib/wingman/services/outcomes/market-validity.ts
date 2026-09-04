@@ -75,7 +75,14 @@ export function assessMarketValidity(input: MarketValidityInput): MarketValidity
   return { validity: "VALID", reason: null, mcToLiquidity: ratio };
 }
 
-/** Only VALID observations may move outcome metrics. UNKNOWN never does. */
+/**
+ * Only confirmed-invalid observations are excluded from metrics.
+ *
+ * UNKNOWN (liquidity evidence missing) stays usable on purpose: missing
+ * evidence is not proof of a dead market, and treating it as invalid would
+ * silently erase legitimate history. It is still reported as UNKNOWN so the
+ * AI layer and the UI can see the observation was never confirmed.
+ */
 export function isMetricUsable(validity: OutcomeMarketValidity): boolean {
-  return validity === "VALID";
+  return validity !== "INVALID_MARKET";
 }

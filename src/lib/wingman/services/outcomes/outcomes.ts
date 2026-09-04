@@ -37,17 +37,17 @@ export interface Observation {
   priceUsd: number | null;
   marketCap: number | null;
   /** Pooled USD depth at observation time. Drives market validity. */
-  liquidityUsd: number | null;
+  liquidityUsd?: number | null;
   source: ObservationSource;
 }
 
 /** Validity of a single observation; computed once, never persisted as zero. */
 export function observationValidity(observation: {
-  liquidityUsd: number | null;
+  liquidityUsd?: number | null;
   marketCap: number | null;
 }): OutcomeMarketValidity {
   return assessMarketValidity({
-    liquidityUsd: observation.liquidityUsd,
+    liquidityUsd: observation.liquidityUsd ?? null,
     marketCap: observation.marketCap,
   }).validity;
 }
@@ -215,7 +215,7 @@ export interface OutcomeMetrics {
   elapsedMinutes: number | null;
   /** Every post-baseline observation, valid or not. Never rewritten. */
   observationCount: number;
-  /** Observations excluded from metrics because they were not VALID. */
+  /** Observations excluded from metrics because they were INVALID_MARKET. */
   excludedObservationCount: number;
   /** Validity of the most recent post-baseline observation. */
   currentMarketValidity: OutcomeMarketValidity;
