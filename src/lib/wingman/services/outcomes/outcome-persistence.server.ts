@@ -273,6 +273,13 @@ function toRow(
       ? call.maxPeakToTroughDrawdownPct
       : null,
 
+    // Peak Since Call. Market-cap % is primary; price % is the fallback view.
+    // Null without a First Call baseline — never silently backed by First Seen.
+    peak_market_cap_since_call_pct: firstCall ? call.maxGainPct : null,
+    peak_since_call_pct: firstCall ? call.maxPriceGainPct : null,
+    peak_market_cap_since_call_at: firstCall ? call.maxMarketCapAt : null,
+    peak_price_since_call_at: firstCall ? call.maxPriceAt : null,
+
     elapsed_minutes_since_first_seen: seen.elapsedMinutes,
     elapsed_minutes_since_first_call: firstCall ? call.elapsedMinutes : null,
     observation_count: seen.observationCount,
