@@ -516,6 +516,21 @@ function ScannerPage() {
                   {f.label}
                 </button>
               ))}
+              <button
+                onClick={() => setFilter("SUSPECT")}
+                title="Review queue for candidates flagged by Participation Quality. Review prompt only — no selection effect."
+                className={cn(
+                  "rounded border px-2 py-1 font-mono text-[10px] tracking-wide transition-colors",
+                  filter === "SUSPECT"
+                    ? "border-warning/60 bg-warning/10 text-warning"
+                    : "border-border-strong text-muted-foreground hover:text-foreground",
+                )}
+              >
+                SUSPECT
+                <span className="ml-1 rounded bg-warning/15 px-1 text-warning">
+                  {suspectTotal}
+                </span>
+              </button>
               <span className="mx-1 h-4 w-px bg-border" />
               {(["ALL", ...RECURRENCE_STATES] as RecurrenceFilter[]).map((r) => (
                 <button
