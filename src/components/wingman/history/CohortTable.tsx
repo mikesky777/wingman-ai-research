@@ -13,6 +13,7 @@ import {
   type StageRow,
 } from "@/lib/wingman/services/history/milestones";
 import type { LiveMarketValues } from "@/lib/wingman/services/history/live-market";
+import { POLICY_LABELS } from "@/lib/wingman/services/history/policy-epochs";
 
 function pct(value: number | null): string {
   if (value === null) return "—";
@@ -45,6 +46,7 @@ export function CohortTable({
           <tr className="[&>th]:label-xs [&>th]:pb-2.5 [&>th]:pr-4 [&>th]:font-medium [&>th]:whitespace-nowrap">
             <th>Token</th>
             <th>Setup</th>
+            <th>Policy</th>
             <th className="text-right">{terms.entry}</th>
             <th className="text-right" title="Current market cap from the live overlay.">
               Live MC
@@ -78,6 +80,19 @@ export function CohortTable({
                 <td>
                   <span className="rounded border border-border-strong px-1.5 py-0.5 font-mono text-[10px] tracking-wide text-muted-foreground">
                     {t.setups.length > 0 ? t.setups.join("+") : "NONE"}
+                  </span>
+                </td>
+                <td>
+                  <span
+                    title={POLICY_LABELS[t.policyEpoch] ?? t.policyEpoch}
+                    className={cn(
+                      "rounded border px-1.5 py-0.5 font-mono text-[10px] tracking-wide",
+                      t.policyEpoch === "CURRENT_V1"
+                        ? "border-primary/40 text-primary"
+                        : "border-border-strong text-muted-foreground",
+                    )}
+                  >
+                    {t.policyEpoch}
                   </span>
                 </td>
                 <td className="tabular text-right text-sm text-muted-foreground">
