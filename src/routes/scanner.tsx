@@ -108,6 +108,7 @@ type Filter =
   | "ALL"
   | "NEAR_MISS"
   | "SETUP_NONE"
+  | "EXPLORATION"
   | "OUT_OF_SCOPE"
   | "PI_HEALTHY"
   | "PI_CONCERN"
@@ -160,6 +161,7 @@ function calibrationFilters(strategy: StrategyShape): { key: Filter; label: stri
     { key: "ALL" as Filter, label: "All candidates" },
     { key: "NEAR_MISS" as Filter, label: "Near misses" },
     { key: "SETUP_NONE" as Filter, label: "Setup: NONE" },
+    { key: "EXPLORATION" as Filter, label: "Exploration (NONE, not selected)" },
     { key: "OUT_OF_SCOPE" as Filter, label: "Out of mandate" },
     { key: "RECENT_CATASTROPHIC_COLLAPSE" as Filter, label: "RECENT_CATASTROPHIC_COLLAPSE" },
     ...PRICE_INTEGRITY_FILTERS,
@@ -229,6 +231,19 @@ function applyFilter(candidates: Row[], filter: Filter): Row[] {
           !c.selectedByLaneReservation &&
           !c.selectedByGlobalRanking,
       );
+    case "EXPLORATION":
+      // High-priority NONE candidates that passed the pipeline but did not get
+      // one of the limited NONE exception slots. Review surface only: they stay
+      // persisted, never receive First Call, and this view changes nothing.
+      return candidates
+        .filter(
+          (c) =>
+            c.lanes.length === 0 &&
+            c.quantitativePriority !== null &&
+            !c.selectedByLaneReservation &&
+            !c.selectedByGlobalRanking,
+        )
+        .sort((a, b) => (b.quantitativePriority ?? 0) - (a.quantitativePriority ?? 0));
     case "SETUP_NONE":
       // Review view over candidates that matched no recognized setup. NONE is a
       // valid observation, never a negative label, and this filter is display only.
