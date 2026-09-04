@@ -6,6 +6,7 @@ import { EmptyState } from "@/components/wingman/EmptyState";
 import { Button } from "@/components/ui/button";
 import { InspectToken } from "@/components/wingman/InspectToken";
 import { TriagePanel } from "@/components/wingman/research/TriagePanel";
+import { DeepResearchPanel } from "@/components/wingman/research/DeepResearchPanel";
 
 import { useOpportunities } from "@/lib/wingman/hooks";
 import { relativeTime } from "@/lib/wingman/format";
@@ -41,6 +42,8 @@ function ResearchPage() {
     >
       <div className="space-y-6">
         <TriagePanel />
+
+        <DeepResearchPanel />
 
         <Section title="Completed Reports">
           {reports.length === 0 ? (

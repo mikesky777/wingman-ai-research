@@ -185,6 +185,363 @@ export type Database = {
           },
         ]
       }
+      deep_research_claims: {
+        Row: {
+          claim: string
+          claim_type: string
+          confidence: string
+          contradicting_source_refs: string[]
+          created_at: string
+          deep_research_run_id: string
+          domain: string
+          id: string
+          observed_at: string | null
+          published_at: string | null
+          report_id: string | null
+          status: string
+          supporting_source_refs: string[]
+        }
+        Insert: {
+          claim: string
+          claim_type: string
+          confidence: string
+          contradicting_source_refs?: string[]
+          created_at?: string
+          deep_research_run_id: string
+          domain: string
+          id?: string
+          observed_at?: string | null
+          published_at?: string | null
+          report_id?: string | null
+          status: string
+          supporting_source_refs?: string[]
+        }
+        Update: {
+          claim?: string
+          claim_type?: string
+          confidence?: string
+          contradicting_source_refs?: string[]
+          created_at?: string
+          deep_research_run_id?: string
+          domain?: string
+          id?: string
+          observed_at?: string | null
+          published_at?: string | null
+          report_id?: string | null
+          status?: string
+          supporting_source_refs?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deep_research_claims_deep_research_run_id_fkey"
+            columns: ["deep_research_run_id"]
+            isOneToOne: false
+            referencedRelation: "deep_research_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deep_research_claims_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "deep_research_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      deep_research_reports: {
+        Row: {
+          chain: string
+          conflicting_claim_count: number
+          covered_domains: string[]
+          created_at: string
+          deep_research_run_id: string
+          dossier: Json
+          dossier_version: string
+          evidence_coverage_pct: number | null
+          id: string
+          identity_attribution_confidence: string
+          is_calibration: boolean
+          mint: string
+          narrative_resolved: boolean
+          one_sentence_narrative: string | null
+          primary_source_count: number
+          research_policy_version: string
+          source_count: number
+          source_domain_diversity: number
+          status: string
+          token_id: string | null
+          unresolved_domains: string[]
+          unresolved_gap_count: number
+        }
+        Insert: {
+          chain?: string
+          conflicting_claim_count?: number
+          covered_domains?: string[]
+          created_at?: string
+          deep_research_run_id: string
+          dossier: Json
+          dossier_version: string
+          evidence_coverage_pct?: number | null
+          id?: string
+          identity_attribution_confidence?: string
+          is_calibration?: boolean
+          mint: string
+          narrative_resolved?: boolean
+          one_sentence_narrative?: string | null
+          primary_source_count?: number
+          research_policy_version: string
+          source_count?: number
+          source_domain_diversity?: number
+          status: string
+          token_id?: string | null
+          unresolved_domains?: string[]
+          unresolved_gap_count?: number
+        }
+        Update: {
+          chain?: string
+          conflicting_claim_count?: number
+          covered_domains?: string[]
+          created_at?: string
+          deep_research_run_id?: string
+          dossier?: Json
+          dossier_version?: string
+          evidence_coverage_pct?: number | null
+          id?: string
+          identity_attribution_confidence?: string
+          is_calibration?: boolean
+          mint?: string
+          narrative_resolved?: boolean
+          one_sentence_narrative?: string | null
+          primary_source_count?: number
+          research_policy_version?: string
+          source_count?: number
+          source_domain_diversity?: number
+          status?: string
+          token_id?: string | null
+          unresolved_domains?: string[]
+          unresolved_gap_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deep_research_reports_deep_research_run_id_fkey"
+            columns: ["deep_research_run_id"]
+            isOneToOne: false
+            referencedRelation: "deep_research_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deep_research_reports_token_id_fkey"
+            columns: ["token_id"]
+            isOneToOne: false
+            referencedRelation: "tokens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      deep_research_runs: {
+        Row: {
+          budget: Json | null
+          chain: string
+          completed_at: string | null
+          created_at: string
+          diagnostics: Json | null
+          duration_ms: number | null
+          eligibility_after: Json | null
+          eligibility_before: Json | null
+          error: string | null
+          fetched_source_count: number
+          id: string
+          is_calibration: boolean
+          mint: string
+          model_identifier: string | null
+          model_pass_count: number
+          model_provider: string | null
+          prompt_version: string
+          query_count: number
+          research_packet_id: string | null
+          research_packet_version: string | null
+          research_policy_version: string
+          shortlist_milestone_id: string | null
+          started_at: string
+          status: string
+          stop_reason: string | null
+          token_id: string | null
+          triage_decision_id: string | null
+          triage_run_id: string | null
+        }
+        Insert: {
+          budget?: Json | null
+          chain?: string
+          completed_at?: string | null
+          created_at?: string
+          diagnostics?: Json | null
+          duration_ms?: number | null
+          eligibility_after?: Json | null
+          eligibility_before?: Json | null
+          error?: string | null
+          fetched_source_count?: number
+          id?: string
+          is_calibration?: boolean
+          mint: string
+          model_identifier?: string | null
+          model_pass_count?: number
+          model_provider?: string | null
+          prompt_version: string
+          query_count?: number
+          research_packet_id?: string | null
+          research_packet_version?: string | null
+          research_policy_version: string
+          shortlist_milestone_id?: string | null
+          started_at?: string
+          status: string
+          stop_reason?: string | null
+          token_id?: string | null
+          triage_decision_id?: string | null
+          triage_run_id?: string | null
+        }
+        Update: {
+          budget?: Json | null
+          chain?: string
+          completed_at?: string | null
+          created_at?: string
+          diagnostics?: Json | null
+          duration_ms?: number | null
+          eligibility_after?: Json | null
+          eligibility_before?: Json | null
+          error?: string | null
+          fetched_source_count?: number
+          id?: string
+          is_calibration?: boolean
+          mint?: string
+          model_identifier?: string | null
+          model_pass_count?: number
+          model_provider?: string | null
+          prompt_version?: string
+          query_count?: number
+          research_packet_id?: string | null
+          research_packet_version?: string | null
+          research_policy_version?: string
+          shortlist_milestone_id?: string | null
+          started_at?: string
+          status?: string
+          stop_reason?: string | null
+          token_id?: string | null
+          triage_decision_id?: string | null
+          triage_run_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deep_research_runs_research_packet_id_fkey"
+            columns: ["research_packet_id"]
+            isOneToOne: false
+            referencedRelation: "research_packets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deep_research_runs_shortlist_milestone_id_fkey"
+            columns: ["shortlist_milestone_id"]
+            isOneToOne: false
+            referencedRelation: "token_stage_milestones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deep_research_runs_token_id_fkey"
+            columns: ["token_id"]
+            isOneToOne: false
+            referencedRelation: "tokens"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deep_research_runs_triage_decision_id_fkey"
+            columns: ["triage_decision_id"]
+            isOneToOne: false
+            referencedRelation: "ai_triage_decisions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deep_research_runs_triage_run_id_fkey"
+            columns: ["triage_run_id"]
+            isOneToOne: false
+            referencedRelation: "ai_triage_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      deep_research_sources: {
+        Row: {
+          account: string | null
+          attribution_confidence: string
+          created_at: string
+          deep_research_run_id: string
+          excerpt: string | null
+          fetched_at: string
+          id: string
+          mint_verified: boolean
+          published_at: string | null
+          query: string | null
+          relevance: string | null
+          reliability_class: string
+          report_id: string | null
+          source_ref: string
+          source_type: string
+          title: string | null
+          url: string | null
+        }
+        Insert: {
+          account?: string | null
+          attribution_confidence?: string
+          created_at?: string
+          deep_research_run_id: string
+          excerpt?: string | null
+          fetched_at: string
+          id?: string
+          mint_verified?: boolean
+          published_at?: string | null
+          query?: string | null
+          relevance?: string | null
+          reliability_class: string
+          report_id?: string | null
+          source_ref: string
+          source_type: string
+          title?: string | null
+          url?: string | null
+        }
+        Update: {
+          account?: string | null
+          attribution_confidence?: string
+          created_at?: string
+          deep_research_run_id?: string
+          excerpt?: string | null
+          fetched_at?: string
+          id?: string
+          mint_verified?: boolean
+          published_at?: string | null
+          query?: string | null
+          relevance?: string | null
+          reliability_class?: string
+          report_id?: string | null
+          source_ref?: string
+          source_type?: string
+          title?: string | null
+          url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deep_research_sources_deep_research_run_id_fkey"
+            columns: ["deep_research_run_id"]
+            isOneToOne: false
+            referencedRelation: "deep_research_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deep_research_sources_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "deep_research_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       evidence_observations: {
         Row: {
           captured_at: string

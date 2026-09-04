@@ -1,0 +1,834 @@
+/**
+ * Deep Research v1 orchestrator (server-only).
+ *
+ * Input:  AI Triage DEEP_RESEARCH decisions (exact persisted decision + the
+ *         immutable Research Packet the decision was made from).
+ * Output: an append-only, source-grounded dossier per candidate.
+ *
+ * This stage NEVER produces a Thesis Score, Entry State, position sizing or
+ * buy/sell language, never touches scanner selection or Quantitative Research
+ * Priority, never overrides operational gates, and never creates milestones.
+ * Calibration runs are dry runs: flagged, subset-limited, history-free.
+ */
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { assessResearchEligibility } from "../packet";
+import { fetchAllPages, loadCurrentMarkets, loadRunCandidates } from "../packet.server";
+import {
+  DEEP_RESEARCH_DOSSIER_VERSION,
+  DEEP_RESEARCH_POLICY_VERSION,
+  DEEP_RESEARCH_PROMPT_VERSION,
+  DEEP_RESEARCH_SEARCH_VERSION,
+  DEFAULT_RESEARCH_BUDGET,
+  assembleDossier,
+  buildQueryPlan,
+  buildSystemPrompt,
+  buildUserPrompt,
+  classifyReliability,
+  classifySourceType,
+  emptyDossier,
+  shouldStopSearch,
+  validateModelOutput,
+  type AttributionConfidence,
+  type ResearchBudget,
+  type ResearchDossier,
+  type ResearchSource,
+  type StopReason,
+} from "./contracts";
+import { mentionsMint, mentionsSymbol, resolveMintIdentity } from "./identity.server";
+import {
+  createDuckDuckGoSearchProvider,
+  createHttpPageFetcher,
+  type PageFetcher,
+  type WebSearchProvider,
+} from "./search.server";
+import {
+  createLovableDeepResearchProvider,
+  type DeepResearchProvider,
+} from "./provider.server";
+
+type Row = Record<string, unknown>;
+
+export type DeepResearchMode = "production" | "calibration";
+
+export type DeepResearchRunCode =
+  | "OK"
+  | "NO_ELIGIBLE_TRIAGE_RUN"
+  | "NO_DEEP_RESEARCH_CANDIDATES"
+  | "MISSING_API_KEY";
+
+export type CandidateStatus = "completed" | "insufficient_evidence" | "blocked" | "failed";
+
+export interface DeepResearchCandidateResult {
+  mint: string;
+  symbol: string | null;
+  status: CandidateStatus;
+  deepResearchRunId: string | null;
+  reportId: string | null;
+  stopReason: StopReason | null;
+  queryCount: number;
+  sourceCount: number;
+  verifiedSourceCount: number;
+  coveragePct: number;
+  narrativeResolved: boolean;
+  identityAttributionConfidence: AttributionConfidence;
+  unresolvedGapCount: number;
+  conflictingClaimCount: number;
+  durationMs: number;
+  blockedReasons: string[];
+  validationIssues: { code: string; detail: string }[];
+  error: string | null;
+}
+
+export interface DeepResearchBatchResult {
+  mode: DeepResearchMode;
+  code: DeepResearchRunCode;
+  isCalibration: boolean;
+  triageRunId: string | null;
+  sourceScanId: string | null;
+  policyVersion: string;
+  dossierVersion: string;
+  promptVersion: string;
+  searchVersion: string;
+  modelProvider: string | null;
+  modelIdentifier: string | null;
+  requested: number;
+  completed: number;
+  insufficient: number;
+  blocked: number;
+  failed: number;
+  milestonesCreated: 0;
+  candidates: DeepResearchCandidateResult[];
+}
+
+export interface RunDeepResearchOptions {
+  mode?: DeepResearchMode;
+  /** Calibration only: cap the dry-run subset (3–5). */
+  limit?: number;
+  /** Calibration only: research a specific triage run instead of the newest. */
+  triageRunId?: string;
+  budget?: Partial<ResearchBudget>;
+  provider?: DeepResearchProvider;
+  search?: WebSearchProvider;
+  fetcher?: PageFetcher;
+}
+
+interface ShortlistedCandidate {
+  decisionId: string;
+  triageRunId: string;
+  sourceScanId: string | null;
+  tokenId: string | null;
+  mint: string;
+  chain: string;
+  researchPacketId: string | null;
+  researchPacketVersion: string | null;
+  requestedDomains: string[];
+  unresolvedQuestions: string[];
+  triageRank: number | null;
+  symbol: string | null;
+  name: string | null;
+}
+
+/** Newest triage run that produced shortlist decisions, in the requested mode. */
+async function loadTriageRun(options: {
+  isCalibration: boolean;
+  triageRunId?: string;
+}): Promise<{ id: string; sourceScanId: string | null } | null> {
+  let query = supabaseAdmin
+    .from("ai_triage_runs")
+    .select("id, source_scan_id, status, is_calibration, deep_research_count, started_at")
+    .eq("status", "completed")
+    .gt("deep_research_count", 0)
+    .order("started_at", { ascending: false })
+    .limit(1);
+  if (options.triageRunId) query = query.eq("id", options.triageRunId);
+  else if (!options.isCalibration) query = query.eq("is_calibration", false);
+
+  const { data, error } = await query.maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) return null;
+  const r = data as Row;
+  return { id: r["id"] as string, sourceScanId: (r["source_scan_id"] as string) ?? null };
+}
+
+async function loadShortlist(run: {
+  id: string;
+  sourceScanId: string | null;
+}): Promise<ShortlistedCandidate[]> {
+  const rows = await fetchAllPages((from, to) =>
+    supabaseAdmin
+      .from("ai_triage_decisions")
+      .select("*")
+      .eq("triage_run_id", run.id)
+      .eq("decision", "DEEP_RESEARCH")
+      .order("triage_rank", { ascending: true, nullsFirst: false })
+      .range(from, to),
+  );
+  return (rows as Row[]).map((d) => ({
+    decisionId: d["id"] as string,
+    triageRunId: run.id,
+    sourceScanId: run.sourceScanId,
+    tokenId: (d["token_id"] as string) ?? null,
+    mint: d["mint"] as string,
+    chain: "solana",
+    researchPacketId: (d["research_packet_id"] as string) ?? null,
+    researchPacketVersion: (d["research_packet_version"] as string) ?? null,
+    requestedDomains: (d["requested_research_domains"] as string[]) ?? [],
+    unresolvedQuestions: (d["unresolved_questions"] as string[]) ?? [],
+    triageRank: (d["triage_rank"] as number) ?? null,
+    symbol: null,
+    name: null,
+  }));
+}
+
+/** Newest AI_SHORTLIST milestone for a token — linked for provenance only. */
+async function findShortlistMilestone(tokenId: string | null): Promise<string | null> {
+  if (!tokenId) return null;
+  const { data } = await supabaseAdmin
+    .from("token_stage_milestones")
+    .select("id")
+    .eq("token_id", tokenId)
+    .eq("stage", "AI_SHORTLIST")
+    .order("first_entered_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data ? ((data as Row)["id"] as string) : null;
+}
+
+export async function runDeepResearch(
+  options: RunDeepResearchOptions = {},
+): Promise<DeepResearchBatchResult> {
+  const mode: DeepResearchMode = options.mode ?? "calibration";
+  const isCalibration = mode === "calibration";
+  const budget: ResearchBudget = { ...DEFAULT_RESEARCH_BUDGET, ...(options.budget ?? {}) };
+
+  const search = options.search ?? createDuckDuckGoSearchProvider();
+  const fetcher = options.fetcher ?? createHttpPageFetcher();
+
+  let provider = options.provider ?? null;
+  if (!provider) {
+    const apiKey = process.env["LOVABLE_API_KEY"];
+    if (!apiKey) {
+      return emptyBatch(mode, "MISSING_API_KEY", null, null, null);
+    }
+    provider = createLovableDeepResearchProvider({ apiKey });
+  }
+
+  const triageRun = await loadTriageRun({ isCalibration, ...(options.triageRunId ? { triageRunId: options.triageRunId } : {}) });
+  if (!triageRun) {
+    return emptyBatch(mode, "NO_ELIGIBLE_TRIAGE_RUN", null, null, provider);
+  }
+
+  let shortlist = await loadShortlist(triageRun);
+  if (shortlist.length === 0) {
+    return emptyBatch(mode, "NO_DEEP_RESEARCH_CANDIDATES", triageRun.id, triageRun.sourceScanId, provider);
+  }
+
+  // Calibration is a DRY RUN over a small deterministic subset chosen by
+  // triage rank only — never by later outcomes.
+  if (isCalibration) {
+    const limit = Math.min(5, Math.max(3, options.limit ?? 3));
+    shortlist = shortlist.slice(0, limit);
+  }
+
+  // Freshness / eligibility recheck against the scan the packets came from.
+  const candidates = triageRun.sourceScanId ? await loadRunCandidates(triageRun.sourceScanId) : [];
+  const byMint = new Map(candidates.filter((c) => c.contractAddress).map((c) => [c.contractAddress as string, c]));
+  const markets = await loadCurrentMarkets(candidates.map((c) => c.tokenId));
+
+  const results: DeepResearchCandidateResult[] = [];
+
+  for (const candidate of shortlist) {
+    const scanCandidate = byMint.get(candidate.mint) ?? null;
+    candidate.symbol = scanCandidate?.symbol ?? null;
+    candidate.name = scanCandidate?.name ?? null;
+    const market = scanCandidate ? (markets.get(scanCandidate.tokenId) ?? null) : null;
+
+    const eligibility = scanCandidate
+      ? assessResearchEligibility({
+          candidate: scanCandidate,
+          currentPriceChange1h: market?.priceChange1h ?? null,
+        })
+      : { researchEligibleNow: true, exclusionReasons: [] as string[] };
+
+    // Operational gates are never overridden. In production an ineligible
+    // candidate is recorded as blocked and skipped; calibration still runs so
+    // the workflow itself can be evaluated on historical cohorts.
+    if (!isCalibration && !eligibility.researchEligibleNow) {
+      const runId = await insertRun({
+        candidate,
+        provider,
+        isCalibration,
+        status: "blocked",
+        budget,
+        eligibility,
+        shortlistMilestoneId: await findShortlistMilestone(candidate.tokenId),
+      });
+      await finishRun(runId, {
+        status: "blocked",
+        stopReason: null,
+        error: null,
+        counts: { queries: 0, fetches: 0, passes: 0 },
+        durationMs: 0,
+        eligibilityAfter: eligibility,
+        diagnostics: { reason: "OPERATIONAL_GATE" },
+      });
+      results.push(blockedResult(candidate, runId, eligibility.exclusionReasons));
+      continue;
+    }
+
+    try {
+      const result = await researchCandidate({
+        candidate,
+        provider,
+        search,
+        fetcher,
+        budget,
+        isCalibration,
+        eligibility,
+      });
+      results.push(result);
+    } catch (error) {
+      // Failure isolation: one bad candidate never aborts the batch.
+      results.push({
+        mint: candidate.mint,
+        symbol: candidate.symbol,
+        status: "failed",
+        deepResearchRunId: null,
+        reportId: null,
+        stopReason: null,
+        queryCount: 0,
+        sourceCount: 0,
+        verifiedSourceCount: 0,
+        coveragePct: 0,
+        narrativeResolved: false,
+        identityAttributionConfidence: "UNRESOLVED",
+        unresolvedGapCount: 6,
+        conflictingClaimCount: 0,
+        durationMs: 0,
+        blockedReasons: [],
+        validationIssues: [],
+        error: error instanceof Error ? error.message.slice(0, 400) : "Unknown error",
+      });
+    }
+  }
+
+  return {
+    mode,
+    code: "OK",
+    isCalibration,
+    triageRunId: triageRun.id,
+    sourceScanId: triageRun.sourceScanId,
+    policyVersion: DEEP_RESEARCH_POLICY_VERSION,
+    dossierVersion: DEEP_RESEARCH_DOSSIER_VERSION,
+    promptVersion: DEEP_RESEARCH_PROMPT_VERSION,
+    searchVersion: DEEP_RESEARCH_SEARCH_VERSION,
+    modelProvider: provider.provider,
+    modelIdentifier: provider.model,
+    requested: shortlist.length,
+    completed: results.filter((r) => r.status === "completed").length,
+    insufficient: results.filter((r) => r.status === "insufficient_evidence").length,
+    blocked: results.filter((r) => r.status === "blocked").length,
+    failed: results.filter((r) => r.status === "failed").length,
+    milestonesCreated: 0,
+    candidates: results,
+  };
+}
+
+async function researchCandidate(input: {
+  candidate: ShortlistedCandidate;
+  provider: DeepResearchProvider;
+  search: WebSearchProvider;
+  fetcher: PageFetcher;
+  budget: ResearchBudget;
+  isCalibration: boolean;
+  eligibility: { researchEligibleNow: boolean; exclusionReasons: string[] };
+}): Promise<DeepResearchCandidateResult> {
+  const { candidate, provider, search, fetcher, budget, isCalibration } = input;
+  const startedAt = Date.now();
+
+  const runId = await insertRun({
+    candidate,
+    provider,
+    isCalibration,
+    status: "running",
+    budget,
+    eligibility: input.eligibility,
+    shortlistMilestoneId: await findShortlistMilestone(candidate.tokenId),
+  });
+
+  const identity = await resolveMintIdentity({
+    mint: candidate.mint,
+    chain: candidate.chain,
+    fallbackSymbol: candidate.symbol,
+    fallbackName: candidate.name,
+  });
+
+  const sources: ResearchSource[] = [];
+  const seenUrls = new Set<string>();
+  let queries = 0;
+  let fetches = 0;
+  let stopReason: StopReason | null = null;
+
+  const pushSource = (source: ResearchSource) => {
+    if (source.url && seenUrls.has(source.url)) return;
+    if (source.url) seenUrls.add(source.url);
+    sources.push(source);
+  };
+
+  // 1. Official links published on the token's own pair metadata are PRIMARY
+  //    and mint-attributed by construction.
+  for (const link of identity.officialLinks.slice(0, 3)) {
+    if (fetches >= budget.maxFetches) break;
+    const page = await fetcher.fetchPage(link.url, budget.maxSourceChars);
+    fetches += 1;
+    pushSource({
+      ref: `S${sources.length + 1}`,
+      url: link.url,
+      title: page?.title ?? link.label,
+      account: null,
+      sourceType: "OFFICIAL_TOKEN_LINK",
+      reliabilityClass: "PRIMARY",
+      publishedAt: null,
+      fetchedAt: page?.fetchedAt ?? new Date().toISOString(),
+      relevance: "Official link published on the token's primary pair metadata",
+      mintVerified: true,
+      attributionConfidence: "CONFIRMED",
+      query: null,
+      excerpt: page?.text ?? null,
+    });
+  }
+
+  // 2. Deterministic external query plan.
+  const plan = buildQueryPlan({ mint: candidate.mint, symbol: identity.symbol, name: identity.name });
+  for (const query of plan) {
+    stopReason = shouldStopSearch(
+      {
+        startedAt,
+        queries,
+        fetches,
+        verifiedSources: sources.filter((s) => s.mintVerified).length,
+        coveredDomains: 0,
+        remainingQueries: plan.length - queries,
+      },
+      budget,
+      Date.now(),
+    );
+    if (stopReason) break;
+
+    let hits: Awaited<ReturnType<WebSearchProvider["search"]>> = [];
+    try {
+      hits = await search.search(query, 4);
+    } catch {
+      hits = [];
+    }
+    queries += 1;
+
+    for (const hit of hits) {
+      if (fetches >= budget.maxFetches) break;
+      if (seenUrls.has(hit.url)) continue;
+      const page = await fetcher.fetchPage(hit.url, budget.maxSourceChars);
+      fetches += 1;
+      const text = `${hit.title ?? ""} ${hit.snippet ?? ""} ${page?.text ?? ""}`;
+      const mintVerified = mentionsMint(text, candidate.mint);
+      const symbolOnly = !mintVerified && mentionsSymbol(text, identity.symbol);
+      if (!mintVerified && !symbolOnly) continue; // ticker collisions are excluded outright
+      const sourceType = classifySourceType(hit.url);
+      pushSource({
+        ref: `S${sources.length + 1}`,
+        url: hit.url,
+        title: page?.title ?? hit.title,
+        account: null,
+        sourceType,
+        reliabilityClass: classifyReliability(sourceType, mintVerified),
+        publishedAt: null,
+        fetchedAt: page?.fetchedAt ?? new Date().toISOString(),
+        relevance: mintVerified ? "Mentions the exact mint address" : "Ticker match only",
+        mintVerified,
+        attributionConfidence: mintVerified ? "CONFIRMED" : "PROBABLE",
+        query,
+        excerpt: (page?.text ?? hit.snippet ?? "").slice(0, budget.maxSourceChars) || null,
+      });
+    }
+  }
+  if (!stopReason) stopReason = sources.length === 0 ? "NO_SOURCES_FOUND" : "NO_MORE_QUERIES";
+
+  const identityAttribution: AttributionConfidence = sources.some((s) => s.mintVerified)
+    ? "CONFIRMED"
+    : sources.length > 0
+      ? "PROBABLE"
+      : "UNRESOLVED";
+
+  const generatedAt = new Date().toISOString();
+  let dossier: ResearchDossier;
+  let modelPasses = 0;
+  let validationIssues: { code: string; detail: string }[] = [];
+  let providerDiagnostics: Record<string, unknown> = {};
+
+  if (sources.length === 0) {
+    dossier = emptyDossier({
+      mint: candidate.mint,
+      chain: candidate.chain,
+      symbol: identity.symbol,
+      name: identity.name,
+      generatedAt,
+    });
+  } else {
+    const response = await provider.complete({
+      system: buildSystemPrompt(),
+      user: buildUserPrompt({
+        mint: candidate.mint,
+        chain: candidate.chain,
+        symbol: identity.symbol,
+        name: identity.name,
+        requestedDomains: candidate.requestedDomains,
+        triageQuestions: candidate.unresolvedQuestions,
+        sources,
+      }),
+    });
+    modelPasses = 1;
+    providerDiagnostics = response.diagnostics;
+    const parsed = parseJson(response.text);
+    const validated = validateModelOutput(parsed, sources);
+    validationIssues = validated.issues;
+    dossier = assembleDossier({
+      mint: candidate.mint,
+      chain: candidate.chain,
+      symbol: identity.symbol,
+      name: identity.name,
+      generatedAt,
+      identityAttributionConfidence: identityAttribution,
+      sources,
+      validated,
+    });
+  }
+
+  const status: CandidateStatus =
+    dossier.claims.length === 0 || dossier.coverage.coveragePct === 0
+      ? "insufficient_evidence"
+      : "completed";
+  const durationMs = Date.now() - startedAt;
+
+  const reportId = await insertReport({ runId, candidate, dossier, isCalibration, status });
+  await insertSources(runId, reportId, dossier.sources);
+  await insertClaims(runId, reportId, dossier.claims);
+  await finishRun(runId, {
+    status,
+    stopReason,
+    error: null,
+    counts: { queries, fetches, passes: modelPasses },
+    durationMs,
+    eligibilityAfter: input.eligibility,
+    diagnostics: {
+      searchProvider: search.name,
+      fetcher: fetcher.name,
+      identityResolved: identity.resolved,
+      officialLinkCount: identity.officialLinks.length,
+      validationIssues,
+      provider: providerDiagnostics,
+    },
+  });
+
+  return {
+    mint: candidate.mint,
+    symbol: identity.symbol,
+    status,
+    deepResearchRunId: runId,
+    reportId,
+    stopReason,
+    queryCount: queries,
+    sourceCount: dossier.coverage.sourceCount,
+    verifiedSourceCount: dossier.sources.filter((s) => s.mintVerified).length,
+    coveragePct: dossier.coverage.coveragePct,
+    narrativeResolved: dossier.narrativeResolved,
+    identityAttributionConfidence: dossier.identityAttributionConfidence,
+    unresolvedGapCount: dossier.evidenceGaps.length,
+    conflictingClaimCount: dossier.coverage.conflictingClaimCount,
+    durationMs,
+    blockedReasons: [],
+    validationIssues,
+    error: null,
+  };
+}
+
+function parseJson(text: string): unknown {
+  const trimmed = text.trim();
+  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/);
+  const candidate = fenced?.[1]?.trim() ?? trimmed;
+  try {
+    return JSON.parse(candidate);
+  } catch {
+    const start = candidate.indexOf("{");
+    const end = candidate.lastIndexOf("}");
+    if (start >= 0 && end > start) {
+      try {
+        return JSON.parse(candidate.slice(start, end + 1));
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }
+}
+
+function blockedResult(
+  candidate: ShortlistedCandidate,
+  runId: string,
+  reasons: string[],
+): DeepResearchCandidateResult {
+  return {
+    mint: candidate.mint,
+    symbol: candidate.symbol,
+    status: "blocked",
+    deepResearchRunId: runId,
+    reportId: null,
+    stopReason: null,
+    queryCount: 0,
+    sourceCount: 0,
+    verifiedSourceCount: 0,
+    coveragePct: 0,
+    narrativeResolved: false,
+    identityAttributionConfidence: "UNRESOLVED",
+    unresolvedGapCount: 6,
+    conflictingClaimCount: 0,
+    durationMs: 0,
+    blockedReasons: reasons,
+    validationIssues: [],
+    error: null,
+  };
+}
+
+function emptyBatch(
+  mode: DeepResearchMode,
+  code: DeepResearchRunCode,
+  triageRunId: string | null,
+  sourceScanId: string | null,
+  provider: DeepResearchProvider | null,
+): DeepResearchBatchResult {
+  return {
+    mode,
+    code,
+    isCalibration: mode === "calibration",
+    triageRunId,
+    sourceScanId,
+    policyVersion: DEEP_RESEARCH_POLICY_VERSION,
+    dossierVersion: DEEP_RESEARCH_DOSSIER_VERSION,
+    promptVersion: DEEP_RESEARCH_PROMPT_VERSION,
+    searchVersion: DEEP_RESEARCH_SEARCH_VERSION,
+    modelProvider: provider?.provider ?? null,
+    modelIdentifier: provider?.model ?? null,
+    requested: 0,
+    completed: 0,
+    insufficient: 0,
+    blocked: 0,
+    failed: 0,
+    milestonesCreated: 0,
+    candidates: [],
+  };
+}
+
+async function insertRun(input: {
+  candidate: ShortlistedCandidate;
+  provider: DeepResearchProvider;
+  isCalibration: boolean;
+  status: string;
+  budget: ResearchBudget;
+  eligibility: { researchEligibleNow: boolean; exclusionReasons: string[] };
+  shortlistMilestoneId: string | null;
+}): Promise<string> {
+  const { data, error } = await supabaseAdmin
+    .from("deep_research_runs")
+    .insert({
+      triage_run_id: input.candidate.triageRunId,
+      triage_decision_id: input.candidate.decisionId,
+      shortlist_milestone_id: input.shortlistMilestoneId,
+      token_id: input.candidate.tokenId,
+      mint: input.candidate.mint,
+      chain: input.candidate.chain,
+      research_packet_id: input.candidate.researchPacketId,
+      research_packet_version: input.candidate.researchPacketVersion,
+      research_policy_version: DEEP_RESEARCH_POLICY_VERSION,
+      prompt_version: DEEP_RESEARCH_PROMPT_VERSION,
+      model_provider: input.provider.provider,
+      model_identifier: input.provider.model,
+      is_calibration: input.isCalibration,
+      status: input.status,
+      budget: input.budget as unknown as never,
+      eligibility_before: input.eligibility as unknown as never,
+    })
+    .select("id")
+    .single();
+  if (error) throw new Error(error.message);
+  return (data as Row)["id"] as string;
+}
+
+async function finishRun(
+  runId: string,
+  input: {
+    status: string;
+    stopReason: StopReason | null;
+    error: string | null;
+    counts: { queries: number; fetches: number; passes: number };
+    durationMs: number;
+    eligibilityAfter: unknown;
+    diagnostics: Record<string, unknown>;
+  },
+): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from("deep_research_runs")
+    .update({
+      status: input.status,
+      stop_reason: input.stopReason,
+      error: input.error,
+      completed_at: new Date().toISOString(),
+      duration_ms: input.durationMs,
+      query_count: input.counts.queries,
+      fetched_source_count: input.counts.fetches,
+      model_pass_count: input.counts.passes,
+      eligibility_after: input.eligibilityAfter as never,
+      diagnostics: input.diagnostics as never,
+    })
+    .eq("id", runId);
+  if (error) throw new Error(error.message);
+}
+
+async function insertReport(input: {
+  runId: string;
+  candidate: ShortlistedCandidate;
+  dossier: ResearchDossier;
+  isCalibration: boolean;
+  status: CandidateStatus;
+}): Promise<string> {
+  const { dossier } = input;
+  const { data, error } = await supabaseAdmin
+    .from("deep_research_reports")
+    .insert({
+      deep_research_run_id: input.runId,
+      token_id: input.candidate.tokenId,
+      mint: input.candidate.mint,
+      chain: input.candidate.chain,
+      dossier_version: DEEP_RESEARCH_DOSSIER_VERSION,
+      research_policy_version: DEEP_RESEARCH_POLICY_VERSION,
+      is_calibration: input.isCalibration,
+      status: input.status,
+      one_sentence_narrative: dossier.oneSentenceNarrative,
+      narrative_resolved: dossier.narrativeResolved,
+      identity_attribution_confidence: dossier.identityAttributionConfidence,
+      evidence_coverage_pct: dossier.coverage.coveragePct,
+      covered_domains: dossier.coverage.coveredDomains,
+      unresolved_domains: dossier.coverage.unresolvedDomains,
+      source_count: dossier.coverage.sourceCount,
+      primary_source_count: dossier.coverage.primarySourceCount,
+      source_domain_diversity: dossier.coverage.sourceDomainDiversity,
+      conflicting_claim_count: dossier.coverage.conflictingClaimCount,
+      unresolved_gap_count: dossier.evidenceGaps.length,
+      dossier: dossier as unknown as never,
+    })
+    .select("id")
+    .single();
+  if (error) throw new Error(error.message);
+  return (data as Row)["id"] as string;
+}
+
+async function insertSources(
+  runId: string,
+  reportId: string,
+  sources: ResearchSource[],
+): Promise<void> {
+  if (sources.length === 0) return;
+  const { error } = await supabaseAdmin.from("deep_research_sources").insert(
+    sources.map((s) => ({
+      deep_research_run_id: runId,
+      report_id: reportId,
+      source_ref: s.ref,
+      url: s.url,
+      title: s.title,
+      account: s.account,
+      source_type: s.sourceType,
+      reliability_class: s.reliabilityClass,
+      published_at: s.publishedAt,
+      fetched_at: s.fetchedAt,
+      relevance: s.relevance,
+      mint_verified: s.mintVerified,
+      attribution_confidence: s.attributionConfidence,
+      query: s.query,
+      excerpt: s.excerpt ? s.excerpt.slice(0, 2_000) : null,
+    })),
+  );
+  if (error) throw new Error(error.message);
+}
+
+async function insertClaims(
+  runId: string,
+  reportId: string,
+  claims: ResearchDossier["claims"],
+): Promise<void> {
+  if (claims.length === 0) return;
+  const { error } = await supabaseAdmin.from("deep_research_claims").insert(
+    claims.map((c) => ({
+      deep_research_run_id: runId,
+      report_id: reportId,
+      domain: c.domain,
+      claim: c.claim,
+      claim_type: c.claimType,
+      status: c.status,
+      confidence: c.confidence,
+      supporting_source_refs: c.supportingSourceRefs,
+      contradicting_source_refs: c.contradictingSourceRefs,
+      observed_at: c.observedAt,
+      published_at: c.publishedAt,
+    })),
+  );
+  if (error) throw new Error(error.message);
+}
+
+export interface DeepResearchReportSummary {
+  id: string;
+  runId: string;
+  mint: string;
+  symbol: string | null;
+  isCalibration: boolean;
+  status: string;
+  createdAt: string;
+  oneSentenceNarrative: string | null;
+  narrativeResolved: boolean;
+  identityAttributionConfidence: string;
+  coveragePct: number | null;
+  sourceCount: number;
+  primarySourceCount: number;
+  conflictingClaimCount: number;
+  unresolvedGapCount: number;
+  unresolvedDomains: string[];
+  dossier: ResearchDossier;
+}
+
+/** Newest dossiers, read-only, for the Research workbench. */
+export async function loadDeepResearchReports(limit = 12): Promise<DeepResearchReportSummary[]> {
+  const { data, error } = await supabaseAdmin
+    .from("deep_research_reports")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(error.message);
+  return ((data as Row[]) ?? []).map((r) => {
+    const dossier = r["dossier"] as unknown as ResearchDossier;
+    return {
+      id: r["id"] as string,
+      runId: r["deep_research_run_id"] as string,
+      mint: r["mint"] as string,
+      symbol: dossier?.symbol ?? null,
+      isCalibration: Boolean(r["is_calibration"]),
+      status: (r["status"] as string) ?? "unknown",
+      createdAt: (r["created_at"] as string) ?? "",
+      oneSentenceNarrative: (r["one_sentence_narrative"] as string) ?? null,
+      narrativeResolved: Boolean(r["narrative_resolved"]),
+      identityAttributionConfidence: (r["identity_attribution_confidence"] as string) ?? "UNRESOLVED",
+      coveragePct: (r["evidence_coverage_pct"] as number) ?? null,
+      sourceCount: (r["source_count"] as number) ?? 0,
+      primarySourceCount: (r["primary_source_count"] as number) ?? 0,
+      conflictingClaimCount: (r["conflicting_claim_count"] as number) ?? 0,
+      unresolvedGapCount: (r["unresolved_gap_count"] as number) ?? 0,
+      unresolvedDomains: (r["unresolved_domains"] as string[]) ?? [],
+      dossier,
+    };
+  });
+}
