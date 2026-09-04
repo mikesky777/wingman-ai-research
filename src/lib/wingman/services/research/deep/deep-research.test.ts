@@ -237,3 +237,23 @@ describe("prompts", () => {
     expect(user).not.toContain("S2");
   });
 });
+
+describe("corroboration accounting", () => {
+  it("counts only sources the token did not publish itself as independent", () => {
+    const coverage = computeCoverage(
+      [],
+      [
+        source({ ref: "S1", sourceType: "OFFICIAL_TOKEN_LINK" }),
+        source({ ref: "S2", sourceType: "OFFICIAL_TOKEN_LINK", url: "https://x.com/tok" }),
+        source({ ref: "S3", sourceType: "NEWS_MEDIA", url: "https://news.example/a" }),
+      ],
+    );
+    expect(coverage.sourceCount).toBe(3);
+    expect(coverage.independentSourceCount).toBe(1);
+  });
+
+  it("reports zero independent sources for a purely self-published dossier", () => {
+    const coverage = computeCoverage([], [source({ sourceType: "OFFICIAL_TOKEN_LINK" })]);
+    expect(coverage.independentSourceCount).toBe(0);
+  });
+});
