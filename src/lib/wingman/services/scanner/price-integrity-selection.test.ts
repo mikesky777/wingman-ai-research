@@ -64,7 +64,7 @@ function baseToken(address: string, overrides: Partial<DiscoveredToken> = {}): D
 
 function withPriceIntegrity(c: EvaluatedCandidate, status: PriceIntegrityStatus) {
   // Price Integrity is attached AFTER evaluation, exactly as the pipeline does.
-  (c as EvaluatedCandidate & { priceIntegrity: unknown }).priceIntegrity = {
+  (c as unknown as { priceIntegrity: unknown }).priceIntegrity = {
     status,
     policyVersion: "price_integrity/v1.1",
   };
@@ -136,7 +136,7 @@ describe("price integrity is label only", () => {
     );
     expect(labelled.quantitativePriority).toBe(plain.quantitativePriority);
     expect(labelled.lanes).toEqual(plain.lanes);
-    expect(labelled.priorityComponents).toEqual(plain.priorityComponents);
+    expect(labelled.metrics).toEqual(plain.metrics);
   });
 });
 
@@ -146,7 +146,7 @@ describe("deterministic gates still apply", () => {
       evaluateCandidate(baseToken("Dddd44444444444444444444444444444444444444"), { nowIso: NOW }),
       "HEALTHY",
     );
-    c.structural = { status: "FAIL" } as EvaluatedCandidate["structural"];
+    (c as unknown as { structural: unknown }).structural = { status: "FAIL" };
     const selection = selectSurvivorsWithReservations(assignRanks(rankCandidates([c])), 5);
     expect(selection.survivors).toHaveLength(0);
     expect(selection.structurallyVetoed).toHaveLength(1);
