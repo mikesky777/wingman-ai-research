@@ -45,9 +45,10 @@ describe("market resolution resilience", () => {
   });
 
   it("marks an exhausted batch as a provider failure, not an absent market", async () => {
-    getPairsForTokens.mockImplementation(async () => {
-      throw new Error("PROVIDER_UNAVAILABLE");
-    });
+    getPairsForTokens
+      .mockRejectedValueOnce(new Error("PROVIDER_UNAVAILABLE"))
+      .mockRejectedValueOnce(new Error("PROVIDER_UNAVAILABLE"))
+      .mockRejectedValueOnce(new Error("PROVIDER_UNAVAILABLE"));
 
     let result;
     try { result = await resolveMarketsDetailed([ADDRESS]); } catch (e) { console.log("ESCAPED", e); throw e; }
