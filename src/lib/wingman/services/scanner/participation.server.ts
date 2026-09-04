@@ -13,6 +13,7 @@
  * retries stays UNKNOWN; participation values are never fabricated.
  */
 import { fetchTokenParticipation } from "../external/birdeye/trade-data.server";
+import { BirdeyeError } from "../external/birdeye/errors";
 import { participationToEvidence } from "../evidence/participation-evidence";
 import { appendEvidenceObservations } from "../evidence-persistence.server";
 import {
@@ -180,13 +181,14 @@ export async function evaluateParticipationForTargets(
       } catch (error) {
         // Provider failure is UNKNOWN and never blocks anything.
         const message = error instanceof Error ? error.message : "unknown error";
-        if (/RATE_LIMITED/i.test(message) && !sawRateLimit) diagnostics.rateLimited += 1;
+        const code = error instanceof BirdeyeError ? error.code : "PROVIDER_UNAVAILABLE";
+        if (code === "RATE_LIMITED" && !sawRateLimit) diagnostics.rateLimited += 1;
         diagnostics.providerRequests += 1;
         diagnostics.failures += 1;
         diagnostics.unknownFromProviderFailure += 1;
         evaluations.set(
           target.contractAddress,
-          unknownParticipation(`PARTICIPATION_PROVIDER_UNAVAILABLE: ${message}`, context),
+          unknownParticipation(`PARTICIPATION_PROVIDER_UNAVAILABLE: ${code}: ${message}`, context),
         );
       }
     }
