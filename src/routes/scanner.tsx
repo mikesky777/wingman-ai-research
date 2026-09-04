@@ -742,6 +742,13 @@ function ScannerPage() {
               </table>
             </div>
           )}
+          {filter === "SUSPECT" ? (
+            <p className="mt-3 text-[11px] text-muted-foreground">
+              SUSPECT is a review queue derived from the persisted Participation Quality evaluation
+              of this scan. Every token here also remains in its normal setup view; nothing is
+              reclassified, excluded or duplicated, and no label asserts botting or wash trading.
+            </p>
+          ) : null}
           <p className="mt-3 text-[11px] text-muted-foreground">
             Gate hierarchy: Universe OUT_OF_SCOPE excludes, Structural FAIL vetoes, Price Integrity is a label only and never removes a candidate from Survivor selection. Setup labels describe observable market behaviour only. The scanner produces no thesis scores and creates no opportunities. Research reports and
             opportunity records elsewhere in Wingman remain simulated demo data.
