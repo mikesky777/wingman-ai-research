@@ -20,6 +20,29 @@ export const PRICE_INTEGRITY_POLICY_VERSION = "price_integrity/v1.1";
 /** Shadow mode: evaluation is observational only. Never a veto. */
 export const PRICE_INTEGRITY_SHADOW_MODE = true;
 
+/**
+ * Gate hierarchy — explicit and intentional:
+ *   1. Universe OUT_OF_SCOPE  -> excluded from selection (deterministic gate)
+ *   2. Structural FAIL        -> vetoed from selection (deterministic gate)
+ *   3. Price Integrity        -> LABEL ONLY, never excluded
+ *
+ * Price Integrity is a probabilistic market-structure label, not a safety
+ * gate. Every status (HEALTHY / CONCERN / DAMAGED / UNKNOWN) stays eligible
+ * for Survivor selection, and no slots are backfilled or removed because of
+ * it.
+ */
+export const PRICE_INTEGRITY_SELECTION_EFFECT = "NONE" as const;
+export const PRICE_INTEGRITY_IS_VETO = false;
+
+/**
+ * Selection eligibility with respect to Price Integrity. Always true — kept as
+ * a named function so the "label only" contract is testable and any future
+ * change has a single, obvious place.
+ */
+export function isPriceIntegrityEligible(_status: PriceIntegrityStatus | string | null): boolean {
+  return true;
+}
+
 export type PriceIntegrityStatus = "HEALTHY" | "CONCERN" | "DAMAGED" | "UNKNOWN";
 
 /**

@@ -11,6 +11,24 @@ export const LANE_TONE: Record<string, string> = {
   REACCELERATION: "border-border-strong text-foreground",
 };
 
+/**
+ * Price Integrity is a LABEL ONLY (see PRICE_INTEGRITY_SELECTION_EFFECT).
+ * It never excludes a candidate from Survivor selection.
+ */
+export const PRICE_INTEGRITY_TONE: Record<string, string> = {
+  HEALTHY: "border-positive/40 bg-positive/10 text-positive",
+  CONCERN: "border-warning/40 bg-warning/10 text-warning",
+  DAMAGED: "border-destructive/40 bg-destructive/10 text-destructive",
+  UNKNOWN: "border-border-strong text-muted-foreground",
+};
+
+export const PRICE_INTEGRITY_HINT: Record<string, string> = {
+  HEALTHY: "Price Integrity label: constructive post-launch structure. Label only — no selection effect.",
+  CONCERN: "Price Integrity label: partially damaged launch structure. Label only — no selection effect.",
+  DAMAGED: "Price Integrity label: launch-collapse structure. Label only — still eligible as a Survivor.",
+  UNKNOWN: "Price Integrity label: insufficient launch history. Label only — no selection effect.",
+};
+
 export const SIGNAL_TONE: Record<string, string> = {
   ACCELERATING: "text-positive",
   EXTREME: "text-destructive",
