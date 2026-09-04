@@ -29,6 +29,45 @@ export const PRICE_INTEGRITY_HINT: Record<string, string> = {
   UNKNOWN: "Price Integrity label: insufficient launch history. Label only — no selection effect.",
 };
 
+/**
+ * SETUP and PRICE STRUCTURE are independent concepts and must never be merged
+ * in the UI. Both helpers are presentation-only: they read persisted values and
+ * can never influence Survivor selection.
+ */
+export function setupOf(candidate: { lanes: string[] }): string {
+  return candidate.lanes[0] ?? "NONE";
+}
+
+export type PriceStructure = "HEALTHY" | "CONCERN" | "DAMAGED" | "UNKNOWN" | "NOT_EVALUATED";
+
+export interface PriceStructureInput {
+  priceIntegrityStatus: string | null;
+  priceIntegrityPolicyVersion: string | null;
+}
+
+/**
+ * UNKNOWN = Price Integrity actually ran and could not classify confidently.
+ * NOT_EVALUATED = it never ran for this candidate. Never conflate the two, and
+ * never fabricate an evaluation record for display.
+ */
+export function priceStructureOf(candidate: PriceStructureInput): PriceStructure {
+  if (candidate.priceIntegrityStatus) return candidate.priceIntegrityStatus as PriceStructure;
+  return candidate.priceIntegrityPolicyVersion !== null ? "UNKNOWN" : "NOT_EVALUATED";
+}
+
+export const PRICE_STRUCTURE_LABEL: Record<PriceStructure, string> = {
+  HEALTHY: "HEALTHY",
+  CONCERN: "CONCERN",
+  DAMAGED: "DAMAGED",
+  UNKNOWN: "UNKNOWN",
+  NOT_EVALUATED: "—",
+};
+
+export const PRICE_STRUCTURE_HINT: Record<PriceStructure, string> = {
+  ...(PRICE_INTEGRITY_HINT as Record<PriceStructure, string>),
+  NOT_EVALUATED: "Price Integrity was never run for this candidate. Not a verdict.",
+};
+
 export const SIGNAL_TONE: Record<string, string> = {
   ACCELERATING: "text-positive",
   EXTREME: "text-destructive",

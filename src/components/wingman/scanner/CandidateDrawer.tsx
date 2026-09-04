@@ -48,6 +48,9 @@ import {
   formatRatioPct,
   formatScanTime,
   laneLabel,
+  priceStructureOf,
+  setupOf,
+  PRICE_STRUCTURE_LABEL,
 } from "./shared";
 
 const LABELS = ["UNREVIEWED", "INTERESTING", "RESEARCH", "JUNK"] as const;
@@ -262,7 +265,15 @@ export function CandidateDrawer({
 
           <div className="flex flex-wrap gap-1">
             {c.lanes.length === 0 ? (
-              <span className="text-xs text-muted-foreground">No lane qualified</span>
+              <span
+                className={cn(
+                  "rounded border px-1.5 py-0.5 font-mono text-[10px] tracking-wide",
+                  LANE_TONE["NONE"],
+                )}
+                title="Passed hard filters, matched no recognized setup. Not a rejection."
+              >
+                NONE
+              </span>
             ) : (
               c.lanes.map((lane) => (
                 <span
@@ -279,14 +290,19 @@ export function CandidateDrawer({
           </div>
 
           <Block title="Why this candidate surfaced">
+            <Row label="Setup" value={laneLabel(setupOf(c))} />
+            <Row
+              label="Price structure"
+              value={PRICE_STRUCTURE_LABEL[priceStructureOf(c)]}
+            />
             <Row label="Global rank" value={c.globalRank ?? "—"} />
             <Row
-              label="Selection"
+              label="Selection route"
               value={
                 c.selectedByLaneReservation
-                  ? "LANE QUOTA"
+                  ? "SETUP RESERVATION"
                   : c.selectedByGlobalRanking
-                    ? "GLOBAL RANK"
+                    ? "GLOBAL"
                     : c.rejectionReason
                       ? "REJECTED"
                       : "NEAR MISS"
@@ -1142,7 +1158,7 @@ export function CandidateDrawer({
           </Block>
 
           {Object.keys(c.laneRejections).length > 0 ? (
-            <Block title="Lane refusals">
+            <Block title="Setup refusals">
               <ul className="space-y-1 text-[11px] text-muted-foreground">
                 {Object.entries(c.laneRejections).map(([lane, reason]) => (
                   <li key={lane}>
