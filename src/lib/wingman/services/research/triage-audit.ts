@@ -230,7 +230,8 @@ export type BiasFlag =
   | "ALL_DAMAGED_SKIPPED"
   | "ALL_SURVIVORS_PROMOTED"
   | "MISSING_EVIDENCE_PENALIZED"
-  | "QUANT_ORDER_COPIED";
+  | "QUANT_ORDER_COPIED"
+  | "ALL_EXPLORATION_DEMOTED";
 
 export interface BiasBucket {
   bucket: string;
