@@ -276,7 +276,7 @@ export async function runAiTriage(options: RunAiTriageOptions = {}): Promise<Tri
 
     // 1b. Repeat-spend guard. Provenance-correct repeats are still repeats:
     // the ordinary action never re-spends on an already-triaged cohort.
-    const existing = await loadCohortTriageRunId(sourceScanId);
+    const existing = await loadCohortTriageRunId(sourceScanId!);
     if (shouldBlockProductionRerun(existing, options.allowRerun === true)) {
       return {
         ...base,
