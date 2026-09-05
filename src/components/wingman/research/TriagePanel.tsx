@@ -210,7 +210,14 @@ export function TriagePanel() {
                       >
                         {d.rankDelta === null ? "—" : d.rankDelta > 0 ? `+${d.rankDelta}` : d.rankDelta}
                       </td>
-                      <td className="py-2 pr-3 font-mono">{short(d.mint)}</td>
+                      <td className="py-2 pr-3">
+                        <TokenIdentity
+                          symbol={d.symbol}
+                          name={d.name}
+                          mint={d.mint}
+                          pairAddress={d.pairAddress}
+                        />
+                      </td>
                       <td className="py-2 pr-3">{d.setup ?? "NONE"}</td>
                       <td className="py-2 pr-3 text-muted-foreground">
                         {d.priceStructure ?? "NOT_EVALUATED"}
