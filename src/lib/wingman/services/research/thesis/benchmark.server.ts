@@ -325,14 +325,17 @@ export function buildBenchmarkComparison(args: {
   cohortRunId: string;
   cohortModel: string | null;
   pairByMint: Map<string, string | null>;
+  narrativeByRunMint?: Map<string, BenchmarkNarrative>;
 }): ThesisBenchmarkResult {
   const { base, access, baselines, batches, cohortRunId, cohortModel, pairByMint } = args;
+  const narratives = args.narrativeByRunMint ?? new Map<string, BenchmarkNarrative>();
 
   const comparisons: BenchmarkCandidateComparison[] = baselines.map((b) => {
     const samples: BenchmarkRunSample[] = [];
     for (const batch of batches) {
       const c = batch.candidates.find((x) => x.mint === b.mint);
       if (!c) continue;
+      const narrative = narratives.get(`${batch.runId ?? ""}:${b.mint}`) ?? null;
       samples.push({
         runId: batch.runId ?? "",
         thesisScore: c.thesisScore,
@@ -340,9 +343,9 @@ export function buildBenchmarkComparison(args: {
         verdict: c.verdict,
         bearSeverity: c.bearSeverity,
         components: c.components,
-        catalystKind: "NONE",
-        strongestCatalyst: null,
-        strongestBearCase: null,
+        catalystKind: narrative?.catalystKind ?? "NONE",
+        strongestCatalyst: narrative?.strongestCatalyst ?? null,
+        strongestBearCase: narrative?.strongestBearCase ?? null,
         status: c.status,
       });
     }
