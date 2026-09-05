@@ -66,8 +66,37 @@ export type SourceType = (typeof SOURCE_TYPES)[number];
 export type ReliabilityClass = "PRIMARY" | "SECONDARY" | "UNVERIFIED";
 export type AttributionConfidence = "CONFIRMED" | "STRONG" | "PROBABLE" | "WEAK" | "UNRESOLVED";
 
+/** Health of the external search infrastructure that produced this dossier. */
+export const SEARCH_HEALTH_STATUSES = ["READY", "DEGRADED", "SEARCH_UNAVAILABLE"] as const;
+export type SearchHealthStatus = (typeof SEARCH_HEALTH_STATUSES)[number];
+
+export interface DossierSearchHealth {
+  status: SearchHealthStatus;
+  provider: string | null;
+  attempts: number;
+  successfulAttempts: number;
+  failedAttempts: number;
+  lastError: string | null;
+}
+
+/** Why a domain has no settled evidence. Absence ≠ tooling failure. */
+export const UNRESOLVED_REASONS = [
+  "NO_EVIDENCE_FOUND",
+  "SEARCH_UNAVAILABLE",
+  "PARTIAL_EVIDENCE",
+  "NOT_RESEARCHED",
+  "UNKNOWN",
+] as const;
+export type UnresolvedReason = (typeof UNRESOLVED_REASONS)[number];
+
 export const CLAIM_PROVENANCES = [
   "PROJECT_CLAIM",
+  /**
+   * A credible primary/project source verifying something it is authoritative
+   * for (e.g. that its own announcement exists). NOT outside corroboration.
+   */
+  "PRIMARY_SOURCE_VERIFIED",
+  "COMMUNITY_REPORTED",
   "INDEPENDENTLY_CORROBORATED",
   "EXTERNAL_OBSERVATION",
   "INFERENCE",
@@ -93,6 +122,10 @@ export interface ResearchSource {
   /** True when the source body was actually retrieved (not snippet-only). */
   contentFetched: boolean;
   attributionConfidence: AttributionConfidence;
+  /** True when the source only reflects on-chain state (explorer, wallet, aggregator). */
+  onChainMirror: boolean;
+  /** Underlying origin key: many mirrors of the same fact share one origin. */
+  evidenceOrigin: string;
   query: string | null;
   excerpt: string | null;
 }
@@ -102,7 +135,7 @@ export interface ResearchClaim {
   claim: string;
   claimType: string;
   status: ClaimStatus;
-  /** Who is asserting this: the project, an independent source, or the model. */
+  /** Who is asserting this: the project, community, an independent source, or the model. */
   provenance: ClaimProvenance;
   confidence: Confidence;
   supportingSourceRefs: string[];
@@ -115,6 +148,8 @@ export interface DomainSummary {
   domain: ResearchDomain;
   status: "COVERED" | "PARTIAL" | "UNRESOLVED";
   summary: string | null;
+  /** Present for PARTIAL/UNRESOLVED domains; null when the domain is COVERED. */
+  unresolvedReason: UnresolvedReason | null;
 }
 
 export interface ResearchDossier {
@@ -122,6 +157,7 @@ export interface ResearchDossier {
   policyVersion: string;
   promptVersion: string;
   searchVersion: string;
+  evidenceSemanticsVersion: string;
   mint: string;
   chain: string;
   symbol: string | null;
@@ -129,7 +165,18 @@ export interface ResearchDossier {
   generatedAt: string;
   oneSentenceNarrative: string | null;
   narrativeResolved: boolean;
+  /** Retained field name; equals `tokenIdentityConfidence`. */
   identityAttributionConfidence: AttributionConfidence;
+  /** Confidence that sources refer to THIS exact mint. */
+  tokenIdentityConfidence: AttributionConfidence;
+  /**
+   * Confidence that a creator/team/project claim is correctly attributed.
+   * Never inherited from token identity, and never CONFIRMED when external
+   * search was unavailable and no sufficient source verified attribution.
+   */
+  projectAttributionConfidence: AttributionConfidence;
+  /** Search infrastructure health, carried on the report itself. */
+  searchHealth: DossierSearchHealth;
   domains: DomainSummary[];
   claims: ResearchClaim[];
   sources: ResearchSource[];
@@ -141,26 +188,37 @@ export interface ResearchDossier {
     unresolvedDomains: ResearchDomain[];
     coveragePct: number;
     sourceCount: number;
+    /** Total retained sources, including mirrors and community posts. */
+    rawSourceCount: number;
     primarySourceCount: number;
     /**
-     * Sources that are provably not the project speaking. Official links,
-     * launchpad pages and the project's own social account are excluded: a
-     * dossier with zero independent sources is uncorroborated, however high
-     * its domain coverage looks.
+     * Sources that are provably not the project speaking and not community
+     * chatter. Official links, launchpad pages, the project's own social
+     * account and community posts are excluded: a dossier with zero
+     * independent sources is uncorroborated, however high its coverage looks.
      */
     independentSourceCount: number;
+    communitySourceCount: number;
     projectOwnedSourceCount: number;
     projectAffiliatedSourceCount: number;
+    projectSourceCount: number;
     unknownIndependenceSourceCount: number;
+    /** Sources that only reflect the same underlying chain state. */
+    onChainMirrorCount: number;
+    /** Genuinely distinct underlying evidence origins behind the sources. */
+    distinctEvidenceOrigins: number;
     /** Domains supported by at least one claim citing an independent source. */
     independentDomainsCovered: ResearchDomain[];
     corroboratedClaimCount: number;
     projectClaimCount: number;
+    communityClaimCount: number;
+    primarySourceVerifiedClaimCount: number;
     sourceDomainDiversity: number;
     conflictingClaimCount: number;
   };
 
 }
+
 
 export interface ResearchBudget {
   maxQueries: number;
