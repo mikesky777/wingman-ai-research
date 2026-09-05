@@ -13,6 +13,7 @@
  */
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { assertThesisInputProvenance } from "../cohort";
+import { isUniqueViolation, productionIdempotencyKey } from "./idempotency";
 import { recordAiStageMilestone } from "../../history/milestones.server";
 import { assessResearchEligibility } from "../packet";
 import { loadCurrentMarkets, loadRunCandidates, type LoadedCandidate } from "../packet.server";
@@ -1031,7 +1032,7 @@ async function insertReport(args: {
   qualified: boolean;
   thesisCallMilestoneId: string | null;
   gateDiagnostics: GateDiagnostics;
-}): Promise<string> {
+}): Promise<string | null> {
   const { candidate: s } = args;
   const c = s.components;
   const sem = s.semantics;
