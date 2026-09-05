@@ -417,6 +417,8 @@ export async function runEntryStateBatch(
         entryScore: null,
         components: null,
         divergence: "UNKNOWN",
+        priceHistorySource: "NONE",
+        timingResolution: "INSUFFICIENT",
         rationale: null,
         strongestPositiveSignal: null,
         strongestEntryRisk: null,

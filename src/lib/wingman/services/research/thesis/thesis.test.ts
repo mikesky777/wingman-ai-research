@@ -57,16 +57,17 @@ function fullOutput(overrides: Record<string, unknown> = {}) {
 
 const known = { sourceRefs: ["S1", "S2"], claimRefs: ["C1", "C2"] };
 
-describe("thesis_synthesis/v1 rubric", () => {
-  it("has exactly 8 components summing to 100", () => {
-    expect(THESIS_COMPONENTS).toHaveLength(8);
+describe("thesis_synthesis/v2 rubric", () => {
+  it("has exactly 7 fundamentals-only components summing to 100", () => {
+    expect(THESIS_COMPONENTS).toHaveLength(7);
+    expect(THESIS_COMPONENTS.map((c) => c.key)).not.toContain("chartContext");
     expect(THESIS_MAX_SCORE).toBe(100);
   });
 
   it("recomputes the total as the exact sum of components and caps at 100", () => {
     const v = validateThesisOutput(fullOutput(), known);
     expect(v.thesisScore).toBe(100);
-    const sum = THESIS_COMPONENTS.reduce((s, c) => s + v.components[c.key], 0);
+    const sum = THESIS_COMPONENTS.reduce((s, c) => s + (v.components[c.key] ?? 0), 0);
     expect(v.thesisScore).toBe(sum);
   });
 
