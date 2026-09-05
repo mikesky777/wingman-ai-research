@@ -786,7 +786,7 @@ export async function loadLatestTriage(): Promise<{
   ];
   const identityByPacketId = new Map<
     string,
-    { symbol: string | null; name: string | null; pairAddress: string | null }
+    { symbol: string | null; name: string | null; pairAddress: string | null; packetMint: string | null }
   >();
   if (packetIds.length) {
     for (const chunk of chunkIds(packetIds)) {
@@ -796,14 +796,13 @@ export async function loadLatestTriage(): Promise<{
         .in("id", chunk);
       if (packetError) throw new Error(packetError.message);
       for (const p of packets ?? []) {
-        const identity = (p["packet"] as Record<string, unknown> | null)?.[
-          "identity"
-        ] as Record<string, unknown> | undefined;
-        const pairFact = identity?.["pairAddress"] as { value?: unknown } | undefined;
+        const idn = extractPacketIdentity(p["packet"]);
+        // Only trust identity when the packet's own mint matches the decision's.
         identityByPacketId.set(p["id"] as string, {
-          symbol: (identity?.["symbol"] as string) ?? null,
-          name: (identity?.["name"] as string) ?? null,
-          pairAddress: typeof pairFact?.value === "string" ? pairFact.value : null,
+          symbol: idn.symbol,
+          name: idn.name,
+          pairAddress: idn.pairAddress,
+          packetMint: idn.packetMint,
         });
       }
     }
