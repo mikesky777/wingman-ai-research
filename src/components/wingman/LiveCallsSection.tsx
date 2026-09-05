@@ -127,9 +127,21 @@ function LiveCallCard({
           pairAddress={call.pairAddress}
         />
         <div className="flex flex-col items-end gap-1.5">
-          <OperationalBadge call={call} />
+          <div className="flex items-center gap-1.5">
+            <Badge variant="outline" className="border-positive/40 text-[10px] text-positive">
+              LIVE · episode #{call.lifecycle.episodeNumber}
+            </Badge>
+            <OperationalBadge call={call} />
+          </div>
           <p className="text-[10px] text-muted-foreground">
-            Called {formatTime(call.call.calledAt)}
+            Called {formatTime(call.call.calledAt)} · live since{" "}
+            {formatTime(call.lifecycle.liveSince)}
+          </p>
+          <p className="text-[10px] text-muted-foreground">
+            Monitoring {call.lifecycle.monitoringStatus}
+            {call.lifecycle.priorEpisodes > 0
+              ? ` · ${call.lifecycle.priorEpisodes} earlier episode(s) in History`
+              : ""}
           </p>
         </div>
       </div>
