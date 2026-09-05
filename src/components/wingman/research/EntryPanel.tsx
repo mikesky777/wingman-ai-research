@@ -16,6 +16,7 @@ import { Section } from "@/components/wingman/Section";
 import { EmptyState } from "@/components/wingman/EmptyState";
 import { DexScreenerEmbed } from "@/components/wingman/history/DexScreenerEmbed";
 import {
+  getEntryEligibility,
   getEntryEvaluations,
   refreshEntryState,
   runEntryStateEvaluation,
@@ -66,6 +67,14 @@ export function EntryPanel({ calibration = false }: { calibration?: boolean } = 
     queryFn: () => fetchEvaluations({ data: { mode } }),
   });
 
+  const fetchEligibility = useServerFn(getEntryEligibility);
+  const { data: eligibility } = useQuery({
+    queryKey: ["entry", "eligibility"],
+    queryFn: () => fetchEligibility(),
+    enabled: !calibration,
+  });
+  const eligible = eligibility?.eligible ?? 0;
+
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["entry", "evaluations"] });
 
   const batch = useMutation({
@@ -108,14 +117,26 @@ export function EntryPanel({ calibration = false }: { calibration?: boolean } = 
       title="Entry timing"
       description="Given an existing thesis, is current market structure a sensible place to enter? Timing only — this layer never changes the Thesis Score and never suggests a trade or a size."
       actions={
-        <Button size="sm" variant="outline" onClick={() => batch.mutate()} disabled={batch.isPending}>
-          {batch.isPending ? (
-            <Loader2 className="mr-2 size-3.5 animate-spin" />
-          ) : (
-            <Crosshair className="mr-2 size-3.5" />
-          )}
-          {calibration ? "Evaluate entry (calibration)" : "Evaluate entry timing"}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {!calibration ? (
+            <Badge variant="outline" className="tabular text-[10px]">
+              {eligible} eligible for timing
+            </Badge>
+          ) : null}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => batch.mutate()}
+            disabled={batch.isPending || (!calibration && eligible === 0)}
+          >
+            {batch.isPending ? (
+              <Loader2 className="mr-2 size-3.5 animate-spin" />
+            ) : (
+              <Crosshair className="mr-2 size-3.5" />
+            )}
+            {calibration ? "Evaluate entry (calibration)" : "Evaluate entry timing"}
+          </Button>
+        </div>
       }
     >
       {isLoading ? (
@@ -124,7 +145,13 @@ export function EntryPanel({ calibration = false }: { calibration?: boolean } = 
         <EmptyState
           icon={<Crosshair className="size-4" />}
           title="No entry evaluations yet"
-          description="Run a calibration pass to produce timing states for candidates that already carry a thesis."
+          description={
+            calibration
+              ? "Run a calibration pass to produce timing states for candidates that already carry a thesis."
+              : eligible === 0
+                ? "Production Entry timing only evaluates real Thesis Calls. With 0 Thesis Calls, there is nothing eligible for timing."
+                : "Evaluate entry timing for the Thesis Calls under active monitoring."
+          }
         />
       ) : (
         <ul className="grid gap-3 lg:grid-cols-2">
