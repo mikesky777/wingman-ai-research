@@ -12,12 +12,21 @@
 import {
   EXTERNAL_SEARCH_POLICY_VERSION,
   buildSearchVariants,
+  countDistinctEvidenceOrigins,
+  evidenceOriginOf,
+  isOnChainMirror,
   type SourceIndependence,
 } from "./external-search";
 
 export const DEEP_RESEARCH_POLICY_VERSION = "deep_research/v1";
-export const DEEP_RESEARCH_DOSSIER_VERSION = "deep_research_dossier/v1";
-export const DEEP_RESEARCH_PROMPT_VERSION = "deep_research_prompt/v1";
+export const DEEP_RESEARCH_DOSSIER_VERSION = "deep_research_dossier/v1.1";
+export const DEEP_RESEARCH_PROMPT_VERSION = "deep_research_prompt/v1.1";
+/**
+ * Evidence semantics of the dossier: source affiliation (incl. COMMUNITY),
+ * on-chain mirror separation, distinct evidence origins, search health,
+ * unresolved reasons and separated attribution confidences.
+ */
+export const DEEP_RESEARCH_EVIDENCE_SEMANTICS_VERSION = "deep_research_evidence/v1.1";
 /** Which search infrastructure produced the evidence in a dossier. */
 export const DEEP_RESEARCH_SEARCH_VERSION = `deep_research_search/v2-api(${EXTERNAL_SEARCH_POLICY_VERSION})`;
 
