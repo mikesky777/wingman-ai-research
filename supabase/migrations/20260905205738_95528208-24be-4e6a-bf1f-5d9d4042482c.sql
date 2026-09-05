@@ -1,0 +1,1 @@
+ALTER TABLE public.thesis_reports ADD COLUMN IF NOT EXISTS component_reasons jsonb;
