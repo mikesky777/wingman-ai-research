@@ -496,6 +496,28 @@ export async function runThesisSynthesis(
     const qualified = qualifyingMints.has(s.input.mint);
     let thesisCallMilestoneId: string | null = null;
 
+    // Calibration diagnostics only: would this candidate have passed every
+    // gate EXCEPT source independence? The gate itself is untouched.
+    const otherGatesPassed =
+      s.status === "completed" &&
+      s.eligibility.researchEligibleNow &&
+      s.verdict !== null &&
+      OPPORTUNITY_POLICY.allowedVerdicts.includes(s.verdict) &&
+      (s.thesisScore ?? 0) >= OPPORTUNITY_POLICY.minThesisScore &&
+      (s.evidence?.score ?? 0) >= OPPORTUNITY_POLICY.minEvidenceConfidence &&
+      (s.bearSeverity === "LOW" || s.bearSeverity === "MODERATE");
+    const gateDiagnostics = buildGateDiagnostics({
+      independentSourceCount: s.independentSourceCount,
+      primarySourceCount: s.semantics?.sourceMix.primaryQuality ?? 0,
+      communitySourceCount: s.semantics?.sourceMix.community ?? 0,
+      evidenceConfidence: s.evidence?.score ?? 0,
+      searchUnavailable: s.input.searchUnavailable,
+      searchHealth: s.input.searchUnavailable ? "SEARCH_UNAVAILABLE" : "SEARCH_AVAILABLE",
+      minIndependentSources: OPPORTUNITY_POLICY.minIndependentSources,
+      otherGatesPassed,
+      qualified,
+    });
+
     if (qualified && !isCalibration && s.input.tokenId) {
       thesisCallMilestoneId = await recordThesisCall({
         candidate: s,
@@ -512,6 +534,7 @@ export async function runThesisSynthesis(
       provider,
       qualified,
       thesisCallMilestoneId,
+      gateDiagnostics,
     });
 
     results.push({
