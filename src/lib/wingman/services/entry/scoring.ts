@@ -6,10 +6,14 @@
  * modifies a Thesis Score, Evidence Confidence, position size or trade action.
  */
 import {
+  COARSE_UNSUPPORTED_REASON,
+  CANDLE_GRADE_FEATURES,
   clampComponents,
+  supportsCandleGradeClaims,
   totalEntryScore,
   type DivergenceState,
   type EntryComponentScores,
+  type TimingResolution,
 } from "./contracts";
 import type { TimingFeatures } from "./features";
 
