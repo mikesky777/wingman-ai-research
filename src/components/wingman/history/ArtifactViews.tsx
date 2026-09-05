@@ -9,6 +9,12 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { ChevronDown, ChevronRight } from "lucide-react";
+import { SetupFilterBar } from "./SetupFilterBar";
+import {
+  filterBySetup,
+  setupLabel,
+  type HistorySetupFilter,
+} from "@/lib/wingman/services/history/setup-filter";
 import { Section, KeyValue } from "@/components/wingman/Section";
 import { EmptyState } from "@/components/wingman/EmptyState";
 import { TokenIdentity } from "@/components/wingman/TokenIdentity";
@@ -86,7 +92,9 @@ function ArtifactCard({
 
 export function DeepResearchArtifacts() {
   const { data, isLoading } = useArtifacts();
-  const rows: DeepResearchArtifact[] = data?.deepResearch ?? [];
+  const [setup, setSetup] = useState<HistorySetupFilter>("ALL");
+  const all: DeepResearchArtifact[] = data?.deepResearch ?? [];
+  const rows = filterBySetup(all, setup);
 
   return (
     <Section
@@ -95,12 +103,19 @@ export function DeepResearchArtifacts() {
     >
       {isLoading ? (
         <p className="text-xs text-muted-foreground">Loading Deep Research artifacts…</p>
-      ) : rows.length === 0 ? (
+      ) : all.length === 0 ? (
         <EmptyState
           title="No production Deep Research reports yet"
           description="A report appears here only after a real production Deep Research run completes."
         />
       ) : (
+        <div className="space-y-4">
+          <SetupFilterBar value={setup} onChange={setSetup} />
+          {rows.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              No production Deep Research reports match this setup.
+            </p>
+          ) : null}
         <ul className="grid gap-3 md:grid-cols-2">
           {rows.map((r) => (
             <ArtifactCard
@@ -117,6 +132,7 @@ export function DeepResearchArtifacts() {
               }
               summary={r.oneSentenceNarrative}
               details={[
+                { label: "Setup", value: setupLabel(r.setups) },
                 { label: "Sources", value: r.sourceCount ?? "—" },
                 { label: "Independent sources", value: r.independentSourceCount ?? "—" },
                 {
@@ -135,6 +151,7 @@ export function DeepResearchArtifacts() {
             />
           ))}
         </ul>
+        </div>
       )}
     </Section>
   );
@@ -231,7 +248,10 @@ export function ThesisSynthesizedArtifacts() {
   const { data, isLoading } = useArtifacts();
   const [sort, setSort] = useState<ThesisArtifactSort>("RECENT");
   const [population, setPopulation] = useState<ThesisPopulation>("THESIS_EVENTS");
-  const rows: ThesisArtifact[] = data?.thesis ?? [];
+  const [setup, setSetup] = useState<HistorySetupFilter>("ALL");
+  const allRows: ThesisArtifact[] = data?.thesis ?? [];
+  // Cards and KPIs always use the same selected setup population.
+  const rows = filterBySetup(allRows, setup);
   const sorted = sortThesisArtifacts(rows, sort);
   const counts = thesisPopulationCounts(rows);
   const measuredPopulation = selectThesisPopulation(rows, population);
@@ -245,19 +265,21 @@ export function ThesisSynthesizedArtifacts() {
     >
       {isLoading ? (
         <p className="text-xs text-muted-foreground">Loading thesis artifacts…</p>
-      ) : rows.length === 0 ? (
+      ) : allRows.length === 0 ? (
         <EmptyState
           title="No production thesis reports yet"
           description="A report appears here only after a real production Thesis Synthesis completes."
         />
       ) : (
         <div className="space-y-4">
+          <SetupFilterBar value={setup} onChange={setSetup} />
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="font-mono text-[10px] tracking-wide text-muted-foreground">
               {counts.storedArtifacts} stored artifacts · {counts.thesisEvents} thesis events ·{" "}
               {counts.uniqueTokens} unique tokens
             </span>
             <div className="flex items-center gap-1">
+              <span className="label-xs mr-1 text-muted-foreground">Population</span>
               {(
                 [
                   ["THESIS_EVENTS", "THESIS EVENTS"],
@@ -280,6 +302,7 @@ export function ThesisSynthesizedArtifacts() {
           </div>
           <ThesisSummaryCards summary={summary} />
           <div className="flex flex-wrap items-center gap-2">
+            <span className="label-xs mr-1 text-muted-foreground">Sort</span>
             {SORTS.map((s) => (
               <button
                 key={s.id}

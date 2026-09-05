@@ -8,6 +8,7 @@ import {
 function artifact(over: Partial<ThesisArtifact> & { reportId: string }): ThesisArtifact {
   return {
     mint: over.mint ?? `mint-${over.reportId}`,
+    setups: over.setups ?? [],
     symbol: null,
     name: null,
     pairAddress: null,

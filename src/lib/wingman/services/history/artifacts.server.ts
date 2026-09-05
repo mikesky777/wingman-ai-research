@@ -18,6 +18,7 @@ import {
 import { deriveStageOutcome } from "./stage-outcomes";
 import type { CandidateAppearance, SnapshotObservation } from "../outcomes/outcomes";
 import { classifyThesisArtifacts } from "./artifacts";
+import { normalizeSetups } from "./setup-filter";
 import type {
   DeepResearchArtifact,
   HistoryArtifactIdentity,
@@ -94,9 +95,34 @@ export async function loadHistoryArtifacts(): Promise<HistoryArtifacts> {
   if (runIds.length) {
     const { data } = await supabaseAdmin
       .from("deep_research_runs")
-      .select("id, completed_at, model_provider, model_identifier, prompt_version")
+      .select(
+        "id, completed_at, model_provider, model_identifier, prompt_version, shortlist_milestone_id",
+      )
       .in("id", runIds);
     for (const r of ((data as Row[]) ?? [])) runById.set(r["id"] as string, r);
+  }
+
+  // Exact upstream setup provenance for Deep Research: the AI Shortlist
+  // milestone the run was started from. No fallback to other cohorts.
+  const shortlistMilestoneIds = [
+    ...new Set(
+      [...runById.values()]
+        .map((r) => (r["shortlist_milestone_id"] as string | null) ?? null)
+        .filter((v): v is string => !!v),
+    ),
+  ];
+  const setupByMilestoneId = new Map<string, string[] | null>();
+  for (const ids of chunk(shortlistMilestoneIds)) {
+    const { data } = await supabaseAdmin
+      .from("token_stage_milestones")
+      .select("id, setup_at_entry")
+      .in("id", ids);
+    for (const row of ((data as Row[]) ?? [])) {
+      setupByMilestoneId.set(
+        row["id"] as string,
+        normalizeSetups(row["setup_at_entry"] as string | null),
+      );
+    }
   }
 
   // Scoped identity lookup only — the Data API caps responses at 1000 rows.
@@ -122,8 +148,12 @@ export async function loadHistoryArtifacts(): Promise<HistoryArtifacts> {
 
   const deepResearch: DeepResearchArtifact[] = deepRows.map((r) => {
     const run = runById.get(r["deep_research_run_id"] as string) ?? ({} as Row);
+    const shortlistMilestoneId = (run["shortlist_milestone_id"] as string | null) ?? null;
     return {
       ...identity(r["mint"] as string),
+      setups: shortlistMilestoneId
+        ? (setupByMilestoneId.get(shortlistMilestoneId) ?? null)
+        : null,
       reportId: r["id"] as string,
       runId: r["deep_research_run_id"] as string,
       completedAt: str(run, "completed_at") ?? str(r, "created_at"),
@@ -160,11 +190,35 @@ export async function loadHistoryArtifacts(): Promise<HistoryArtifacts> {
     }
   }
 
+  // Exact cohort setup provenance for Thesis: the scan candidate row of that
+  // exact mint inside that exact source scan.
+  const scanIds = [...new Set([...scanByRun.values()].filter((v): v is string => !!v))];
+  const setupByScanMint = new Map<string, string[] | null>();
+  if (scanIds.length && mints.length) {
+    for (const ids of chunk(scanIds)) {
+      const { data } = await supabaseAdmin
+        .from("scan_candidates")
+        .select("scan_run_id, contract_address, discovery_lanes")
+        .in("scan_run_id", ids)
+        .in("contract_address", mints);
+      for (const row of ((data as Row[]) ?? [])) {
+        setupByScanMint.set(
+          `${row["scan_run_id"] as string}:${row["contract_address"] as string}`,
+          normalizeSetups(row["discovery_lanes"] as string[] | null),
+        );
+      }
+    }
+  }
+
   const thesis: ThesisArtifact[] = thesisRows.map((r) => {
     const id = r["id"] as string;
     const m = measured.get(id) ?? { baseline: null, performance: null };
+    const scanId = scanByRun.get(str(r, "thesis_synthesis_run_id") ?? "") ?? null;
     return {
       ...identity(r["mint"] as string),
+      setups: scanId
+        ? (setupByScanMint.get(`${scanId}:${r["mint"] as string}`) ?? null)
+        : null,
       symbol: str(r, "symbol") ?? identity(r["mint"] as string).symbol,
       name: str(r, "name") ?? identity(r["mint"] as string).name,
       reportId: id,

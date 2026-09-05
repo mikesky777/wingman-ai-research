@@ -14,6 +14,11 @@ export interface HistoryArtifactIdentity {
 }
 
 export interface DeepResearchArtifact extends HistoryArtifactIdentity {
+  /**
+   * Qualifying setups from the exact upstream AI Shortlist milestone this
+   * dossier was produced from. `null` = provenance unavailable (UNKNOWN).
+   */
+  setups: string[] | null;
   reportId: string;
   runId: string;
   completedAt: string | null;
@@ -65,6 +70,11 @@ export interface ThesisPerformance {
 }
 
 export interface ThesisArtifact extends HistoryArtifactIdentity {
+  /**
+   * Qualifying setups from the exact production scan cohort this thesis was
+   * synthesized in. `null` = provenance unavailable (UNKNOWN).
+   */
+  setups: string[] | null;
   reportId: string;
   synthesizedAt: string | null;
   thesisScore: number | null;
