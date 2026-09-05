@@ -864,7 +864,9 @@ export function validateThesisOutput(
 
   return {
     components,
+    componentReasons,
     thesisScore,
+
     oneSentenceThesis: checkAction("oneSentenceThesis", asString(obj["oneSentenceThesis"])),
     narrativeThesis: checkAction("narrativeThesis", asString(obj["narrativeThesis"])),
     sections,
