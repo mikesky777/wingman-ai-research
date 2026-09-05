@@ -731,15 +731,28 @@ export function emptyDossier(input: {
   symbol: string | null;
   name: string | null;
   generatedAt: string;
+  searchHealth?: DossierSearchHealth;
 }): ResearchDossier {
+  const health = input.searchHealth ?? UNKNOWN_SEARCH_HEALTH;
   return assembleDossier({
     ...input,
     identityAttributionConfidence: "UNRESOLVED",
+    searchHealth: health,
     sources: [],
     validated: {
       oneSentenceNarrative: null,
       narrativeResolved: false,
-      domains: RESEARCH_DOMAINS.map((domain) => ({ domain, status: "UNRESOLVED", summary: null })),
+      domains: RESEARCH_DOMAINS.map((domain) => ({
+        domain,
+        status: "UNRESOLVED" as const,
+        summary: null,
+        unresolvedReason: deriveUnresolvedReason({
+          status: "UNRESOLVED",
+          searchHealth: health.status,
+          researched: true,
+          hasAnyClaim: false,
+        }),
+      })),
       claims: [],
       conflicts: [],
       unresolvedQuestions: ["No external sources could be attributed to this exact mint."],
@@ -760,6 +773,9 @@ export function buildSystemPrompt(): string {
     "4. Only use status VERIFIED when the source is explicitly tied to the exact mint address supplied.",
     "5. If two sources disagree, emit a CONFLICTING claim citing both sides.",
     "6. No trading language of any kind.",
+    "7. COMMUNITY sources (social posts, forums, chats) report chatter and lore. Community lore alone is never VERIFIED — use INFERRED or SPECULATIVE.",
+    "8. A project's own source can only verify what it is authoritative for (that its own statement exists). It never corroborates the statement's truth.",
+    "9. Explorers, wallets, aggregators and DEX data sites all mirror the SAME on-chain state. Several of them agreeing is ONE piece of evidence, not several.",
     "",
     `Domains: ${RESEARCH_DOMAINS.join(", ")}.`,
     `Claim status values: ${CLAIM_STATUSES.join(", ")}. Confidence: ${CONFIDENCES.join(", ")}.`,
@@ -774,6 +790,7 @@ export function buildSystemPrompt(): string {
     "}",
   ].join("\n");
 }
+
 
 export function buildUserPrompt(input: {
   mint: string;
