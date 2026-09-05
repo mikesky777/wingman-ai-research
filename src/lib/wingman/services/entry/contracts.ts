@@ -341,9 +341,24 @@ export function mapEntryState(input: EntryMappingInput): EntryMappingResult {
     return { state: "BROKEN", reasons: ["RECENT_MARKET_DAMAGE_FAIL"] };
   }
 
+  // v1.1 collapse override: multi-dimensional confirmed damage outranks any
+  // single constructive feature. Only real negative evidence reaches here.
+  if (input.damage?.collapsed) {
+    return {
+      state: "BROKEN",
+      reasons: [
+        "COLLAPSE_OVERRIDE_MULTI_DIMENSIONAL_DAMAGE",
+        ...input.damage.dimensions,
+        ...input.damage.reasons,
+      ],
+    };
+  }
+
   if (input.extensionVerdict === "PARABOLIC" || input.components.extension <= 0.5) {
     return { state: "EXTENDED", reasons: ["ENTRY_REQUIRES_CHASING"] };
   }
+
+  const coarse = input.resolution !== undefined && !supportsCandleGradeClaims(input.resolution);
 
   if (
     input.total >= 7.5 &&
@@ -353,7 +368,23 @@ export function mapEntryState(input: EntryMappingInput): EntryMappingResult {
     input.confirmations >= 3 &&
     input.divergence !== "NEGATIVE"
   ) {
-    return { state: "BUY_ZONE", reasons: ["MULTIPLE_CONFIRMATIONS_WITH_DEFINED_RISK"] };
+    if (!coarse) {
+      return { state: "BUY_ZONE", reasons: ["MULTIPLE_CONFIRMATIONS_WITH_DEFINED_RISK"] };
+    }
+    // v1.1 resolution gate: coarse observations cannot prove candle-grade
+    // entry structure, so BUY_ZONE is unavailable. Cap at SETTING_UP only when
+    // the broad evidence genuinely supports constructive timing.
+    const broadlyConstructive =
+      input.structureVerdict === "CONSTRUCTIVE" && input.components.volumeFlow >= 1;
+    return {
+      state: broadlyConstructive ? "SETTING_UP" : "WATCH",
+      reasons: [
+        "BUY_ZONE_REQUIRES_HIGH_RESOLUTION",
+        broadlyConstructive
+          ? "BROAD_EVIDENCE_SUPPORTS_CONSTRUCTIVE_TIMING"
+          : "BROAD_EVIDENCE_INSUFFICIENT_FOR_CONSTRUCTIVE_TIMING",
+      ],
+    };
   }
 
   if (
