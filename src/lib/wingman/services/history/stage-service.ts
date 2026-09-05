@@ -177,7 +177,8 @@ export const StageMilestoneService = {
 
     // Stage-relative outcomes are derived ONLY for stages with a legitimate
     // frozen baseline. Survivors keep their existing adapter-backed path.
-    const derivesSeries = stage === "AI_SHORTLIST" || stage === "THESIS_CALL";
+    const derivesSeries =
+      stage === "SETUP_QUALIFIED" || stage === "AI_SHORTLIST" || stage === "THESIS_CALL";
     const candidatesByToken = new Map<string, CandidateAppearance[]>();
     const snapshotsByToken = new Map<string, SnapshotObservation[]>();
     if (derivesSeries) {
