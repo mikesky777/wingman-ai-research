@@ -321,6 +321,8 @@ export function scoreEntry(args: {
     whatWouldBreakEntry: [...new Set(breaks)].slice(0, 5),
     evidenceGaps: [...new Set(gaps)],
     notes,
+    resolution,
+    unsupportedFeatures,
   };
 }
 
