@@ -94,7 +94,8 @@ export async function loadProductionFunnel(): Promise<ProductionFunnel> {
 
   const attempts: DeepResearchRunInput[] = ((runRows as Row[]) ?? []).map((r) => {
     const rep = reportByRunId.get(r["id"] as string) ?? null;
-    const dossier = (rep?.["dossier"] as { coverage?: { independentSourceCount?: number } }) ?? null;
+    const dossier =
+      (rep?.["dossier"] as { coverage?: { independentSourceCount?: number } } | undefined) ?? null;
     return {
       mint: r["mint"] as string,
       runStatus: (r["status"] as string) ?? null,
@@ -147,12 +148,12 @@ export async function loadDeepResearchReportById(
   const r = (data as Row | null) ?? null;
   if (!r) return null;
   const dossier = r["dossier"] as DeepResearchReportSummary["dossier"];
-  const coverage = (dossier as { coverage?: Record<string, number> } | null)?.coverage ?? {};
+  const coverage = (dossier?.coverage ?? {}) as Partial<Record<string, number>>;
   return {
     id: r["id"] as string,
     runId: r["deep_research_run_id"] as string,
     mint: r["mint"] as string,
-    symbol: (dossier as { symbol?: string | null } | null)?.symbol ?? null,
+    symbol: dossier?.symbol ?? null,
     isCalibration: Boolean(r["is_calibration"]),
     status: (r["status"] as string) ?? "unknown",
     createdAt: (r["created_at"] as string) ?? "",
@@ -167,7 +168,7 @@ export async function loadDeepResearchReportById(
     projectOwnedSourceCount: coverage["projectOwnedSourceCount"] ?? 0,
     projectAffiliatedSourceCount: coverage["projectAffiliatedSourceCount"] ?? 0,
     corroboratedClaimCount: coverage["corroboratedClaimCount"] ?? 0,
-    searchVersion: (dossier as { searchVersion?: string | null } | null)?.searchVersion ?? null,
+    searchVersion: dossier?.searchVersion ?? null,
     conflictingClaimCount: (r["conflicting_claim_count"] as number) ?? 0,
     unresolvedGapCount: (r["unresolved_gap_count"] as number) ?? 0,
     unresolvedDomains: (r["unresolved_domains"] as string[]) ?? [],
