@@ -27,6 +27,7 @@ import {
   buildThesisSystemPrompt,
   buildThesisUserPrompt,
   computeEvidenceConfidence,
+  type EvidenceConfidenceBreakdown,
   deriveVerdict,
   redactCompactForThesis,
   selectOpportunities,
@@ -1097,7 +1098,7 @@ export interface ThesisReportSummary {
   /** evidence_confidence/v1.1 artifact; null on frozen v1 reports. */
   evidenceConfidenceVersion: string | null;
   evidenceConfidenceRawScore: number | null;
-  evidenceConfidenceArtifact: Record<string, unknown> | null;
+  evidenceConfidenceArtifact: EvidenceConfidenceBreakdown | null;
   oneSentenceThesis: string | null;
   narrativeThesis: string | null;
   sections: ThesisSections | null;
@@ -1255,7 +1256,7 @@ export async function loadThesisReports(
     evidenceConfidenceVersion: (r["evidence_confidence_version"] as string) ?? null,
     evidenceConfidenceRawScore: (r["evidence_confidence_raw_score"] as number) ?? null,
     evidenceConfidenceArtifact:
-      (r["evidence_confidence_artifact"] as Record<string, unknown>) ?? null,
+      (r["evidence_confidence_artifact"] as EvidenceConfidenceBreakdown) ?? null,
     oneSentenceThesis: (r["one_sentence_thesis"] as string) ?? null,
     narrativeThesis: (r["narrative_thesis"] as string) ?? null,
     sections: (r["sections"] as ThesisSections) ?? null,
