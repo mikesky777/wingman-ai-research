@@ -8,13 +8,13 @@
 import { useCallback, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Brain, FlaskConical, Loader2, PackagePlus } from "lucide-react";
+import { Brain, FlaskConical, Loader2, PackagePlus, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Section } from "@/components/wingman/Section";
 import { EmptyState } from "@/components/wingman/EmptyState";
 import { TokenIdentity } from "@/components/wingman/TokenIdentity";
-import { getLatestTriage, runTriage } from "@/lib/wingman/triage.functions";
+import { getLatestTriage, getTriageAvailability, runTriage } from "@/lib/wingman/triage.functions";
 import { generateResearchPacketsForRun } from "@/lib/wingman/research.functions";
 import { relativeTime } from "@/lib/wingman/format";
 import { toast } from "sonner";
