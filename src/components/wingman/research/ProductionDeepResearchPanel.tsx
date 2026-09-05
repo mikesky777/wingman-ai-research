@@ -231,6 +231,13 @@ export function ProductionDeepResearchPanel() {
       description="Every production shortlist candidate and its persisted research status. Unresearched members stay visible."
       actions={
         <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            disabled={notStartedCount === 0 || start.isPending || retry.isPending}
+            onClick={() => start.mutate()}
+          >
+            {start.isPending ? "Researching…" : `Run Deep Research (${notStartedCount})`}
+          </Button>
           {retryableCount > 0 ? (
             <Button
               size="sm"
