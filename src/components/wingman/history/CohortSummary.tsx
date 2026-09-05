@@ -56,6 +56,11 @@ export function CohortSummaryCards({ summary }: { summary: StageSummary }) {
         value={summary.winRate.value === null ? "—" : `${summary.winRate.value.toFixed(0)}%`}
         detail={`${n(summary.winRate)} · current since entry > 0`}
       />
+      <StatTile
+        label="Unique tokens"
+        value={summary.sampleSize}
+        detail="Repeat scan appearances count once"
+      />
       {summary.supportsPeakMetrics ? (
         <>
           <StatTile
@@ -70,12 +75,6 @@ export function CohortSummaryCards({ summary }: { summary: StageSummary }) {
           />
         </>
       ) : null}
-      <StatTile
-        label="Unique tokens"
-        value={summary.sampleSize}
-        detail="Repeat scan appearances count once"
-      />
-
     </div>
   );
 }
