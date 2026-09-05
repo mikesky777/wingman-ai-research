@@ -535,12 +535,13 @@ async function researchCandidate(input: {
     }
   };
 
-  const pushSource = (source: ResearchSource) => {
+  const pushSource = (source: Omit<ResearchSource, "onChainMirror" | "evidenceOrigin">) => {
     const key = source.url ? (canonicalizeUrl(source.url) ?? source.url) : null;
     if (key && seenUrls.has(key)) return;
     if (key) seenUrls.add(key);
-    sources.push(source);
+    sources.push(withEvidenceOrigin(source));
   };
+
 
   // 1. Official links published on the token's own pair metadata are PRIMARY
   //    and mint-attributed by construction — but they are the PROJECT speaking.
