@@ -8,14 +8,16 @@
 import { useCallback, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Brain, FlaskConical, Loader2 } from "lucide-react";
+import { Brain, FlaskConical, Loader2, PackagePlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Section } from "@/components/wingman/Section";
 import { EmptyState } from "@/components/wingman/EmptyState";
 import { getLatestTriage, runTriage } from "@/lib/wingman/triage.functions";
+import { generateResearchPacketsForRun } from "@/lib/wingman/research.functions";
 import { relativeTime } from "@/lib/wingman/format";
 import { toast } from "sonner";
+
 
 const decisionTone: Record<string, string> = {
   DEEP_RESEARCH: "border-positive/40 bg-positive/10 text-positive",
