@@ -17,6 +17,7 @@ import {
 } from "../outcomes/market-validity";
 import { deriveStageOutcome } from "./stage-outcomes";
 import type { CandidateAppearance, SnapshotObservation } from "../outcomes/outcomes";
+import { classifyThesisArtifacts } from "./artifacts";
 import type {
   DeepResearchArtifact,
   HistoryArtifactIdentity,
