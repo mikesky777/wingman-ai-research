@@ -261,19 +261,20 @@ export const StageMilestoneService = {
         stage,
         setupKey,
         setups: setupAtEntry ? setupAtEntry.split("+").filter(Boolean) : [],
-        enteredAt: (m["first_entered_at"] as string | null) ?? null,
+        enteredAt,
         entryMarketCap,
         entryPriceUsd: num(m, "price_at_entry"),
         entryLiquidityUsd: num(m, "liquidity_at_entry"),
-        sincePct,
-        // Stage-specific peak / adverse series are not derived yet; the frozen
-        // baseline above is what future outcome work will measure against.
-        peakPct: null,
-        maxAdversePct: null,
-        drawdownPct: null,
-        currentMarketCap,
-        currentPriceUsd: num(outcome, "current_price_usd"),
-        currentObservedAt: (outcome["current_observed_at"] as string | null) ?? null,
+        sincePct: derived ? (derived.sincePct ?? sincePct) : sincePct,
+        // Peak / adverse / drawdown come from valid post-milestone observations
+        // only; stages without a frozen baseline stay null, never zero.
+        peakPct: derived?.peakPct ?? null,
+        maxAdversePct: derived?.maxAdversePct ?? null,
+        drawdownPct: derived?.drawdownPct ?? null,
+        currentMarketCap: derived?.currentMarketCap ?? currentMarketCap,
+        currentPriceUsd: derived?.currentPriceUsd ?? num(outcome, "current_price_usd"),
+        currentObservedAt:
+          derived?.currentObservedAt ?? ((outcome["current_observed_at"] as string | null) ?? null),
         scanMarketCap: num(latest, "market_cap"),
         scanLiquidityUsd: num(latest, "liquidity_usd"),
         scanVolume24h: num(latest, "volume_24h"),
