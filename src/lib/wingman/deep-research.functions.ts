@@ -14,9 +14,11 @@ import type {
 export const runDeepResearchBatch = createServerFn({ method: "POST" })
   .inputValidator((input?: { mode?: "PRODUCTION" | "CALIBRATION"; limit?: number; triageRunId?: string | null }) => ({
     mode: input?.mode === "PRODUCTION" ? ("production" as const) : ("calibration" as const),
-    limit: Math.min(Math.max(input?.limit ?? 3, 3), 5),
+    // Deliberate top-N batches by persisted AI triage rank (1–12).
+    limit: Math.min(Math.max(input?.limit ?? 3, 1), 12),
     triageRunId: input?.triageRunId ?? null,
   }))
+
   .handler(async ({ data }): Promise<DeepResearchBatchResult> => {
     const { runDeepResearch } = await import("./services/research/deep/deep-research.server");
     return runDeepResearch({
