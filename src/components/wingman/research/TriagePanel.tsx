@@ -8,14 +8,16 @@
 import { useCallback, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Brain, FlaskConical, Loader2 } from "lucide-react";
+import { Brain, FlaskConical, Loader2, PackagePlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Section } from "@/components/wingman/Section";
 import { EmptyState } from "@/components/wingman/EmptyState";
 import { getLatestTriage, runTriage } from "@/lib/wingman/triage.functions";
+import { generateResearchPacketsForRun } from "@/lib/wingman/research.functions";
 import { relativeTime } from "@/lib/wingman/format";
 import { toast } from "sonner";
+
 
 const decisionTone: Record<string, string> = {
   DEEP_RESEARCH: "border-positive/40 bg-positive/10 text-positive",
@@ -32,7 +34,25 @@ export function TriagePanel() {
   const queryClient = useQueryClient();
   const fetchLatest = useServerFn(getLatestTriage);
   const startRun = useServerFn(runTriage);
+  const generatePackets = useServerFn(generateResearchPacketsForRun);
   const [lastCode, setLastCode] = useState<string | null>(null);
+
+  const packetMutation = useMutation({
+    mutationFn: () => generatePackets({ data: {} }),
+    onSuccess: (result) => {
+      const eligible = result.packets.filter((p) => p.eligibility.researchEligibleNow).length;
+      toast.success(
+        `Research packets generated — ${result.persistedCount} stored, ${eligible} currently eligible`,
+      );
+      void queryClient.invalidateQueries({ queryKey: ["ai-triage", "latest"] });
+    },
+    onError: (error: unknown) => {
+      toast.error("Research packet generation failed", {
+        description: error instanceof Error ? error.message : String(error),
+      });
+    },
+  });
+
 
   const { data, isLoading } = useQuery({
     queryKey: ["ai-triage", "latest"],
@@ -99,6 +119,19 @@ export function TriagePanel() {
         >
           <FlaskConical className="size-4" />
           Calibration (dry run)
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => packetMutation.mutate()}
+          disabled={packetMutation.isPending}
+        >
+          {packetMutation.isPending ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : (
+            <PackagePlus className="size-4" />
+          )}
+          Generate / retry research packets
         </Button>
         {lastCode === "NO_ELIGIBLE_CURRENT_SCAN" ? (
           <span className="text-xs text-warning">

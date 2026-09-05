@@ -165,7 +165,57 @@ export interface RunScanResult {
   runId: string | null;
   /** Run already holding the lock, when the attempt was rejected. */
   activeRunId: string | null;
+  /**
+   * Canonical Research Packet generation for THIS run. Diagnostic only: a
+   * packet failure never invalidates the scan, it only blocks AI triage until
+   * the packets are regenerated (the step is idempotent and retryable).
+   */
+  researchPackets: {
+    attempted: boolean;
+    generated: number;
+    persisted: number;
+    eligibleNow: number;
+    error: string | null;
+  };
 }
+
+export type ResearchPacketStepResult = RunScanResult["researchPackets"];
+
+const NO_PACKET_ATTEMPT: ResearchPacketStepResult = {
+  attempted: false,
+  generated: 0,
+  persisted: 0,
+  eligibleNow: 0,
+  error: null,
+};
+
+/**
+ * Generate the canonical Research Packets for one completed scan.
+ *
+ * Idempotent by construction: packet storage is append-only and triage always
+ * reads the newest packet per mint from THIS run, so a retry is safe. Never
+ * throws — a packet failure is diagnostic and must not invalidate the scan.
+ */
+export async function generatePacketsForRunSafely(
+  scanRunId: string,
+): Promise<ResearchPacketStepResult> {
+  try {
+    const { generateResearchPackets } = await import("../research/packet.server");
+    const result = await generateResearchPackets({ scanRunId, persist: true });
+    return {
+      attempted: true,
+      generated: result.packets.length,
+      persisted: result.persistedCount ?? result.packets.length,
+      eligibleNow: result.packets.filter((p) => p.packet.eligibility.researchEligibleNow).length,
+      error: null,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("generateResearchPackets failed", message);
+    return { attempted: true, generated: 0, persisted: 0, eligibleNow: 0, error: message };
+  }
+}
+
 
 /** Enrich one survivor: fresh DexScreener pull → new immutable snapshot. */
 async function enrichSurvivor(
@@ -243,6 +293,7 @@ export async function runScannerPipeline(
         code: "ALREADY_RUNNING",
         runId: null,
         activeRunId: error.activeRunId,
+        researchPackets: NO_PACKET_ATTEMPT,
       };
     }
     return {
@@ -252,6 +303,7 @@ export async function runScannerPipeline(
       code: "FAILED",
       runId: null,
       activeRunId: null,
+      researchPackets: NO_PACKET_ATTEMPT,
     };
   }
 
@@ -793,12 +845,37 @@ export async function runScannerPipeline(
       );
     }
 
-    return { ok: true, summary, message: null, code: "COMPLETED", runId, activeRunId: null };
+    // Canonical Research Packets for THIS run. Automatic: a healthy completed
+    // current-policy scan is only a usable AI triage source once its packets
+    // exist. Failure here is diagnostic — the scan stays completed, triage
+    // simply keeps rejecting the run until packets are regenerated.
+    const researchPackets =
+      config.calibrationMode || discoveryHealth.state !== "OK"
+        ? NO_PACKET_ATTEMPT
+        : await generatePacketsForRunSafely(runId);
+
+    return {
+      ok: true,
+      summary,
+      message: null,
+      code: "COMPLETED",
+      runId,
+      activeRunId: null,
+      researchPackets,
+    };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Scan failed.";
     // A failed run is isolated; earlier completed runs stay untouched.
     await failScanRun(runId, message);
     console.error("runScannerPipeline failed", message);
-    return { ok: false, summary: null, message, code: "FAILED", runId, activeRunId: null };
+    return {
+      ok: false,
+      summary: null,
+      message,
+      code: "FAILED",
+      runId,
+      activeRunId: null,
+      researchPackets: NO_PACKET_ATTEMPT,
+    };
   }
 }
