@@ -126,19 +126,37 @@ interface ThesisInputCandidate {
 }
 
 /**
- * Newest deep research report per mint, with its run provenance.
- * Production only consumes reports produced by a real production run.
+ * Deep research reports that may enter a synthesis, with run provenance.
+ *
+ * Production is COHORT-SCOPED: only reports whose deep-research run belongs to
+ * the exact active triage run are loaded. There is no global-newest fallback,
+ * so a previous cohort's dossier can never reach the model.
  */
 async function loadThesisInputs(options: {
   isCalibration: boolean;
   reportIds?: string[];
+  triageRunId?: string | null;
 }): Promise<ThesisInputCandidate[]> {
+  let cohortRunIds: string[] | null = null;
+  if (!options.isCalibration && !options.reportIds?.length) {
+    if (!options.triageRunId) return [];
+    const { data: cohortRuns, error: cohortError } = await supabaseAdmin
+      .from("deep_research_runs")
+      .select("id")
+      .eq("triage_run_id", options.triageRunId)
+      .eq("is_calibration", false);
+    if (cohortError) throw new Error(cohortError.message);
+    cohortRunIds = ((cohortRuns as Row[]) ?? []).map((r) => r["id"] as string);
+    if (cohortRunIds.length === 0) return [];
+  }
+
   let query = supabaseAdmin
     .from("deep_research_reports")
     .select("*")
     .order("created_at", { ascending: false })
     .limit(60);
   if (options.reportIds?.length) query = query.in("id", options.reportIds);
+  else if (cohortRunIds) query = query.in("deep_research_run_id", cohortRunIds).eq("is_calibration", false);
   else if (!options.isCalibration) query = query.eq("is_calibration", false);
 
   const { data, error } = await query;
