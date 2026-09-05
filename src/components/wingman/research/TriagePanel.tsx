@@ -62,14 +62,27 @@ export function TriagePanel({ calibration = false }: { calibration?: boolean } =
     queryFn: () => fetchLatest({ data: { mode: viewMode } }),
   });
 
+  // Repeat-spend protection: the ordinary action is unavailable once this exact
+  // cohort has a completed production triage.
+  const { data: availability } = useQuery({
+    queryKey: ["ai-triage", "availability"],
+    queryFn: () => fetchAvailability(),
+    enabled: !calibration,
+  });
+
   const mutation = useMutation({
-    mutationFn: (mode: "PRODUCTION" | "CALIBRATION") => startRun({ data: { mode } }),
+    mutationFn: (input: { mode: "PRODUCTION" | "CALIBRATION"; allowRerun?: boolean }) =>
+      startRun({ data: { mode: input.mode, allowRerun: input.allowRerun === true } }),
     onSuccess: (result) => {
       setLastCode(result.code);
       if (result.code === "NO_ELIGIBLE_CURRENT_SCAN") {
         toast.warning("No eligible current scan", {
           description:
             "Triage runs only on a healthy, completed current-policy scan that has research packets.",
+        });
+      } else if (result.code === "ALREADY_TRIAGED") {
+        toast.warning("Cohort already triaged — nothing was spent", {
+          description: result.error ?? undefined,
         });
       } else if (result.status === "completed") {
         toast.success(
@@ -91,12 +104,25 @@ export function TriagePanel({ calibration = false }: { calibration?: boolean } =
   });
 
   const run = useCallback(
-    (mode: "PRODUCTION" | "CALIBRATION") => {
+    (mode: "PRODUCTION" | "CALIBRATION", allowRerun = false) => {
       setLastCode(null);
-      mutation.mutate(mode);
+      mutation.mutate({ mode, allowRerun });
     },
     [mutation],
   );
+
+  const rerunOnly = !calibration && availability?.availability === "RERUN_ONLY";
+  const triageInProgress = !calibration && availability?.availability === "IN_PROGRESS";
+
+  const confirmRerun = useCallback(() => {
+    const ok = window.confirm(
+      "Rerun triage on the SAME cohort?\n\n" +
+        "· It uses the same research packets as the existing run\n" +
+        "· It spends AI credits again\n" +
+        "· It does NOT represent a new Scanner cohort",
+    );
+    if (ok) run("PRODUCTION", true);
+  }, [run]);
 
   const run_ = data?.run ?? null;
   const decisions = data?.decisions ?? [];
@@ -121,8 +147,21 @@ export function TriagePanel({ calibration = false }: { calibration?: boolean } =
             )}
             Calibration (dry run)
           </Button>
+        ) : rerunOnly ? (
+          <Button size="sm" variant="outline" onClick={confirmRerun} disabled={mutation.isPending}>
+            {mutation.isPending ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <RotateCcw className="size-4" />
+            )}
+            Rerun triage on same cohort
+          </Button>
         ) : (
-          <Button size="sm" onClick={() => run("PRODUCTION")} disabled={mutation.isPending}>
+          <Button
+            size="sm"
+            onClick={() => run("PRODUCTION")}
+            disabled={mutation.isPending || triageInProgress}
+          >
             {mutation.isPending ? (
               <Loader2 className="size-4 animate-spin" />
             ) : (
@@ -144,12 +183,27 @@ export function TriagePanel({ calibration = false }: { calibration?: boolean } =
           )}
           Generate / retry research packets
         </Button>
+        {rerunOnly ? (
+          <span className="text-xs text-muted-foreground">
+            This cohort was already triaged (run {availability?.existingRunId?.slice(0, 8)}). A
+            rerun uses the same packets and spends credits again.
+          </span>
+        ) : null}
+        {triageInProgress ? (
+          <span className="text-xs text-muted-foreground">A triage run is already in progress.</span>
+        ) : null}
         {lastCode === "NO_ELIGIBLE_CURRENT_SCAN" ? (
           <span className="text-xs text-warning">
             No eligible current scan — nothing was triaged.
           </span>
         ) : null}
+        {lastCode === "ALREADY_TRIAGED" ? (
+          <span className="text-xs text-warning">
+            Cohort already triaged — no credits were spent.
+          </span>
+        ) : null}
       </div>
+
 
 
       {isLoading ? (
