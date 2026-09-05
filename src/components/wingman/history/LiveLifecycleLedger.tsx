@@ -35,7 +35,7 @@ export function LiveLifecycleLedger() {
     <div className="space-y-6">
       <Section
         title="Thesis Calls — current monitoring"
-        subtitle="A Thesis Call is an immutable historical qualification. Monitoring status controls whether Entry keeps being evaluated; it never rewrites the call."
+        description="A Thesis Call is an immutable historical qualification. Monitoring status controls whether Entry keeps being evaluated; it never rewrites the call."
       >
         {isLoading ? (
           <p className="text-xs text-muted-foreground">Loading lifecycle…</p>
@@ -51,7 +51,12 @@ export function LiveLifecycleLedger() {
                 key={call.thesisCallMilestoneId}
                 className="flex flex-wrap items-start justify-between gap-3 rounded border border-border/60 p-3"
               >
-                <TokenIdentity symbol={call.symbol} name={call.name} mint={call.mint} />
+                <TokenIdentity
+                  symbol={call.symbol}
+                  name={call.name}
+                  mint={call.mint}
+                  pairAddress={call.pairAddress ?? null}
+                />
                 <div className="flex flex-col items-end gap-1 text-right">
                   <div className="flex items-center gap-1.5">
                     <Badge
@@ -84,7 +89,7 @@ export function LiveLifecycleLedger() {
 
       <Section
         title="Live episodes"
-        subtitle="Every activation is measured from its own frozen baseline and keeps being measured after the episode ends."
+        description="Every activation is measured from its own frozen baseline and keeps being measured after the episode ends."
       >
         {activations.length === 0 ? (
           <EmptyState
@@ -129,7 +134,7 @@ export function LiveLifecycleLedger() {
 
       <Section
         title="Lifecycle events"
-        subtitle="Append-only. Events are never modified or deleted, including earlier activations of the same Thesis Call."
+        description="Append-only. Events are never modified or deleted, including earlier activations of the same Thesis Call."
       >
         {events.length === 0 ? (
           <EmptyState
