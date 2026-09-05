@@ -207,6 +207,12 @@ export interface ResearchDossier {
     onChainMirrorCount: number;
     /** Genuinely distinct underlying evidence origins behind the sources. */
     distinctEvidenceOrigins: number;
+    /**
+     * Distinct evidence origins that are ALSO genuinely independent: project,
+     * community and on-chain-mirror origins are excluded. Five explorers
+     * showing the same chain state count once — and not as independence.
+     */
+    distinctIndependentEvidenceOrigins: number;
     /** Domains supported by at least one claim citing an independent source. */
     independentDomainsCovered: ResearchDomain[];
     corroboratedClaimCount: number;
@@ -609,6 +615,14 @@ export function computeCoverage(
     unknownIndependenceSourceCount: countBy("UNKNOWN"),
     onChainMirrorCount: sources.filter((s) => s.onChainMirror || isOnChainMirror(s.url)).length,
     distinctEvidenceOrigins: countDistinctEvidenceOrigins(sources.map((s) => s.url)),
+    distinctIndependentEvidenceOrigins: countDistinctEvidenceOrigins(
+      sources
+        .filter(
+          (s) =>
+            s.independence === "INDEPENDENT" && !(s.onChainMirror || isOnChainMirror(s.url)),
+        )
+        .map((s) => s.url),
+    ),
     independentDomainsCovered: [...independentDomains],
     corroboratedClaimCount: claims.filter((c) => c.provenance === "INDEPENDENTLY_CORROBORATED")
       .length,

@@ -695,19 +695,42 @@ async function synthesizeCandidate(args: {
   });
 
   const totalDomains = dossier?.domains?.length ?? 6;
+  const unresolvedDomainNames = dossier?.coverage?.unresolvedDomains ?? [];
+  const dossierSearchHealth = dossier?.searchHealth?.status;
+  // evidence_confidence/v1.1 — attribution reads PROJECT/CREATOR confidence,
+  // never exact-mint identity; independence is capped by distinct independent
+  // evidence origins so chain-state mirrors cannot inflate corroboration.
   const evidence = computeEvidenceConfidence({
-    unresolvedDomainCount: dossier?.coverage?.unresolvedDomains?.length ?? totalDomains,
+    unresolvedDomainCount: unresolvedDomainNames.length || (dossier ? 0 : totalDomains),
     totalDomainCount: totalDomains || 6,
+    unresolvedReasons: unresolvedDomainNames.map(
+      (d) =>
+        (dossier?.domains?.find((x) => x.domain === d)?.unresolvedReason ?? "UNKNOWN") as never,
+    ),
     independentSourceCount: dossier?.coverage?.independentSourceCount ?? 0,
+    distinctIndependentEvidenceOrigins:
+      dossier?.coverage?.distinctIndependentEvidenceOrigins ??
+      dossier?.coverage?.independentSourceCount ??
+      0,
+    distinctEvidenceOrigins: dossier?.coverage?.distinctEvidenceOrigins ?? 0,
     sourceCount: dossier?.coverage?.sourceCount ?? 0,
+    rawSourceCount: dossier?.coverage?.rawSourceCount ?? dossier?.coverage?.sourceCount ?? 0,
+    communitySourceCount: dossier?.coverage?.communitySourceCount ?? 0,
+    projectSourceCount: dossier?.coverage?.projectSourceCount ?? 0,
+    onChainMirrorCount: dossier?.coverage?.onChainMirrorCount ?? 0,
     sourceDomainDiversity: dossier?.coverage?.sourceDomainDiversity ?? 0,
     conflictingClaimCount: dossier?.coverage?.conflictingClaimCount ?? 0,
+    // DIAGNOSTIC_ONLY — never scored.
     corroboratedClaimCount: dossier?.coverage?.corroboratedClaimCount ?? 0,
-    identityAttributionConfidence: dossier?.identityAttributionConfidence ?? "UNRESOLVED",
+    tokenIdentityConfidence:
+      dossier?.tokenIdentityConfidence ?? dossier?.identityAttributionConfidence ?? undefined,
+    projectAttributionConfidence: dossier?.projectAttributionConfidence ?? "UNRESOLVED",
     narrativeResolved: Boolean(dossier?.narrativeResolved),
     packetEvidenceGapCount: packet?.gaps.length ?? 0,
     marketStale: Boolean(packet?.stale),
     searchUnavailable: input.searchUnavailable,
+    searchHealth:
+      dossierSearchHealth ?? (input.searchUnavailable ? "SEARCH_UNAVAILABLE" : "READY"),
   });
 
   const evidenceUnusable =
@@ -961,6 +984,11 @@ async function insertReport(args: {
       score_valuation: c?.valuation ?? null,
       component_scores: (c ?? null) as never,
       evidence_confidence_components: (s.evidence?.deductions ?? null) as never,
+      // evidence_confidence/v1.1 artifact: version, pre-floor score, every
+      // deduction, unresolved reasons, search health and calibration inputs.
+      evidence_confidence_version: s.evidence?.version ?? null,
+      evidence_confidence_raw_score: s.evidence?.rawScore ?? null,
+      evidence_confidence_artifact: (s.evidence ?? null) as never,
       one_sentence_thesis: s.text.oneSentenceThesis,
       narrative_thesis: s.text.narrativeThesis,
       strongest_bull_case: s.text.strongestBullCase,
@@ -1059,7 +1087,17 @@ export interface ThesisReportSummary {
   verdict: string | null;
   bearSeverity: string | null;
   components: ComponentScores | null;
-  evidenceDeductions: { code: string; points: number; detail: string }[];
+  evidenceDeductions: {
+    code: string;
+    points: number;
+    detail: string;
+    unresolvedReasons?: string[];
+    searchHealth?: string;
+  }[];
+  /** evidence_confidence/v1.1 artifact; null on frozen v1 reports. */
+  evidenceConfidenceVersion: string | null;
+  evidenceConfidenceRawScore: number | null;
+  evidenceConfidenceArtifact: EvidenceConfidenceBreakdown | null;
   oneSentenceThesis: string | null;
   narrativeThesis: string | null;
   sections: ThesisSections | null;
@@ -1214,6 +1252,10 @@ export async function loadThesisReports(
     components: (r["component_scores"] as ComponentScores) ?? null,
     evidenceDeductions:
       (r["evidence_confidence_components"] as ThesisReportSummary["evidenceDeductions"]) ?? [],
+    evidenceConfidenceVersion: (r["evidence_confidence_version"] as string) ?? null,
+    evidenceConfidenceRawScore: (r["evidence_confidence_raw_score"] as number) ?? null,
+    evidenceConfidenceArtifact:
+      (r["evidence_confidence_artifact"] as EvidenceConfidenceBreakdown) ?? null,
     oneSentenceThesis: (r["one_sentence_thesis"] as string) ?? null,
     narrativeThesis: (r["narrative_thesis"] as string) ?? null,
     sections: (r["sections"] as ThesisSections) ?? null,

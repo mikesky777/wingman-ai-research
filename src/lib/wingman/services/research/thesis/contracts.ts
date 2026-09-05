@@ -143,27 +143,114 @@ export const THESIS_SECTION_KEYS = [
 export type ThesisSectionKey = (typeof THESIS_SECTION_KEYS)[number];
 export type ThesisSections = Record<ThesisSectionKey, string | null>;
 
+/**
+ * evidence_confidence/v1.1 — semantic correctness patch.
+ *
+ * Prospective only: `evidence_confidence/v1` artifacts are immutable and are
+ * never recomputed. v1.1 changes WHICH inputs feed two existing terms and adds
+ * machine-readable diagnostics. It introduces no new deduction weights, no
+ * bonuses, and no threshold changes.
+ */
+export const EVIDENCE_CONFIDENCE_VERSION_V1 = "evidence_confidence/v1";
+export const EVIDENCE_CONFIDENCE_VERSION = "evidence_confidence/v1.1";
+
+export type EvidenceSearchHealth = "READY" | "DEGRADED" | "SEARCH_UNAVAILABLE";
+export type EvidenceUnresolvedReason =
+  | "NO_EVIDENCE_FOUND"
+  | "SEARCH_UNAVAILABLE"
+  | "PARTIAL_EVIDENCE"
+  | "NOT_RESEARCHED"
+  | "UNKNOWN";
+
 export interface EvidenceConfidenceInput {
   /** Deep Research domains that stayed unresolved. */
   unresolvedDomainCount: number;
   totalDomainCount: number;
+  /** Reason codes for the unresolved domains, in domain order. */
+  unresolvedReasons?: EvidenceUnresolvedReason[];
   independentSourceCount: number;
+  /**
+   * Distinct, genuinely independent evidence origins. Mirrors of the same
+   * chain state, project sources and community posts are excluded. When
+   * provided it caps the independence term so five explorers cannot read as
+   * five corroborations.
+   */
+  distinctIndependentEvidenceOrigins?: number;
+  /** Total distinct evidence origins — DIAGNOSTIC_ONLY. */
+  distinctEvidenceOrigins?: number;
   sourceCount: number;
+  /** Total retained sources incl. mirrors/community — DIAGNOSTIC_ONLY. */
+  rawSourceCount?: number;
+  /** DIAGNOSTIC_ONLY. Never independent corroboration. */
+  communitySourceCount?: number;
+  /** DIAGNOSTIC_ONLY. Primary/project sources. */
+  projectSourceCount?: number;
+  /** DIAGNOSTIC_ONLY. Sources reflecting the same chain state. */
+  onChainMirrorCount?: number;
   sourceDomainDiversity: number;
   conflictingClaimCount: number;
-  corroboratedClaimCount: number;
-  identityAttributionConfidence: string;
+  /**
+   * DIAGNOSTIC_ONLY — never scored. Kept on the artifact so calibration can
+   * later test whether corroboration deserves confidence weight.
+   */
+  corroboratedClaimCount?: number;
+  /** Confidence that sources refer to THIS exact mint. DIAGNOSTIC_ONLY. */
+  tokenIdentityConfidence?: string | undefined;
+  /**
+   * Confidence that a creator/team/project claim is correctly attributed.
+   * This — NOT mint identity — drives the ATTRIBUTION deduction.
+   */
+  projectAttributionConfidence: string;
   narrativeResolved: boolean;
   /** Machine-readable gaps carried by the Research Packet. */
   packetEvidenceGapCount: number;
   marketStale: boolean;
   /** True when external search could not be performed at all. */
   searchUnavailable: boolean;
+  /** Search infrastructure health carried from the dossier. */
+  searchHealth?: EvidenceSearchHealth;
+}
+
+export interface EvidenceConfidenceDeduction {
+  code: string;
+  points: number;
+  detail: string;
+  /** Present where the deduction is caused by unresolved evidence. */
+  unresolvedReasons?: EvidenceUnresolvedReason[];
+  searchHealth?: EvidenceSearchHealth;
 }
 
 export interface EvidenceConfidenceBreakdown {
+  version: string;
   score: number;
-  deductions: { code: string; points: number; detail: string }[];
+  /** 100 − total deductions, BEFORE the 0–100 floor/cap is applied. */
+  rawScore: number;
+  totalDeductions: number;
+  floored: boolean;
+  searchHealth: EvidenceSearchHealth;
+  unresolvedReasons: EvidenceUnresolvedReason[];
+  deductions: EvidenceConfidenceDeduction[];
+  /** Never scored in v1.1 — preserved for the Calibration Observatory. */
+  diagnostics: {
+    rawSourceCount: number;
+    sourceCount: number;
+    independentSourceCount: number;
+    distinctIndependentEvidenceOrigins: number;
+    distinctEvidenceOrigins: number;
+    effectiveIndependentSources: number;
+    projectSourceCount: number;
+    communitySourceCount: number;
+    onChainMirrorCount: number;
+    corroboratedClaimCount: number;
+    conflictingClaimCount: number;
+    tokenIdentityConfidence: string | null;
+    projectAttributionConfidence: string;
+    unresolvedDomainCount: number;
+    totalDomainCount: number;
+    packetEvidenceGapCount: number;
+    marketStale: boolean;
+    searchUnavailable: boolean;
+  };
 }
 
 const ATTRIBUTION_PENALTY: Record<string, number> = {
@@ -184,29 +271,53 @@ const ATTRIBUTION_PENALTY: Record<string, number> = {
 export function computeEvidenceConfidence(
   input: EvidenceConfidenceInput,
 ): EvidenceConfidenceBreakdown {
-  const deductions: { code: string; points: number; detail: string }[] = [];
-  const add = (code: string, points: number, detail: string) => {
-    if (points > 0) deductions.push({ code, points: Math.round(points), detail });
+  const deductions: EvidenceConfidenceDeduction[] = [];
+  const add = (
+    code: string,
+    points: number,
+    detail: string,
+    extra?: Omit<EvidenceConfidenceDeduction, "code" | "points" | "detail">,
+  ) => {
+    if (points > 0) deductions.push({ code, points: Math.round(points), detail, ...extra });
   };
+
+  const searchHealth: EvidenceSearchHealth =
+    input.searchHealth ?? (input.searchUnavailable ? "SEARCH_UNAVAILABLE" : "READY");
+  const unresolvedReasons = input.unresolvedReasons ?? [];
 
   add(
     "UNRESOLVED_DOMAINS",
     Math.min(48, input.unresolvedDomainCount * 8),
     `${input.unresolvedDomainCount}/${input.totalDomainCount} research domains unresolved`,
+    // Same 8 points per domain as v1: only the CAUSE is now visible, so future
+    // calibration can tell "nothing exists" apart from "we could not look".
+    { unresolvedReasons, searchHealth },
   );
 
-  const independent = input.independentSourceCount;
+  // v1.1: mirrors of the same chain state must not read as corroboration.
+  // When distinct independent origins are known they cap the counted sources.
+  const distinctIndependentOrigins =
+    input.distinctIndependentEvidenceOrigins ?? input.independentSourceCount;
+  const independent = Math.max(
+    0,
+    Math.min(input.independentSourceCount, distinctIndependentOrigins),
+  );
   const independencePenalty = independent >= 3 ? 0 : independent === 2 ? 8 : independent === 1 ? 15 : 25;
   add(
     "INDEPENDENT_SOURCES",
     independencePenalty,
-    `${independent} independent (non project-owned) source(s)`,
+    `${independent} distinct independent evidence origin(s)` +
+      (input.onChainMirrorCount
+        ? ` (${input.onChainMirrorCount} on-chain mirror source(s) excluded)`
+        : ""),
+    { searchHealth },
   );
 
   add(
     "ATTRIBUTION",
-    ATTRIBUTION_PENALTY[input.identityAttributionConfidence] ?? 25,
-    `exact-mint attribution ${input.identityAttributionConfidence}`,
+    ATTRIBUTION_PENALTY[input.projectAttributionConfidence] ?? 25,
+    `project/creator attribution ${input.projectAttributionConfidence}`,
+    { searchHealth },
   );
 
   const diversityPenalty = input.sourceDomainDiversity >= 3 ? 0 : input.sourceDomainDiversity === 2 ? 4 : 8;
@@ -227,12 +338,50 @@ export function computeEvidenceConfidence(
   if (!input.narrativeResolved) add("NARRATIVE_UNRESOLVED", 10, "origin/narrative not resolved");
   if (input.marketStale) add("STALE_MARKET", 5, "current market evidence is stale");
   if (input.searchUnavailable) {
-    add("SEARCH_UNAVAILABLE", 20, "external search was unavailable — absence of sources is unproven");
+    // DEGRADED search is deliberately NOT given an invented weight here; it is
+    // carried on the artifact so calibration can decide later.
+    add(
+      "SEARCH_UNAVAILABLE",
+      20,
+      "external search was unavailable — absence of sources is unproven",
+      { searchHealth },
+    );
   }
-  if (input.sourceCount === 0) add("NO_SOURCES", 10, "no sources at all");
+  if (input.sourceCount === 0) add("NO_SOURCES", 10, "no sources at all", { searchHealth });
 
   const total = deductions.reduce((sum, d) => sum + d.points, 0);
-  return { score: Math.max(0, Math.min(100, 100 - total)), deductions };
+  const rawScore = 100 - total;
+  const score = Math.max(0, Math.min(100, rawScore));
+  return {
+    version: EVIDENCE_CONFIDENCE_VERSION,
+    score,
+    rawScore,
+    totalDeductions: total,
+    floored: rawScore !== score,
+    searchHealth,
+    unresolvedReasons,
+    deductions,
+    diagnostics: {
+      rawSourceCount: input.rawSourceCount ?? input.sourceCount,
+      sourceCount: input.sourceCount,
+      independentSourceCount: input.independentSourceCount,
+      distinctIndependentEvidenceOrigins: distinctIndependentOrigins,
+      distinctEvidenceOrigins: input.distinctEvidenceOrigins ?? 0,
+      effectiveIndependentSources: independent,
+      projectSourceCount: input.projectSourceCount ?? 0,
+      communitySourceCount: input.communitySourceCount ?? 0,
+      onChainMirrorCount: input.onChainMirrorCount ?? 0,
+      corroboratedClaimCount: input.corroboratedClaimCount ?? 0,
+      conflictingClaimCount: input.conflictingClaimCount,
+      tokenIdentityConfidence: input.tokenIdentityConfidence ?? null,
+      projectAttributionConfidence: input.projectAttributionConfidence,
+      unresolvedDomainCount: input.unresolvedDomainCount,
+      totalDomainCount: input.totalDomainCount,
+      packetEvidenceGapCount: input.packetEvidenceGapCount,
+      marketStale: input.marketStale,
+      searchUnavailable: input.searchUnavailable,
+    },
+  };
 }
 
 export interface VerdictInput {
