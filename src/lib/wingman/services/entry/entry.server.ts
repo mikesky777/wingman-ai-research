@@ -103,6 +103,15 @@ async function loadThesisInputs(options: {
   mints?: string[];
   limit: number;
 }): Promise<ThesisInput[]> {
+  // Production timing only ever evaluates production THESIS_CALL records that
+  // are currently under ACTIVE monitoring. A synthesized thesis without a call,
+  // or a call that is RESEARCH_DUE / INACTIVE / INVALIDATED, is never timed.
+  let monitoredMints: string[] | null = null;
+  if (!options.isCalibration) {
+    monitoredMints = await loadActivelyMonitoredCallMints();
+    if (monitoredMints.length === 0) return [];
+  }
+
   // Production timing only ever evaluates the ACTIVE cohort's thesis reports.
   let cohortReportIds: string[] | null = null;
   if (!options.isCalibration) {
