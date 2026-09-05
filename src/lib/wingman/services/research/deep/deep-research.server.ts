@@ -285,6 +285,24 @@ export async function runDeepResearch(
     return emptyBatch(mode, "NO_ELIGIBLE_TRIAGE_RUN", null, null, provider);
   }
 
+  // Exact-provenance guard: stop before any model/search spend if the resolved
+  // run is not the active production cohort's triage run for its exact scan.
+  if (!isCalibration && options.requireActiveCohort) {
+    const { loadActiveResearchCohort } = await import("../cohort.server");
+    const cohort = await loadActiveResearchCohort();
+    const scanOk = !!cohort.scan && cohort.scan.id === triageRun.sourceScanId;
+    const triageOk = !!cohort.triageRunId && cohort.triageRunId === triageRun.id;
+    if (!scanOk || !triageOk) {
+      return emptyBatch(
+        mode,
+        "DEEP_RESEARCH_PROVENANCE_MISMATCH",
+        triageRun.id,
+        triageRun.sourceScanId,
+        provider,
+      );
+    }
+  }
+
   let skippedWithOutcome = 0;
   let shortlist = await loadShortlist(triageRun);
   if (shortlist.length === 0) {
