@@ -14,6 +14,11 @@ import {
   type StageRow,
 } from "./milestones";
 import type { PolicyEpoch } from "./policy-epochs";
+import { deriveStageOutcome } from "./stage-outcomes";
+import type {
+  CandidateAppearance,
+  SnapshotObservation,
+} from "../outcomes/outcomes";
 
 type Row = Record<string, unknown>;
 
@@ -134,7 +139,7 @@ export const StageMilestoneService = {
             supabase
               .from("scan_candidates")
               .select(
-                "token_id, created_at, recurrence_state, market_cap, liquidity_usd, volume_24h, price_integrity_status, structural_status, participation_status",
+                "token_id, created_at, recurrence_state, market_cap, price_usd, liquidity_usd, volume_24h, price_integrity_status, structural_status, participation_status",
               )
               .in("token_id", ids)
               .order("created_at", { ascending: false })
@@ -170,6 +175,59 @@ export const StageMilestoneService = {
       }
     }
 
+    // Stage-relative outcomes are derived ONLY for stages with a legitimate
+    // frozen baseline. Survivors keep their existing adapter-backed path.
+    const derivesSeries = stage === "AI_SHORTLIST" || stage === "THESIS_CALL";
+    const candidatesByToken = new Map<string, CandidateAppearance[]>();
+    const snapshotsByToken = new Map<string, SnapshotObservation[]>();
+    if (derivesSeries) {
+      for (const rows of candidateChunks) {
+        for (const row of rows) {
+          const id = row["token_id"] as string;
+          const list = candidatesByToken.get(id) ?? [];
+          list.push({
+            scanRunId: "",
+            completedAt: (row["created_at"] as string | null) ?? "",
+            priceUsd: num(row, "price_usd"),
+            marketCap: num(row, "market_cap"),
+            liquidityUsd: num(row, "liquidity_usd"),
+            survivor: false,
+          });
+          candidatesByToken.set(id, list);
+        }
+      }
+      const snapshotChunks = await Promise.all(
+        chunks.map(async (ids) => {
+          try {
+            return await paginate((from, to) =>
+              supabase
+                .from("token_snapshots")
+                .select("token_id, captured_at, price_usd, market_cap, liquidity_usd")
+                .in("token_id", ids)
+                .order("captured_at", { ascending: true })
+                .range(from, to),
+            );
+          } catch {
+            return [] as Row[]; // Snapshot history is optional.
+          }
+        }),
+      );
+      for (const rows of snapshotChunks) {
+        for (const row of rows) {
+          const id = row["token_id"] as string;
+          const list = snapshotsByToken.get(id) ?? [];
+          list.push({
+            capturedAt: (row["captured_at"] as string | null) ?? "",
+            priceUsd: num(row, "price_usd"),
+            marketCap: num(row, "market_cap"),
+            liquidityUsd: num(row, "liquidity_usd"),
+          });
+          snapshotsByToken.set(id, list);
+        }
+      }
+    }
+    const nowIso = new Date().toISOString();
+
     return milestones.map((m) => {
       const tokenId = m["token_id"] as string;
       const token = tokensById.get(tokenId) ?? ({} as Row);
@@ -181,6 +239,22 @@ export const StageMilestoneService = {
         entryMarketCap !== null && entryMarketCap > 0 && currentMarketCap !== null
           ? ((currentMarketCap - entryMarketCap) / entryMarketCap) * 100
           : null;
+      const enteredAt = (m["first_entered_at"] as string | null) ?? null;
+      // Same formulas and validity rules as Survivors; only the baseline differs.
+      const derived = derivesSeries
+        ? deriveStageOutcome(
+            {
+              enteredAt,
+              marketCapAtEntry: entryMarketCap,
+              priceAtEntry: num(m, "price_at_entry"),
+            },
+            {
+              candidates: candidatesByToken.get(tokenId) ?? [],
+              snapshots: snapshotsByToken.get(tokenId) ?? [],
+            },
+            nowIso,
+          )
+        : null;
       const setupAtEntry = (m["setup_at_entry"] as string | null) ?? null;
       const setupKey = ((m["setup_key"] as string | null) ?? "ALL") as StageRow["setupKey"];
 
@@ -192,19 +266,20 @@ export const StageMilestoneService = {
         stage,
         setupKey,
         setups: setupAtEntry ? setupAtEntry.split("+").filter(Boolean) : [],
-        enteredAt: (m["first_entered_at"] as string | null) ?? null,
+        enteredAt,
         entryMarketCap,
         entryPriceUsd: num(m, "price_at_entry"),
         entryLiquidityUsd: num(m, "liquidity_at_entry"),
-        sincePct,
-        // Stage-specific peak / adverse series are not derived yet; the frozen
-        // baseline above is what future outcome work will measure against.
-        peakPct: null,
-        maxAdversePct: null,
-        drawdownPct: null,
-        currentMarketCap,
-        currentPriceUsd: num(outcome, "current_price_usd"),
-        currentObservedAt: (outcome["current_observed_at"] as string | null) ?? null,
+        sincePct: derived ? (derived.sincePct ?? sincePct) : sincePct,
+        // Peak / adverse / drawdown come from valid post-milestone observations
+        // only; stages without a frozen baseline stay null, never zero.
+        peakPct: derived?.peakPct ?? null,
+        maxAdversePct: derived?.maxAdversePct ?? null,
+        drawdownPct: derived?.drawdownPct ?? null,
+        currentMarketCap: derived?.currentMarketCap ?? currentMarketCap,
+        currentPriceUsd: derived?.currentPriceUsd ?? num(outcome, "current_price_usd"),
+        currentObservedAt:
+          derived?.currentObservedAt ?? ((outcome["current_observed_at"] as string | null) ?? null),
         scanMarketCap: num(latest, "market_cap"),
         scanLiquidityUsd: num(latest, "liquidity_usd"),
         scanVolume24h: num(latest, "volume_24h"),

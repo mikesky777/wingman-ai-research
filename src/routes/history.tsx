@@ -270,7 +270,9 @@ function StageView({ stage }: { stage: FunnelStage }) {
         </Button>
       </div>
 
-      <CohortSummaryCards summary={summary} />
+      {/* With no stage entries there is nothing to average: show the empty
+          state below instead of KPI cards full of dashes. */}
+      {cohort.length > 0 ? <CohortSummaryCards summary={summary} /> : null}
 
       <Section
         title={`${terms.title} cohort`}
@@ -280,8 +282,8 @@ function StageView({ stage }: { stage: FunnelStage }) {
             : stage === "SETUP_QUALIFIED"
               ? "Unique tokens the first time they qualified for a recognized BASE or REACCEL setup."
               : stage === "AI_SHORTLIST"
-                ? "Unique tokens the AI triage layer shortlisted, measured from the frozen market state at shortlisting. Stage-relative peak and drawdown are not tracked for this stage."
-                : "Unique tokens whose thesis passed every opportunity gate. Created only by a real thesis run."
+                ? "Unique tokens the AI triage layer shortlisted, measured from the frozen market state at shortlisting. Since / peak / max drawdown use valid observations after that moment only."
+                : "Unique tokens whose thesis passed every opportunity gate. Created only by a real thesis run, measured from the frozen market state at the call."
         }
       >
         <div className="mb-3 flex flex-wrap items-center gap-1">

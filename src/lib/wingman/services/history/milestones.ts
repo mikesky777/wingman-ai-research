@@ -525,8 +525,13 @@ export function liveSinceStagePct(row: StageRow, live?: LiveQuote | null): numbe
  * stage has a frozen entry baseline but no series, so those metrics are hidden
  * rather than rendered empty.
  */
+/**
+ * Peak / max-drawdown are shown only for stages with a legitimate FROZEN
+ * market baseline: Survivor, AI Shortlist and Thesis Call. Deep Research and
+ * Thesis Synthesized artifacts captured no baseline and stay artifact-only.
+ */
 export function stageSupportsPeakMetrics(stage: FunnelStage): boolean {
-  return stage === "SURVIVOR";
+  return stage === "SURVIVOR" || stage === "AI_SHORTLIST" || stage === "THESIS_CALL";
 }
 
 export interface StageSummary {
