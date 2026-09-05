@@ -53,7 +53,7 @@ describe("active research scan does not depend on packets", () => {
     expect(s.deepResearch).toBe("NOT_STARTED");
     expect(s.thesis).toBe("NOT_STARTED");
     expect(s.entry).toBe("NOT_EVALUATED");
-    expect(s.sizing).toBe("NOT_EVALUATED");
+    expect(s.sizing).toBe("NOT_STARTED");
   });
 
   it("B. packet generation failure keeps scan B active and reports FAILED", () => {
