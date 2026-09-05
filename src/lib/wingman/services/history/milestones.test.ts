@@ -354,7 +354,9 @@ describe("live overlay respects outcome_market_validity/v1", () => {
 
   it("only exposes peak/drawdown statistics for stages with an outcome series", () => {
     expect(stageSupportsPeakMetrics("SURVIVOR")).toBe(true);
-    expect(stageSupportsPeakMetrics("AI_SHORTLIST")).toBe(false);
-    expect(summarizeStageRows("AI_SHORTLIST", [base]).supportsPeakMetrics).toBe(false);
+    expect(stageSupportsPeakMetrics("AI_SHORTLIST")).toBe(true);
+    expect(stageSupportsPeakMetrics("THESIS_CALL")).toBe(true);
+    expect(stageSupportsPeakMetrics("SETUP_QUALIFIED")).toBe(false);
+    expect(summarizeStageRows("SETUP_QUALIFIED", [base]).supportsPeakMetrics).toBe(false);
   });
 });
