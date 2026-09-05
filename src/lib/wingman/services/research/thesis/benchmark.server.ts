@@ -273,60 +273,125 @@ export async function runThesisModelBenchmark(
     reasoningEffort: OPENAI_THESIS_REASONING_EFFORT,
   });
 
-  const reportIds = baselines.map((b) => b.deepResearchReportId);
-  const batches: ThesisBatchResult[] = [];
-  for (let i = 0; i < runCount; i += 1) {
-    batches.push(
-      await runThesisSynthesis({
-        mode: "calibration", // never production: no opportunities, no THESIS_CALL, no history
-        limit: Math.min(reportIds.length, 15),
-        reportIds,
-        provider,
-      }),
-    );
+  const stabilityMints = new Set(
+    baselines
+      .filter((b) => THESIS_BENCHMARK_STABILITY_SYMBOLS.includes((b.symbol ?? "").trim()))
+      .map((b) => b.mint),
+  );
+  const targetPasses = (mint: string) =>
+    stabilityMints.has(mint) ? stabilityPasses : fullCohortPasses;
+
+  // Reuse everything the challenger has already produced over this exact evidence.
+  let samplesByMint = await loadChallengerSamples(baselines);
+
+  const tasks: FrozenThesisBaseline[] = [];
+  for (const b of baselines) {
+    const have = samplesByMint.get(b.mint)?.length ?? 0;
+    for (let i = have; i < targetPasses(b.mint); i += 1) tasks.push(b);
   }
+
+  const executed: ThesisBatchResult[] = [];
+  await runWithConcurrency(tasks, concurrency, async (b) => {
+    const batch = await runThesisSynthesis({
+      mode: "calibration", // never production: no opportunities, no THESIS_CALL, no history
+      limit: 1,
+      reportIds: [b.deepResearchReportId],
+      provider,
+    });
+    executed.push(batch);
+  });
+
+  if (tasks.length > 0) samplesByMint = await loadChallengerSamples(baselines);
 
   return buildBenchmarkComparison({
     base,
     access,
     baselines,
-    batches,
+    samplesByMint,
+    stabilityMints,
+    plan: {
+      fullCohortPasses,
+      stabilityPasses,
+      concurrency,
+      synthesisCallsExecuted: tasks.length,
+      reusedSamples: baselines.reduce(
+        (a, b) => a + Math.min(samplesByMint.get(b.mint)?.length ?? 0, targetPasses(b.mint)),
+        0,
+      ) - tasks.length,
+    },
+    executed,
     cohortRunId: cohort.runId,
     cohortModel: cohort.model,
     pairByMint: await loadPairAddresses(baselines.map((b) => b.mint)),
-    narrativeByRunMint: await loadBenchmarkNarratives(
-      batches.map((b) => b.runId ?? "").filter(Boolean),
-    ),
   });
 }
 
-export interface BenchmarkNarrative {
-  catalystKind: string;
-  strongestCatalyst: string | null;
-  strongestBearCase: string | null;
+/** Bounded parallelism — never fires every challenger request at once. */
+async function runWithConcurrency<T>(
+  items: T[],
+  limit: number,
+  worker: (item: T) => Promise<void>,
+): Promise<void> {
+  let cursor = 0;
+  const lanes = Array.from({ length: Math.min(limit, Math.max(items.length, 1)) }, async () => {
+    for (;;) {
+      const index = cursor;
+      cursor += 1;
+      const item = items[index];
+      if (item === undefined) return;
+      await worker(item);
+    }
+  });
+  await Promise.all(lanes);
 }
 
-/** Catalyst / bear text lives on the persisted calibration reports. */
-async function loadBenchmarkNarratives(
-  runIds: string[],
-): Promise<Map<string, BenchmarkNarrative>> {
-  const out = new Map<string, BenchmarkNarrative>();
-  if (runIds.length === 0) return out;
+/**
+ * Persisted challenger samples over the EXACT frozen deep-research evidence,
+ * oldest first, so repeat passes are reused instead of re-purchased.
+ */
+async function loadChallengerSamples(
+  baselines: FrozenThesisBaseline[],
+): Promise<Map<string, BenchmarkRunSample[]>> {
+  const out = new Map<string, BenchmarkRunSample[]>();
+  if (baselines.length === 0) return out;
+
+  const { data: runRows } = await supabaseAdmin
+    .from("thesis_synthesis_runs")
+    .select("id, model_identifier")
+    .eq("is_calibration", true);
+  const challengerRunIds = ((runRows as Row[] | null) ?? [])
+    .filter((r) => ((r["model_identifier"] as string) ?? "").toLowerCase().includes("gpt"))
+    .map((r) => r["id"] as string);
+  if (challengerRunIds.length === 0) return out;
+
+  const reportIds = baselines.map((b) => b.deepResearchReportId);
   const { data } = await supabaseAdmin
     .from("thesis_reports")
-    .select(
-      "thesis_synthesis_run_id, mint, catalyst_kind, strongest_catalyst, strongest_bear_case",
-    )
-    .in("thesis_synthesis_run_id", runIds);
+    .select("*")
+    .in("thesis_synthesis_run_id", challengerRunIds)
+    .in("deep_research_report_id", reportIds)
+    .order("created_at", { ascending: true });
+
   for (const r of ((data as Row[] | null) ?? [])) {
-    out.set(`${r["thesis_synthesis_run_id"] as string}:${r["mint"] as string}`, {
+    const mint = r["mint"] as string;
+    const list = out.get(mint) ?? [];
+    list.push({
+      runId: (r["thesis_synthesis_run_id"] as string) ?? "",
+      thesisScore: (r["thesis_score"] as number) ?? null,
+      evidenceConfidence: (r["evidence_confidence"] as number) ?? null,
+      verdict: (r["verdict"] as string) ?? null,
+      bearSeverity: (r["bear_case_severity"] as string) ?? null,
+      components: (r["component_scores"] as ComponentScores) ?? null,
       catalystKind: (r["catalyst_kind"] as string) ?? "NONE",
       strongestCatalyst: (r["strongest_catalyst"] as string) ?? null,
       strongestBearCase: (r["strongest_bear_case"] as string) ?? null,
+      status: (r["status"] as string) ?? "unknown",
     });
+    out.set(mint, list);
   }
   return out;
 }
+
 
 async function loadPairAddresses(mints: string[]): Promise<Map<string, string | null>> {
   const out = new Map<string, string | null>();
