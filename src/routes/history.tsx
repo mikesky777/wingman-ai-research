@@ -201,10 +201,12 @@ function StageView({ stage }: { stage: FunnelStage }) {
   const [setupFilter, setSetupFilter] = useState<StageSetupFilter>("ALL");
   const [policy, setPolicy] = useState<PolicyFilter>("CURRENT");
 
-  // Setup Qualified is deliberately NOT policy-filtered: qualifying for a setup
-  // never meant Survivor eligibility, so a policy cohort there would imply a
-  // selection decision that was never made.
-  const policyApplies = stage === "SURVIVOR" || stage === "AI_SHORTLIST" || stage === "THESIS_CALL";
+  // Policy-era filtering is meaningful for stages with real legacy/CURRENT_V1
+  // populations. AI Shortlist / Thesis Calls are newer production stages with no
+  // meaningful legacy era yet, so they show every persisted production record.
+  // Deep Research and Thesis Synthesized are artifact-only tabs and never carry
+  // a policy toggle.
+  const policyApplies = stage === "SETUP_QUALIFIED" || stage === "SURVIVOR";
 
   const cohort = useMemo(
     () =>
@@ -280,10 +282,10 @@ function StageView({ stage }: { stage: FunnelStage }) {
           stage === "SURVIVOR"
             ? `Unique tokens with a frozen First Survivor selection. ${policy === "CURRENT" ? `Only calls made under ${POLICY_LABELS.CURRENT_V1.toLowerCase()} (CURRENT_V1).` : "Every historical call, across all policy eras."} Descriptive historical measurement — not thesis returns or simulated trading.`
             : stage === "SETUP_QUALIFIED"
-              ? "Unique tokens the first time they qualified for a recognized BASE or REACCEL setup. BASE and REACCEL keep separate frozen baselines; since / peak / worst / max drawdown use valid observations after that moment only."
+              ? `Unique tokens the first time they qualified for a recognized BASE or REACCEL setup. ${policy === "CURRENT" ? `Only setups recorded under ${POLICY_LABELS.CURRENT_V1.toLowerCase()} (CURRENT_V1).` : "Every historical setup, across all policy eras."} BASE and REACCEL keep separate frozen baselines; since / peak / max drawdown use valid observations after that moment only.`
               : stage === "AI_SHORTLIST"
-                ? "Unique tokens the AI triage layer shortlisted, measured from the frozen market state at shortlisting. Since / peak / worst / max drawdown use valid observations after that moment only."
-                : "Unique tokens whose thesis passed every opportunity gate. Created only by a real thesis run, measured from the frozen market state at the call."
+                ? "Unique tokens the AI triage layer shortlisted across all production runs, measured from the frozen market state at shortlisting. Since / peak / max drawdown use valid observations after that moment only."
+                : "Unique tokens whose thesis passed every opportunity gate across all production runs. Created only by a real thesis run, measured from the frozen market state at the call."
         }
       >
         <div className="mb-3 flex flex-wrap items-center gap-1">
@@ -357,7 +359,9 @@ function StageView({ stage }: { stage: FunnelStage }) {
             title="No stage entries yet"
             description={
               policyApplies && policy === "CURRENT" && rows.length > 0
-                ? "No calls have been made yet under the current policy. Switch to All history to see earlier calls, measured under the rules that were live at the time."
+                ? stage === "SETUP_QUALIFIED"
+                  ? "No setups have been recorded yet under the current policy. Switch to All history to see earlier setups, measured under the rules that were live at the time."
+                  : "No calls have been made yet under the current policy. Switch to All history to see earlier calls, measured under the rules that were live at the time."
                 : stage === "SURVIVOR"
                   ? "A token joins this cohort once it is selected as a Wingman Survivor."
                   : stage === "SETUP_QUALIFIED"
