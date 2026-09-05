@@ -68,7 +68,7 @@ function emptyFunnel(cohort: ActiveResearchCohort | null): ProductionFunnel {
     eligibility: cohort?.eligibility ?? null,
     stages: deriveCohortStages({
       packetCount: cohort?.scan?.packetCount ?? 0,
-      packetStatus: cohort?.scan?.packetStatus,
+      ...(cohort?.scan ? { packetStatus: cohort.scan.packetStatus } : {}),
       triageRunId: null,
       triageStatus: null,
       shortlistCount: 0,
