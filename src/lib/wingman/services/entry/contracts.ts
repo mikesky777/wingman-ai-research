@@ -387,19 +387,21 @@ export function mapEntryState(input: EntryMappingInput): EntryMappingResult {
     };
   }
 
+  // v1.1: a single severe damage dimension is not enough to call the setup
+  // BROKEN, but it does disqualify constructive or "reasonable" timing.
+  const severeSingleDamage = (input.damage?.dimensions ?? []).some((d) =>
+    /^(DEEP_DRAWDOWN|COLLAPSED_RELATIVE_VOLUME|VERY_LOW_LIQUIDITY)/.test(d),
+  );
+
   if (
     input.total >= 6 &&
     (input.structureVerdict === "CONSTRUCTIVE" || input.structureVerdict === "NEUTRAL") &&
-    input.confirmations >= 2
+    input.confirmations >= 2 &&
+    !severeSingleDamage
   ) {
     return { state: "SETTING_UP", reasons: ["CONDITIONS_IMPROVING_WITHOUT_FULL_CONFIRMATION"] };
   }
 
-  // v1.1: a single severe damage dimension is not enough to call the setup
-  // BROKEN, but it does disqualify "reasonable" timing.
-  const severeSingleDamage = (input.damage?.dimensions ?? []).some((d) =>
-    /^(DEEP_DRAWDOWN|COLLAPSED_RELATIVE_VOLUME|VERY_LOW_LIQUIDITY)/.test(d),
-  );
 
   if (
     input.total >= 4.5 &&
