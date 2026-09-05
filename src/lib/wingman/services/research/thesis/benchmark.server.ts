@@ -83,6 +83,9 @@ export interface BenchmarkCandidateComparison {
   componentDeltas: { key: string; label: string; baseline: number | null; challenger: number | null; delta: number | null }[];
   catalystDisagreement: boolean;
   wouldQualifyDifferently: boolean;
+  isStabilityCandidate: boolean;
+  passesRun: number;
+  bearSeverityStable: boolean;
 }
 
 export interface ThesisBenchmarkResult {
@@ -100,16 +103,26 @@ export interface ThesisBenchmarkResult {
   opportunitiesCreated: number;
   thesisCallsCreated: number;
   comparisons: BenchmarkCandidateComparison[];
+  plan?: {
+    fullCohortPasses: number;
+    stabilityPasses: number;
+    concurrency: number;
+    synthesisCallsExecuted: number;
+    reusedSamples: number;
+  };
+  stabilityNote?: string;
   summary: {
     meanScoreDelta: number | null;
     meanConfidenceDelta: number | null;
     verdictChanges: number;
     unstableCandidates: number;
+    stabilityCandidatesTested?: number;
     maxScoreSpread: number | null;
     catalystDisagreements: number;
   };
   recommendation: string;
 }
+
 
 function median(values: number[]): number | null {
   if (values.length === 0) return null;
