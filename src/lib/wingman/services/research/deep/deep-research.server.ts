@@ -137,10 +137,13 @@ export interface DeepResearchBatchResult {
 
 export interface RunDeepResearchOptions {
   mode?: DeepResearchMode;
-  /** Calibration only: cap the dry-run subset (3–5). */
+  /** Cap the researched subset by persisted AI triage rank (calibration: 3–5). */
   limit?: number;
-  /** Calibration only: research a specific triage run instead of the newest. */
+  /** Production only: skip the first N shortlist ranks (continue a batch). */
+  offset?: number;
+  /** Research a specific triage run instead of the newest. */
   triageRunId?: string;
+
   budget?: Partial<ResearchBudget>;
   provider?: DeepResearchProvider;
   search?: ExternalSearchProvider;
