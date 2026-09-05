@@ -20,17 +20,41 @@ export const generateResearchPacketsForRun = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<Omit<ResearchPacketRunResult, "packets"> & { packets: ResearchPacket[] }> => {
     const { generateResearchPackets } = await import("./services/research/packet.server");
     const { RESEARCH_UNIVERSE_CONFIG } = await import("./services/research/packet");
-    const result = await generateResearchPackets({
-      scanRunId: data.scanRunId,
-      persist: data.persist,
-      config:
-        data.maxExplorationForAi === null
-          ? RESEARCH_UNIVERSE_CONFIG
-          : { maxExplorationForAi: data.maxExplorationForAi },
-    });
-    const { packets, ...rest } = result;
-    return { ...rest, packets: packets.map((p) => p.packet) };
+    const { recordResearchPacketResult } = await import(
+      "./services/scanner/persistence.server"
+    );
+    try {
+      const result = await generateResearchPackets({
+        scanRunId: data.scanRunId,
+        persist: data.persist,
+        config:
+          data.maxExplorationForAi === null
+            ? RESEARCH_UNIVERSE_CONFIG
+            : { maxExplorationForAi: data.maxExplorationForAi },
+      });
+      if (data.persist) {
+        const persisted = result.persistedCount ?? result.packets.length;
+        await recordResearchPacketResult(result.scanRunId, {
+          status: persisted > 0 ? "READY" : "NOT_STARTED",
+          count: persisted,
+          error: null,
+        }).catch(() => undefined);
+      }
+      const { packets, ...rest } = result;
+      return { ...rest, packets: packets.map((p) => p.packet) };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (data.scanRunId && data.persist) {
+        await recordResearchPacketResult(data.scanRunId, {
+          status: "FAILED",
+          count: 0,
+          error: message,
+        }).catch(() => undefined);
+      }
+      throw error;
+    }
   });
+
 
 /** Newest persisted packet for one mint, for the drawer calibration section. */
 export const getResearchPacket = createServerFn({ method: "POST" })
