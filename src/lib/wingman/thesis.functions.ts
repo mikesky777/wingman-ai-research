@@ -19,7 +19,9 @@ export const runThesisSynthesisBatch = createServerFn({ method: "POST" })
       triageRunId?: string;
     }) => ({
       mode: input?.mode === "PRODUCTION" ? ("production" as const) : ("calibration" as const),
-      limit: Math.min(Math.max(input?.limit ?? 3, 1), 15),
+      // No limit means "the whole remaining cohort" in production; the server
+      // still caps calibration dry runs.
+      limit: typeof input?.limit === "number" ? Math.min(Math.max(input.limit, 1), 40) : null,
       reportIds: Array.isArray(input?.reportIds) ? input.reportIds.map(String) : [],
       triageRunId: typeof input?.triageRunId === "string" ? input.triageRunId : "",
     }),
@@ -28,11 +30,17 @@ export const runThesisSynthesisBatch = createServerFn({ method: "POST" })
     const { runThesisSynthesis } = await import("./services/research/thesis/thesis.server");
     return runThesisSynthesis({
       mode: data.mode,
-      limit: data.limit,
+      ...(data.limit !== null ? { limit: data.limit } : {}),
       ...(data.reportIds.length ? { reportIds: data.reportIds } : {}),
       ...(data.triageRunId ? { triageRunId: data.triageRunId } : {}),
     });
   });
+
+export const getThesisProgress = createServerFn({ method: "GET" }).handler(async () => {
+  const { loadThesisProgress } = await import("./services/research/thesis/thesis.server");
+  return loadThesisProgress();
+});
+
 
 export const getThesisReports = createServerFn({ method: "GET" })
   .inputValidator((input?: { mode?: "PRODUCTION" | "CALIBRATION" }) => ({
