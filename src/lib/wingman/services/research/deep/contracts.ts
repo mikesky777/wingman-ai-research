@@ -427,6 +427,22 @@ export function validateModelOutput(
       issues.push({ code: "CONFLICT_WITHOUT_COUNTER_SOURCE", detail: text.slice(0, 160) });
       status = "INFERRED";
     }
+    // Community lore is real evidence of chatter, never a verified fact. A
+    // VERIFIED claim needs at least one independent or primary source.
+    if (status === "VERIFIED") {
+      const supportingSources = supporting
+        .map((ref) => byRef.get(ref))
+        .filter((s): s is ResearchSource => Boolean(s));
+      const sufficient = supportingSources.some(
+        (s) => s.independence === "INDEPENDENT" || s.reliabilityClass === "PRIMARY",
+      );
+      if (!sufficient) {
+        issues.push({ code: "COMMUNITY_LORE_NOT_VERIFIED", detail: text.slice(0, 160) });
+        status = "INFERRED";
+        if (confidence === "HIGH") confidence = "MEDIUM";
+      }
+    }
+
 
     claims.push({
       domain,
