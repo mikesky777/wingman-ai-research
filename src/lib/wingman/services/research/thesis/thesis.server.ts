@@ -695,19 +695,42 @@ async function synthesizeCandidate(args: {
   });
 
   const totalDomains = dossier?.domains?.length ?? 6;
+  const unresolvedDomainNames = dossier?.coverage?.unresolvedDomains ?? [];
+  const dossierSearchHealth = dossier?.searchHealth?.status;
+  // evidence_confidence/v1.1 — attribution reads PROJECT/CREATOR confidence,
+  // never exact-mint identity; independence is capped by distinct independent
+  // evidence origins so chain-state mirrors cannot inflate corroboration.
   const evidence = computeEvidenceConfidence({
-    unresolvedDomainCount: dossier?.coverage?.unresolvedDomains?.length ?? totalDomains,
+    unresolvedDomainCount: unresolvedDomainNames.length || (dossier ? 0 : totalDomains),
     totalDomainCount: totalDomains || 6,
+    unresolvedReasons: unresolvedDomainNames.map(
+      (d) =>
+        (dossier?.domains?.find((x) => x.domain === d)?.unresolvedReason ?? "UNKNOWN") as never,
+    ),
     independentSourceCount: dossier?.coverage?.independentSourceCount ?? 0,
+    distinctIndependentEvidenceOrigins:
+      dossier?.coverage?.distinctIndependentEvidenceOrigins ??
+      dossier?.coverage?.independentSourceCount ??
+      0,
+    distinctEvidenceOrigins: dossier?.coverage?.distinctEvidenceOrigins ?? 0,
     sourceCount: dossier?.coverage?.sourceCount ?? 0,
+    rawSourceCount: dossier?.coverage?.rawSourceCount ?? dossier?.coverage?.sourceCount ?? 0,
+    communitySourceCount: dossier?.coverage?.communitySourceCount ?? 0,
+    projectSourceCount: dossier?.coverage?.projectSourceCount ?? 0,
+    onChainMirrorCount: dossier?.coverage?.onChainMirrorCount ?? 0,
     sourceDomainDiversity: dossier?.coverage?.sourceDomainDiversity ?? 0,
     conflictingClaimCount: dossier?.coverage?.conflictingClaimCount ?? 0,
+    // DIAGNOSTIC_ONLY — never scored.
     corroboratedClaimCount: dossier?.coverage?.corroboratedClaimCount ?? 0,
-    identityAttributionConfidence: dossier?.identityAttributionConfidence ?? "UNRESOLVED",
+    tokenIdentityConfidence:
+      dossier?.tokenIdentityConfidence ?? dossier?.identityAttributionConfidence ?? null ?? undefined,
+    projectAttributionConfidence: dossier?.projectAttributionConfidence ?? "UNRESOLVED",
     narrativeResolved: Boolean(dossier?.narrativeResolved),
     packetEvidenceGapCount: packet?.gaps.length ?? 0,
     marketStale: Boolean(packet?.stale),
     searchUnavailable: input.searchUnavailable,
+    searchHealth:
+      dossierSearchHealth ?? (input.searchUnavailable ? "SEARCH_UNAVAILABLE" : "READY"),
   });
 
   const evidenceUnusable =
