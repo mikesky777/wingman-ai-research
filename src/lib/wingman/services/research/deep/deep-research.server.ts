@@ -258,12 +258,16 @@ export async function runDeepResearch(
     return emptyBatch(mode, "NO_DEEP_RESEARCH_CANDIDATES", triageRun.id, triageRun.sourceScanId, provider);
   }
 
-  // Calibration is a DRY RUN over a small deterministic subset chosen by
-  // triage rank only — never by later outcomes.
+  // Subset selection is by persisted AI triage rank only — never by later
+  // outcomes. Calibration is a dry run; production may also be run in
+  // deliberate top-N batches (e.g. the top 3 of a fresh shortlist).
   if (isCalibration) {
     const limit = Math.min(5, Math.max(3, options.limit ?? 3));
     shortlist = shortlist.slice(0, limit);
+  } else if (typeof options.limit === "number" && options.limit > 0) {
+    shortlist = shortlist.slice(0, options.limit);
   }
+
 
   // Freshness / eligibility recheck against the scan the packets came from.
   const candidates = triageRun.sourceScanId ? await loadRunCandidates(triageRun.sourceScanId) : [];
