@@ -35,6 +35,7 @@ import { CohortSummaryCards } from "@/components/wingman/history/CohortSummary";
 import { CohortTable } from "@/components/wingman/history/CohortTable";
 import { HistoryTokenDrawer } from "@/components/wingman/history/HistoryTokenDrawer";
 import { useLiveMarket } from "@/components/wingman/history/useLiveMarket";
+import { ProductionArtifacts } from "@/components/wingman/history/ProductionArtifacts";
 import { formatDate, formatUsd, relativeTime } from "@/lib/wingman/format";
 import { MOCK_DATA_NOTICE } from "@/lib/wingman/config";
 import { cn } from "@/lib/utils";
@@ -113,6 +114,8 @@ function HistoryPage() {
       }
     >
       <div className="space-y-6">
+        <ProductionArtifacts />
+
         <div className="flex flex-wrap items-center gap-1">
           {([...FUNNEL_STAGES, "OUTCOMES"] as Tab[]).map((key) => (
             <button
