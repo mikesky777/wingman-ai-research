@@ -631,22 +631,10 @@ async function evaluateOne(args: {
   if (!features) gaps.push("PRICE_HISTORY_INSUFFICIENT");
   if (!market.valid) gaps.push("CURRENT_MARKET_EVIDENCE_UNAVAILABLE");
 
-  // Timing-evidence provenance is first-class: Entry must state WHERE its price
-  // history came from and how precise it is. Missing/stale evidence → UNKNOWN.
-  const priceHistorySource: "CANDLES" | "WINGMAN_OBSERVATIONS" | "NONE" =
-    featureSource === "CANDLES" && features
-      ? "CANDLES"
-      : featureSource === "SNAPSHOT_SERIES"
-        ? "WINGMAN_OBSERVATIONS"
-        : "NONE";
-  const timingResolution: "HIGH" | "COARSE" | "INSUFFICIENT" =
-    !features || !eligibility.evidenceUsable
-      ? "INSUFFICIENT"
-      : priceHistorySource === "CANDLES"
-        ? "HIGH"
-        : priceHistorySource === "WINGMAN_OBSERVATIONS"
-          ? "COARSE"
-          : "INSUFFICIENT";
+  if (!supportsCandleGradeClaims(timingResolution) && features) {
+    gaps.push("CANDLE_GRADE_CLAIMS_UNSUPPORTED");
+  }
+  gaps.push(...entryDamage.dimensions);
 
   const rationale =
     features && score
