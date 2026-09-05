@@ -317,6 +317,11 @@ export function ThesisSynthesizedArtifacts() {
                     <span className="block">
                       {r.verdict ?? "—"} · bear {r.bearCaseSeverity ?? "—"}
                     </span>
+                    {r.sameCohortRerun ? (
+                      <span className="mt-1 block font-mono text-[9px] tracking-wide text-muted-foreground">
+                        {SAME_COHORT_RERUN_LABEL}
+                      </span>
+                    ) : null}
                   </>
                 }
                 summary={r.oneSentenceThesis}
