@@ -143,6 +143,23 @@ export async function loadHistoryArtifacts(): Promise<HistoryArtifacts> {
 
   const measured = await loadThesisMeasurements(thesisRows);
 
+  // Cohort/scan provenance for calibration metadata (read-only).
+  const thesisRunIds = [
+    ...new Set(
+      thesisRows.map((r) => str(r, "thesis_synthesis_run_id")).filter((v): v is string => !!v),
+    ),
+  ];
+  const scanByRun = new Map<string, string | null>();
+  for (const ids of chunk(thesisRunIds)) {
+    const { data } = await supabaseAdmin
+      .from("thesis_synthesis_runs")
+      .select("id, source_scan_id")
+      .in("id", ids);
+    for (const row of ((data as Row[]) ?? [])) {
+      scanByRun.set(row["id"] as string, (row["source_scan_id"] as string | null) ?? null);
+    }
+  }
+
   const thesis: ThesisArtifact[] = thesisRows.map((r) => {
     const id = r["id"] as string;
     const m = measured.get(id) ?? { baseline: null, performance: null };
