@@ -16,8 +16,45 @@
  *     to change the state or any component score.
  */
 
-export const ENTRY_POLICY_VERSION = "entry_state/v1";
+export const ENTRY_POLICY_VERSION = "entry_state/v1.1";
 export const ENTRY_FEATURE_VERSION = "entry_features/v1";
+
+/** Where the timing price series came from. */
+export type PriceHistorySource = "CANDLES" | "WINGMAN_OBSERVATIONS" | "NONE";
+/** How precise that timing evidence is. */
+export type TimingResolution = "HIGH" | "COARSE" | "INSUFFICIENT";
+
+/**
+ * v1.1 resolution firewall.
+ *
+ * HIGH (candles) may prove candle-grade structure: breakout/reclaim, retest,
+ * higher low, lower-high sequences, compression, consolidation-bar counting,
+ * candle volume contraction/expansion, realized volatility, precise extension,
+ * wick rejection.
+ *
+ * COARSE (irregular Wingman observations) may prove ONLY broad claims: broad
+ * trajectory, broad stability/deterioration, approximate extension, broad
+ * volume/participation trend, broad liquidity condition, broad attention-price
+ * divergence. Candle-grade fields are still computed for diagnostics but carry
+ * ZERO decision weight and are tagged UNSUPPORTED_AT_COARSE_RESOLUTION.
+ */
+export const CANDLE_GRADE_FEATURES = [
+  "consolidationBars",
+  "compressionRatio",
+  "consolidationVolumeRatio",
+  "realizedVolatilityPct",
+  "higherLow",
+  "lowerHighs",
+  "reclaimHolding",
+  "retracementDepthPct",
+  "verticalExpansion",
+] as const;
+
+export const COARSE_UNSUPPORTED_REASON = "UNSUPPORTED_AT_COARSE_RESOLUTION";
+
+export function supportsCandleGradeClaims(resolution: TimingResolution): boolean {
+  return resolution === "HIGH";
+}
 
 export const ENTRY_STATES_V1 = [
   "WATCH",
