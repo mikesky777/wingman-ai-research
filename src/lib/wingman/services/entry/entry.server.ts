@@ -572,7 +572,37 @@ async function evaluateOne(args: {
       : null,
   };
 
-  const score = features ? scoreEntry({ features, context, divergence: divergence.state }) : null;
+  // v1.1: provenance and resolution are decided BEFORE scoring, because the
+  // resolution decides which timing claims the evidence may support at all.
+  const priceHistorySource: PriceHistorySource =
+    featureSource === "CANDLES" && features
+      ? "CANDLES"
+      : featureSource === "SNAPSHOT_SERIES"
+        ? "WINGMAN_OBSERVATIONS"
+        : "NONE";
+  const timingResolution: TimingResolution =
+    !features || !eligibility.evidenceUsable
+      ? "INSUFFICIENT"
+      : priceHistorySource === "CANDLES"
+        ? "HIGH"
+        : priceHistorySource === "WINGMAN_OBSERVATIONS"
+          ? "COARSE"
+          : "INSUFFICIENT";
+
+  const score = features
+    ? scoreEntry({ features, context, divergence: divergence.state, resolution: timingResolution })
+    : null;
+
+  const entryDamage = features
+    ? assessEntryDamage({
+        drawdownFromHighPct: features.drawdownFromHighPct,
+        riseFromLowPct: features.riseFromLowPct,
+        volumeTrendRatio: features.volumeTrendRatio,
+        liquidityUsd: market.liquidityUsd,
+        reclaimHolding: features.reclaimHolding,
+        resolution: timingResolution,
+      })
+    : { collapsed: false, dimensions: [], reasons: [] };
 
   const mapping = mapEntryState({
     components: score?.components ?? { structure: 0, extension: 0, volumeFlow: 0, riskDefinition: 0 },
@@ -584,7 +614,14 @@ async function evaluateOne(args: {
     evidenceUsable: eligibility.evidenceUsable,
     damageFail: damage.status === "FAIL",
     hasStructuralHistory: features !== null,
+    resolution: timingResolution,
+    damage: entryDamage,
   });
+
+  // v1.1: UNKNOWN means "cannot responsibly judge timing". Component values
+  // stay as non-authoritative diagnostics; they are NOT persisted as a score.
+  const authoritative = mapping.state !== "UNKNOWN";
+  const authoritativeScore = authoritative ? score : null;
 
   const previous = await previousEvaluation(input.mint);
   const changed = !previous || previous.state !== mapping.state;
