@@ -22,6 +22,7 @@ import {
   THESIS_INPUT_POLICY_VERSION,
   THESIS_POLICY_VERSION,
   THESIS_PROMPT_VERSION,
+  THESIS_RUBRIC_VERSION,
   buildThesisSystemPrompt,
   buildThesisUserPrompt,
   computeEvidenceConfidence,
@@ -703,6 +704,7 @@ async function insertRun(input: {
       source_scan_id: input.inputs.find((c) => c.sourceScanId)?.sourceScanId ?? null,
       triage_run_id: input.inputs.find((c) => c.triageRunId)?.triageRunId ?? null,
       thesis_policy_version: THESIS_POLICY_VERSION,
+      rubric_version: THESIS_RUBRIC_VERSION,
       prompt_version: THESIS_PROMPT_VERSION,
       input_policy_version: THESIS_INPUT_POLICY_VERSION,
       model_provider: input.provider.provider,
@@ -770,7 +772,8 @@ async function insertReport(args: {
       score_distribution: c?.distribution ?? null,
       score_liquidity: c?.liquidity ?? null,
       score_dev_integrity: c?.devIntegrity ?? null,
-      score_chart_context: c?.chartContext ?? null,
+      // v2 rubric: Thesis carries no chart/entry component at all.
+      score_chart_context: null,
       score_mindshare: c?.mindshare ?? null,
       score_valuation: c?.valuation ?? null,
       component_scores: (c ?? null) as never,
@@ -804,6 +807,7 @@ async function insertReport(args: {
       thesis_call_milestone_id: args.thesisCallMilestoneId,
       qualified_as_opportunity: args.qualified,
       thesis_policy_version: THESIS_POLICY_VERSION,
+      rubric_version: THESIS_RUBRIC_VERSION,
       prompt_version: THESIS_PROMPT_VERSION,
       input_policy_version: THESIS_INPUT_POLICY_VERSION,
       model_provider: args.provider.provider,
@@ -876,6 +880,7 @@ export interface ThesisReportSummary {
   qualifiedAsOpportunity: boolean;
   thesisCallMilestoneId: string | null;
   policyVersion: string;
+  rubricVersion: string | null;
   promptVersion: string;
   modelIdentifier: string | null;
   deepResearchReportId: string | null;
@@ -1017,6 +1022,7 @@ export async function loadThesisReports(
     qualifiedAsOpportunity: Boolean(r["qualified_as_opportunity"]),
     thesisCallMilestoneId: (r["thesis_call_milestone_id"] as string) ?? null,
     policyVersion: (r["thesis_policy_version"] as string) ?? THESIS_POLICY_VERSION,
+    rubricVersion: (r["rubric_version"] as string) ?? null,
     promptVersion: (r["prompt_version"] as string) ?? THESIS_PROMPT_VERSION,
     modelIdentifier: (r["model_identifier"] as string) ?? null,
     deepResearchReportId: (r["deep_research_report_id"] as string) ?? null,

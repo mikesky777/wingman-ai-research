@@ -3,6 +3,7 @@ import { AppShell } from "@/components/wingman/AppShell";
 import { Section, KeyValue } from "@/components/wingman/Section";
 import { EmptyState } from "@/components/wingman/EmptyState";
 import { THESIS_CATEGORIES, MOCK_DATA_NOTICE } from "@/lib/wingman/config";
+import { CalibrationLab } from "@/components/wingman/research/CalibrationLab";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({
@@ -86,6 +87,10 @@ function SettingsPage() {
             description="Alert delivery, scan cadence and bankroll configuration become editable once Wingman is connected to persistent storage."
           />
         </Section>
+      </div>
+
+      <div className="mt-6">
+        <CalibrationLab />
       </div>
     </AppShell>
   );

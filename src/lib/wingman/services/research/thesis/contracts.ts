@@ -1,5 +1,5 @@
 /**
- * Thesis Synthesis v1 — pure contracts, rubric, scoring and validation.
+ * Thesis Synthesis — pure contracts, rubric, scoring and validation.
  *
  * This module is deliberately I/O-free so every safety rule (component sum,
  * evidence-confidence separation, verdict derivation, opportunity policy,
@@ -8,22 +8,19 @@
  * Thesis Synthesis produces JUDGEMENT over already-collected evidence. It is
  * not another search agent, it never introduces new external facts, and it
  * never produces an Entry State, position size, stop loss or trade action.
+ *
+ * VERSIONING
+ * v1 (`thesis_synthesis/v1`, `thesis_rubric/v1`) included a 10-point
+ * "chart / entry context" component. Those reports are FROZEN and are never
+ * rescored. v2 removes chart/entry/timing from Thesis completely: timing lives
+ * exclusively in the Entry layer. v1 and v2 Thesis Scores are NOT directly
+ * interchangeable and must always be read with their persisted rubric version.
  */
 
-export const THESIS_POLICY_VERSION = "thesis_synthesis/v1";
-/** v1.1 separates a real external catalyst from a pure market signal. */
-export const THESIS_PROMPT_VERSION = "thesis_synthesis_prompt/v1.1";
-export const NO_VERIFIED_CATALYST = "No verified catalyst found";
-/**
- * Input policy. Realized post-cutoff performance (outcomes) is stripped from
- * everything the synthesizer sees, exactly as in triage.
- */
-export const THESIS_INPUT_POLICY_VERSION = "thesis_synthesis_input/v1_no_outcomes";
-
-/** Compact-packet keys removed before the model ever sees a candidate. */
-export const THESIS_REDACTED_PACKET_KEYS = ["outcomes"] as const;
-
-export const THESIS_COMPONENTS = [
+/** FROZEN v1 identifiers — kept so historical reports stay readable. */
+export const THESIS_POLICY_VERSION_V1 = "thesis_synthesis/v1";
+export const THESIS_RUBRIC_VERSION_V1 = "thesis_rubric/v1";
+export const THESIS_COMPONENTS_V1 = [
   { key: "memeQuality", label: "Thesis / meme quality", weight: 20 },
   { key: "catalystNarrative", label: "Catalyst / narrative", weight: 15 },
   { key: "distribution", label: "Distribution / holder structure", weight: 15 },
@@ -34,11 +31,71 @@ export const THESIS_COMPONENTS = [
   { key: "valuation", label: "Valuation / asymmetry", weight: 5 },
 ] as const;
 
-export type ThesisComponentKey = (typeof THESIS_COMPONENTS)[number]["key"];
+/** ACTIVE policy. Thesis answers fundamentals only — never timing. */
+export const THESIS_POLICY_VERSION = "thesis_synthesis/v2";
+export const THESIS_RUBRIC_VERSION = "thesis_rubric/v2";
+/** v2 removes chart/entry context; v1.1 catalyst-vs-market-signal rules stay. */
+export const THESIS_PROMPT_VERSION = "thesis_synthesis_prompt/v2";
+export const NO_VERIFIED_CATALYST = "No verified catalyst found";
+/**
+ * Input policy. Realized post-cutoff performance (outcomes) is stripped from
+ * everything the synthesizer sees, exactly as in triage.
+ */
+export const THESIS_INPUT_POLICY_VERSION = "thesis_synthesis_input/v1_no_outcomes";
 
-export type ComponentScores = Record<ThesisComponentKey, number>;
+/** Compact-packet keys removed before the model ever sees a candidate. */
+export const THESIS_REDACTED_PACKET_KEYS = ["outcomes"] as const;
+
+/**
+ * v2 rubric — 100 points, zero of which may come from current candle
+ * structure, breakout/retest, extension, momentum, entry quality or any other
+ * technical timing consideration. Those belong to Entry State only.
+ */
+export const THESIS_COMPONENTS = [
+  { key: "memeQuality", label: "Meme / lore quality", weight: 20 },
+  { key: "catalystNarrative", label: "Narrative / catalyst", weight: 20 },
+  { key: "distribution", label: "Distribution / holder structure", weight: 15 },
+  { key: "liquidity", label: "Liquidity / exitability", weight: 15 },
+  { key: "devIntegrity", label: "Dev / launch integrity", weight: 10 },
+  { key: "mindshare", label: "Mindshare / reflexivity / virality", weight: 10 },
+  { key: "valuation", label: "Valuation / asymmetry", weight: 10 },
+] as const;
+
+/** Component keys ever used by any rubric version. */
+export type ThesisComponentKey = (typeof THESIS_COMPONENTS_V1)[number]["key"];
+
+/** Sparse by design: a v2 report has no `chartContext` entry at all. */
+export type ComponentScores = Partial<Record<ThesisComponentKey, number>>;
 
 export const THESIS_MAX_SCORE = THESIS_COMPONENTS.reduce((sum, c) => sum + c.weight, 0);
+
+/** Timing concepts that must never contribute Thesis points. */
+export const THESIS_FORBIDDEN_TIMING_KEYS = [
+  "chartContext",
+  "entryState",
+  "entryScore",
+  "extension",
+  "breakout",
+  "momentum",
+] as const;
+
+export interface RubricComponent {
+  key: ThesisComponentKey;
+  label: string;
+  weight: number;
+}
+
+/** Renders the rubric a stored report was actually scored with. */
+export function componentsForRubric(
+  rubricVersion: string | null | undefined,
+  policyVersion?: string | null,
+): readonly RubricComponent[] {
+  const v1 =
+    rubricVersion === THESIS_RUBRIC_VERSION_V1 ||
+    (!rubricVersion && policyVersion === THESIS_POLICY_VERSION_V1);
+  return v1 ? THESIS_COMPONENTS_V1 : THESIS_COMPONENTS;
+}
+
 
 export const BEAR_SEVERITIES = ["LOW", "MODERATE", "HIGH", "CRITICAL"] as const;
 export type BearSeverity = (typeof BEAR_SEVERITIES)[number];
@@ -374,7 +431,7 @@ export function validateThesisOutput(
     }
     components[c.key] = clamped;
   }
-  const thesisScore = THESIS_COMPONENTS.reduce((sum, c) => sum + components[c.key], 0);
+  const thesisScore = THESIS_COMPONENTS.reduce((sum, c) => sum + (components[c.key] ?? 0), 0);
 
   const sections = {} as ThesisSections;
   const rawSections = (obj["sections"] && typeof obj["sections"] === "object"
@@ -503,6 +560,8 @@ export function buildThesisSystemPrompt(): string {
     "5. Never output a buy/sell recommendation, entry state, position size, stop loss or price target. No trade language at all.",
     "6. Never reason about what happened to the price after the evidence cutoff. You are given none of it.",
     "7. A DAMAGED price structure or a NONE setup is not an automatic failure, and neither is an interesting scanner profile a substitute for external evidence.",
+    "8. TIMING IS NOT YOUR JOB. Award ZERO thesis points for current candle structure, breakout/retest, extension, current momentum, BUY_ZONE/SETTING_UP style entry quality or any technical timing consideration. A separate Entry layer decides whether now is a good moment; your score must be identical whether the chart is extended or basing.",
+    "9. Current operational eligibility may block a call downstream, but it must not change your judgement of thesis quality.",
     "",
     "CATALYST VS MARKET SIGNAL (strict)",
     "A CATALYST is an identifiable EXTERNAL trigger: an upcoming event, launch, listing, announcement, scheduled cultural/media moment, or ecosystem event with a defensible connection. Set catalystKind to VERIFIED (evidenced) or PLAUSIBLE (reasonably inferred from evidence).",

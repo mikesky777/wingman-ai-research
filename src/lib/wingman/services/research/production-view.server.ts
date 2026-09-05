@@ -33,6 +33,8 @@ export interface ProductionFunnel {
   aiShortlistMilestoneCount: number;
   thesisReportCount: number;
   thesisCallMilestoneCount: number;
+  entryEvaluatedCount: number;
+  entryActionableCount: number;
 }
 
 /** Loads the current production funnel. Read-only. */
@@ -47,6 +49,8 @@ export async function loadProductionFunnel(): Promise<ProductionFunnel> {
       aiShortlistMilestoneCount: 0,
       thesisReportCount: 0,
       thesisCallMilestoneCount: 0,
+      entryEvaluatedCount: 0,
+      entryActionableCount: 0,
     };
   }
 
@@ -131,6 +135,21 @@ export async function loadProductionFunnel(): Promise<ProductionFunnel> {
     .select("id", { count: "exact", head: true })
     .eq("is_calibration", false);
 
+  const { data: entryRows } = await supabaseAdmin
+    .from("entry_state_evaluations")
+    .select("mint, state, evaluated_at")
+    .eq("is_calibration", false)
+    .order("evaluated_at", { ascending: false })
+    .limit(500);
+  const latestEntryByMint = new Map<string, string>();
+  for (const row of ((entryRows as Row[]) ?? [])) {
+    const mint = row["mint"] as string;
+    if (!latestEntryByMint.has(mint)) latestEntryByMint.set(mint, (row["state"] as string) ?? "UNKNOWN");
+  }
+  const entryActionableCount = [...latestEntryByMint.values()].filter(
+    (state) => state === "BUY_ZONE" || state === "ACCEPTABLE",
+  ).length;
+
   return {
     scan,
     triage: triage.run,
@@ -139,6 +158,8 @@ export async function loadProductionFunnel(): Promise<ProductionFunnel> {
     aiShortlistMilestoneCount: milestoneCount ?? 0,
     thesisCallMilestoneCount: thesisCallCount ?? 0,
     thesisReportCount: thesisReports ?? 0,
+    entryEvaluatedCount: latestEntryByMint.size,
+    entryActionableCount,
   };
 }
 
@@ -181,4 +202,156 @@ export async function loadDeepResearchReportById(
     unresolvedDomains: (r["unresolved_domains"] as string[]) ?? [],
     dossier,
   } as DeepResearchReportSummary;
+}
+
+/**
+ * Production funnel ARTIFACTS for History.
+ *
+ * THESIS_SYNTHESIZED means a real production thesis was completed.
+ * THESIS_CALL means that thesis additionally passed every opportunity gate.
+ * They are counted separately and neither is ever invented retroactively.
+ */
+export type ProductionArtifactStage =
+  | "AI_SHORTLIST"
+  | "DEEP_RESEARCH_COMPLETED"
+  | "THESIS_SYNTHESIZED"
+  | "THESIS_CALL";
+
+export interface ProductionArtifactToken {
+  mint: string;
+  symbol: string | null;
+  name: string | null;
+  pairAddress: string | null;
+  at: string | null;
+  detail: string | null;
+}
+
+export interface ProductionArtifacts {
+  counts: Record<ProductionArtifactStage, number>;
+  tokens: Record<ProductionArtifactStage, ProductionArtifactToken[]>;
+}
+
+export async function loadProductionArtifacts(): Promise<ProductionArtifacts> {
+  const [deepRes, thesisRes, shortlistRes, callRes] = await Promise.all([
+    supabaseAdmin
+      .from("deep_research_reports")
+      .select("mint, created_at, status, one_sentence_narrative")
+      .eq("is_calibration", false)
+      .eq("status", "completed")
+      .order("created_at", { ascending: false }),
+    supabaseAdmin
+      .from("thesis_reports")
+      .select("mint, created_at, thesis_score, evidence_confidence, verdict, qualified_as_opportunity")
+      .eq("is_calibration", false)
+      .order("created_at", { ascending: false }),
+    supabaseAdmin
+      .from("token_stage_milestones")
+      .select("token_id, first_entered_at")
+      .eq("stage", "AI_SHORTLIST"),
+    supabaseAdmin
+      .from("token_stage_milestones")
+      .select("token_id, first_entered_at")
+      .eq("stage", "THESIS_CALL"),
+  ]);
+
+  const deepRows = (deepRes.data as Row[]) ?? [];
+  const thesisRows = (thesisRes.data as Row[]) ?? [];
+  const shortlistRows = (shortlistRes.data as Row[]) ?? [];
+  const callRows = (callRes.data as Row[]) ?? [];
+
+  const tokenIds = [
+    ...new Set([...shortlistRows, ...callRows].map((r) => r["token_id"] as string)),
+  ];
+  const mints = [
+    ...new Set([...deepRows, ...thesisRows].map((r) => r["mint"] as string)),
+  ];
+
+  // Scoped lookups: the Data API caps a response at 1000 rows, so never read
+  // the whole tokens table here.
+  const byId = new Map<string, Row>();
+  const byMint = new Map<string, Row>();
+  const indexToken = (t: Row) => {
+    byId.set(t["id"] as string, t);
+    byMint.set(t["contract_address"] as string, t);
+  };
+  if (tokenIds.length) {
+    const { data } = await supabaseAdmin
+      .from("tokens")
+      .select("id, contract_address, symbol, name, dex_pair_address")
+      .in("id", tokenIds);
+    for (const t of ((data as Row[]) ?? [])) indexToken(t);
+  }
+  if (mints.length) {
+    const { data } = await supabaseAdmin
+      .from("tokens")
+      .select("id, contract_address, symbol, name, dex_pair_address")
+      .in("contract_address", mints);
+    for (const t of ((data as Row[]) ?? [])) indexToken(t);
+  }
+
+  const identity = (row: Row | undefined, mint: string): ProductionArtifactToken => ({
+    mint,
+    symbol: (row?.["symbol"] as string | null) ?? null,
+    name: (row?.["name"] as string | null) ?? null,
+    pairAddress: (row?.["dex_pair_address"] as string | null) ?? null,
+    at: null,
+    detail: null,
+  });
+
+  const dedupe = (list: ProductionArtifactToken[]): ProductionArtifactToken[] => {
+    const seen = new Set<string>();
+    return list.filter((t) => (seen.has(t.mint) ? false : (seen.add(t.mint), true)));
+  };
+
+  const shortlist = dedupe(
+    shortlistRows.map((r) => {
+      const token = byId.get(r["token_id"] as string);
+      const mint = (token?.["contract_address"] as string) ?? (r["token_id"] as string);
+      return { ...identity(token, mint), at: (r["first_entered_at"] as string) ?? null };
+    }),
+  );
+  const calls = dedupe(
+    callRows.map((r) => {
+      const token = byId.get(r["token_id"] as string);
+      const mint = (token?.["contract_address"] as string) ?? (r["token_id"] as string);
+      return { ...identity(token, mint), at: (r["first_entered_at"] as string) ?? null };
+    }),
+  );
+  const deep = dedupe(
+    deepRows.map((r) => {
+      const mint = r["mint"] as string;
+      return {
+        ...identity(byMint.get(mint), mint),
+        at: (r["created_at"] as string) ?? null,
+        detail: (r["one_sentence_narrative"] as string) ?? null,
+      };
+    }),
+  );
+  const thesis = dedupe(
+    thesisRows.map((r) => {
+      const mint = r["mint"] as string;
+      return {
+        ...identity(byMint.get(mint), mint),
+        at: (r["created_at"] as string) ?? null,
+        detail: `Thesis ${r["thesis_score"] ?? "—"} · Evidence ${r["evidence_confidence"] ?? "—"} · ${
+          (r["verdict"] as string) ?? "—"
+        }`,
+      };
+    }),
+  );
+
+  return {
+    counts: {
+      AI_SHORTLIST: shortlist.length,
+      DEEP_RESEARCH_COMPLETED: deep.length,
+      THESIS_SYNTHESIZED: thesis.length,
+      THESIS_CALL: calls.length,
+    },
+    tokens: {
+      AI_SHORTLIST: shortlist,
+      DEEP_RESEARCH_COMPLETED: deep,
+      THESIS_SYNTHESIZED: thesis,
+      THESIS_CALL: calls,
+    },
+  };
 }

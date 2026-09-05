@@ -11,7 +11,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Crosshair, Loader2, RefreshCw, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CopyCaButton, DexScreenerLink } from "@/components/wingman/TokenIdentity";
+import { TokenIdentity } from "@/components/wingman/TokenIdentity";
 import { Section } from "@/components/wingman/Section";
 import { EmptyState } from "@/components/wingman/EmptyState";
 import { DexScreenerEmbed } from "@/components/wingman/history/DexScreenerEmbed";
@@ -53,7 +53,8 @@ function duration(since: string | null): string {
   return `${Math.round(mins / 1440)}d`;
 }
 
-export function EntryPanel() {
+export function EntryPanel({ calibration = false }: { calibration?: boolean } = {}) {
+  const mode: "PRODUCTION" | "CALIBRATION" = calibration ? "CALIBRATION" : "PRODUCTION";
   const queryClient = useQueryClient();
   const fetchEvaluations = useServerFn(getEntryEvaluations);
   const runBatch = useServerFn(runEntryStateEvaluation);
@@ -61,14 +62,14 @@ export function EntryPanel() {
   const [openId, setOpenId] = useState<string | null>(null);
 
   const { data: rows = [], isLoading } = useQuery({
-    queryKey: ["entry", "evaluations"],
-    queryFn: () => fetchEvaluations(),
+    queryKey: ["entry", "evaluations", mode],
+    queryFn: () => fetchEvaluations({ data: { mode } }),
   });
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["entry", "evaluations"] });
 
   const batch = useMutation({
-    mutationFn: () => runBatch({ data: { mode: "CALIBRATION", limit: 15 } }),
+    mutationFn: () => runBatch({ data: { mode, limit: 15 } }),
     onSuccess: (result) => {
       if (result.code === "NO_THESIS_REPORTS") {
         toast.warning("No thesis candidates", {
@@ -87,7 +88,7 @@ export function EntryPanel() {
   });
 
   const refresh = useMutation({
-    mutationFn: (mint: string) => refreshOne({ data: { mint } }),
+    mutationFn: (mint: string) => refreshOne({ data: { mint, mode } }),
     onSuccess: (result) => {
       const first = result.results[0];
       if (first?.error) {
@@ -104,7 +105,7 @@ export function EntryPanel() {
 
   return (
     <Section
-      title="Entry (timing)"
+      title="Entry timing"
       description="Given an existing thesis, is current market structure a sensible place to enter? Timing only — this layer never changes the Thesis Score and never suggests a trade or a size."
       actions={
         <Button size="sm" variant="outline" onClick={() => batch.mutate()} disabled={batch.isPending}>
@@ -113,7 +114,7 @@ export function EntryPanel() {
           ) : (
             <Crosshair className="mr-2 size-3.5" />
           )}
-          Evaluate entry (calibration)
+          {calibration ? "Evaluate entry (calibration)" : "Evaluate entry timing"}
         </Button>
       }
     >
@@ -133,24 +134,19 @@ export function EntryPanel() {
             return (
               <li key={row.id} className="rounded-md border border-border bg-surface/60 p-4">
                 <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold">
-                      {row.symbol ?? row.name ?? short(row.mint)}
-                      {row.isCalibration ? (
-                        <span className="ml-2 text-[10px] uppercase text-muted-foreground">
-                          calibration
-                        </span>
-                      ) : null}
-                    </p>
-                    <p className="font-mono text-[10px] break-all text-muted-foreground" title={row.mint}>
-                      {row.mint}
-                    </p>
-                    <div className="mt-1 flex flex-wrap gap-1.5">
-                      <CopyCaButton mint={row.mint} />
-                      <DexScreenerLink pairAddress={null} mint={row.mint} />
-                    </div>
+                  <div className="min-w-0">
+                    <TokenIdentity
+                      symbol={row.symbol ?? short(row.mint)}
+                      name={row.name ?? null}
+                      mint={row.mint}
+                      pairAddress={row.pairAddress}
+                    />
+                    {row.isCalibration ? (
+                      <p className="label-xs mt-1 text-muted-foreground">CALIBRATION</p>
+                    ) : null}
                     <p className="label-xs mt-1 text-muted-foreground">
-                      THESIS {row.thesisScore ?? "—"} · Evidence {row.evidenceConfidence ?? "—"}
+                      Thesis (separate layer): {row.thesisScore ?? "—"} · Evidence{" "}
+                      {row.evidenceConfidence ?? "—"}
                       {row.thesisVerdict ? ` · ${row.thesisVerdict}` : ""}
                     </p>
                   </div>
@@ -185,7 +181,19 @@ export function EntryPanel() {
                   ) : null}
                 </div>
 
-                <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{row.rationale}</p>
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
+                  <Badge variant="outline" className="text-[10px]">
+                    TIMING EVIDENCE {row.priceHistorySource}
+                  </Badge>
+                  <Badge variant="outline" className="text-[10px]">
+                    RESOLUTION {row.timingResolution}
+                  </Badge>
+                </div>
+
+                <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                  <span className="label-xs block">Why now (timing)</span>
+                  {row.rationale}
+                </p>
 
                 <div className="tabular mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-[11px] text-muted-foreground sm:grid-cols-4">
                   <span>MC {formatUsd(row.marketCap ?? 0)}</span>
@@ -205,7 +213,7 @@ export function EntryPanel() {
 
                 {open ? (
                   <div className="mt-3 space-y-3 border-t border-border pt-3">
-                    <DexScreenerEmbed pairAddress={null} contractAddress={row.mint} height={220} />
+                    <DexScreenerEmbed pairAddress={row.pairAddress} contractAddress={row.mint} height={220} />
 
                     <div className="grid gap-1">
                       {ENTRY_COMPONENTS.map((c) => (

@@ -63,7 +63,7 @@ export function ProductionFunnelPanel() {
   return (
     <Section
       title="Current Production Funnel"
-      description="Live production provenance: scan → research packets → AI triage → deep research → thesis."
+      description="Live production provenance: scan → research packets → AI triage → deep research → thesis → entry. Synthesized theses and thesis calls are different things: a call is a thesis that passed every opportunity gate."
       actions={<Badge variant="outline">PRODUCTION</Badge>}
     >
       <div className="flex flex-wrap gap-2">
@@ -102,6 +102,16 @@ export function ProductionFunnelPanel() {
             { text: `${data.thesisReportCount} synthesized` },
             {
               text: `${data.thesisCallMilestoneCount} thesis calls`,
+              tone: "text-muted-foreground",
+            },
+          ]}
+        />
+        <Stage
+          label="ENTRY"
+          lines={[
+            { text: `${data.entryEvaluatedCount} timed` },
+            {
+              text: `${data.entryActionableCount} in entry range`,
               tone: "text-muted-foreground",
             },
           ]}

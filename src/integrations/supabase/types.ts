@@ -601,6 +601,7 @@ export type Database = {
           narrative_timing_confidence: string | null
           previous_state: string | null
           price_attention_divergence: string
+          price_history_source: string | null
           price_usd: number | null
           rationale: string | null
           research_packet_id: string | null
@@ -620,6 +621,7 @@ export type Database = {
           thesis_score: number | null
           thesis_verdict: string | null
           timing_features: Json | null
+          timing_resolution: string | null
           token_id: string | null
           what_would_break_entry: string[]
           what_would_improve_entry: string[]
@@ -649,6 +651,7 @@ export type Database = {
           narrative_timing_confidence?: string | null
           previous_state?: string | null
           price_attention_divergence?: string
+          price_history_source?: string | null
           price_usd?: number | null
           rationale?: string | null
           research_packet_id?: string | null
@@ -668,6 +671,7 @@ export type Database = {
           thesis_score?: number | null
           thesis_verdict?: string | null
           timing_features?: Json | null
+          timing_resolution?: string | null
           token_id?: string | null
           what_would_break_entry?: string[]
           what_would_improve_entry?: string[]
@@ -697,6 +701,7 @@ export type Database = {
           narrative_timing_confidence?: string | null
           previous_state?: string | null
           price_attention_divergence?: string
+          price_history_source?: string | null
           price_usd?: number | null
           rationale?: string | null
           research_packet_id?: string | null
@@ -716,6 +721,7 @@ export type Database = {
           thesis_score?: number | null
           thesis_verdict?: string | null
           timing_features?: Json | null
+          timing_resolution?: string | null
           token_id?: string | null
           what_would_break_entry?: string[]
           what_would_improve_entry?: string[]
@@ -1793,6 +1799,7 @@ export type Database = {
           qualified_as_opportunity: boolean
           research_packet_id: string | null
           research_packet_version: string | null
+          rubric_version: string | null
           score_catalyst_narrative: number | null
           score_chart_context: number | null
           score_dev_integrity: number | null
@@ -1854,6 +1861,7 @@ export type Database = {
           qualified_as_opportunity?: boolean
           research_packet_id?: string | null
           research_packet_version?: string | null
+          rubric_version?: string | null
           score_catalyst_narrative?: number | null
           score_chart_context?: number | null
           score_dev_integrity?: number | null
@@ -1915,6 +1923,7 @@ export type Database = {
           qualified_as_opportunity?: boolean
           research_packet_id?: string | null
           research_packet_version?: string | null
+          rubric_version?: string | null
           score_catalyst_narrative?: number | null
           score_chart_context?: number | null
           score_dev_integrity?: number | null
@@ -2029,6 +2038,7 @@ export type Database = {
           opportunity_count: number
           prompt_version: string
           requested_count: number
+          rubric_version: string | null
           source_scan_id: string | null
           started_at: string
           status: string
@@ -2054,6 +2064,7 @@ export type Database = {
           opportunity_count?: number
           prompt_version: string
           requested_count?: number
+          rubric_version?: string | null
           source_scan_id?: string | null
           started_at?: string
           status?: string
@@ -2079,6 +2090,7 @@ export type Database = {
           opportunity_count?: number
           prompt_version?: string
           requested_count?: number
+          rubric_version?: string | null
           source_scan_id?: string | null
           started_at?: string
           status?: string

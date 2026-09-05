@@ -27,7 +27,7 @@ const decisionTone: Record<string, string> = {
   BLOCKED_BEFORE_SHORTLIST: "border-negative/40 bg-negative/10 text-negative",
 };
 
-export function TriagePanel() {
+export function TriagePanel({ calibration = false }: { calibration?: boolean } = {}) {
   const queryClient = useQueryClient();
   const fetchLatest = useServerFn(getLatestTriage);
   const startRun = useServerFn(runTriage);
@@ -35,7 +35,7 @@ export function TriagePanel() {
   const [lastCode, setLastCode] = useState<string | null>(null);
   // Production is the default view. A later calibration run must never replace
   // the production current state.
-  const [viewMode, setViewMode] = useState<"PRODUCTION" | "CALIBRATION">("PRODUCTION");
+  const viewMode: "PRODUCTION" | "CALIBRATION" = calibration ? "CALIBRATION" : "PRODUCTION";
   const [decisionFilter, setDecisionFilter] = useState<"ALL" | "DEEP_RESEARCH" | "WATCH" | "SKIP">(
     "ALL",
   );
@@ -107,28 +107,35 @@ export function TriagePanel() {
       description="Compares the current research-packet cohort against itself and decides which candidates justify expensive deep research. Research priority only — no thesis score, no buy or sell judgement."
     >
       <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm" onClick={() => run("PRODUCTION")} disabled={mutation.isPending}>
-          {mutation.isPending ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : (
-            <Brain className="size-4" />
-          )}
-          Run triage
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => run("CALIBRATION")}
-          disabled={mutation.isPending}
-        >
-          <FlaskConical className="size-4" />
-          Calibration (dry run)
-        </Button>
+        {calibration ? (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => run("CALIBRATION")}
+            disabled={mutation.isPending}
+          >
+            {mutation.isPending ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <FlaskConical className="size-4" />
+            )}
+            Calibration (dry run)
+          </Button>
+        ) : (
+          <Button size="sm" onClick={() => run("PRODUCTION")} disabled={mutation.isPending}>
+            {mutation.isPending ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Brain className="size-4" />
+            )}
+            Run triage
+          </Button>
+        )}
         <Button
           size="sm"
           variant="outline"
           onClick={() => packetMutation.mutate()}
-          disabled={packetMutation.isPending}
+          disabled={packetMutation.isPending || calibration}
         >
           {packetMutation.isPending ? (
             <Loader2 className="size-4 animate-spin" />
@@ -144,21 +151,6 @@ export function TriagePanel() {
         ) : null}
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-1.5">
-        {(["PRODUCTION", "CALIBRATION"] as const).map((m) => (
-          <Button
-            key={m}
-            size="sm"
-            variant={viewMode === m ? "default" : "outline"}
-            onClick={() => setViewMode(m)}
-          >
-            {m === "PRODUCTION" ? "Production" : "Calibration"}
-          </Button>
-        ))}
-        <span className="ml-2 text-[11px] text-muted-foreground">
-          Counts and decisions are never mixed between modes.
-        </span>
-      </div>
 
       {isLoading ? (
         <p className="mt-4 text-xs text-muted-foreground">Loading last triage…</p>

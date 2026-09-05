@@ -43,6 +43,10 @@ export interface EntryEvaluationResult {
   entryScore: number | null;
   components: EntryComponentScores | null;
   divergence: string;
+  /** Where the timing price series came from. */
+  priceHistorySource: "CANDLES" | "WINGMAN_OBSERVATIONS" | "NONE";
+  /** How precise that timing evidence is. */
+  timingResolution: "HIGH" | "COARSE" | "INSUFFICIENT";
   rationale: string | null;
   strongestPositiveSignal: string | null;
   strongestEntryRisk: string | null;
@@ -413,6 +417,8 @@ export async function runEntryStateBatch(
         entryScore: null,
         components: null,
         divergence: "UNKNOWN",
+        priceHistorySource: "NONE",
+        timingResolution: "INSUFFICIENT",
         rationale: null,
         strongestPositiveSignal: null,
         strongestEntryRisk: null,
@@ -588,6 +594,23 @@ async function evaluateOne(args: {
   if (!features) gaps.push("PRICE_HISTORY_INSUFFICIENT");
   if (!market.valid) gaps.push("CURRENT_MARKET_EVIDENCE_UNAVAILABLE");
 
+  // Timing-evidence provenance is first-class: Entry must state WHERE its price
+  // history came from and how precise it is. Missing/stale evidence → UNKNOWN.
+  const priceHistorySource: "CANDLES" | "WINGMAN_OBSERVATIONS" | "NONE" =
+    featureSource === "CANDLES" && features
+      ? "CANDLES"
+      : featureSource === "SNAPSHOT_SERIES"
+        ? "WINGMAN_OBSERVATIONS"
+        : "NONE";
+  const timingResolution: "HIGH" | "COARSE" | "INSUFFICIENT" =
+    !features || !eligibility.evidenceUsable
+      ? "INSUFFICIENT"
+      : priceHistorySource === "CANDLES"
+        ? "HIGH"
+        : priceHistorySource === "WINGMAN_OBSERVATIONS"
+          ? "COARSE"
+          : "INSUFFICIENT";
+
   const rationale =
     features && score
       ? buildRationale({ state: mapping.state, score, features, divergence: divergence.state })
@@ -622,6 +645,8 @@ async function evaluateOne(args: {
       score_risk_definition: score?.components.riskDefinition ?? null,
       component_scores: (score?.components ?? null) as never,
       timing_features: (features ?? null) as never,
+      price_history_source: priceHistorySource,
+      timing_resolution: timingResolution,
       price_attention_divergence: divergence.state,
       divergence_detail: divergence.detail as never,
       rationale,
@@ -679,6 +704,8 @@ async function evaluateOne(args: {
       entryScore: score?.total ?? null,
       components: score?.components ?? null,
       divergence: divergence.state,
+      priceHistorySource,
+      timingResolution,
       rationale,
       strongestPositiveSignal: score?.strongestPositiveSignal ?? null,
       strongestEntryRisk: score?.strongestEntryRisk ?? null,
@@ -719,6 +746,9 @@ export interface EntryEvaluationSummary {
   components: EntryComponentScores | null;
   timingFeatures: TimingFeatures | null;
   divergence: string;
+  priceHistorySource: string;
+  timingResolution: string;
+  pairAddress: string | null;
   divergenceDetail: DivergenceResult["detail"] | null;
   rationale: string | null;
   strongestPositiveSignal: string | null;
@@ -740,10 +770,14 @@ export interface EntryEvaluationSummary {
 }
 
 /** Latest evaluation per mint, plus that mint's recent transition history. */
-export async function loadEntryEvaluations(limit = 20): Promise<EntryEvaluationSummary[]> {
+export async function loadEntryEvaluations(
+  limit = 20,
+  mode: "production" | "calibration" = "production",
+): Promise<EntryEvaluationSummary[]> {
   const { data, error } = await supabaseAdmin
     .from("entry_state_evaluations")
     .select("*")
+    .eq("is_calibration", mode === "calibration")
     .order("evaluated_at", { ascending: false })
     .limit(200);
   if (error) throw new Error(error.message);
@@ -759,6 +793,20 @@ export async function loadEntryEvaluations(limit = 20): Promise<EntryEvaluationS
       entryScore: num(r["entry_score"]),
     });
     historyByMint.set(mint, list);
+  }
+
+  // Exact persisted DexScreener pair per mint (never built from ticker/name).
+  const mints = [...new Set(rows.map((r) => r["mint"] as string))];
+  const pairByMint = new Map<string, string>();
+  if (mints.length) {
+    const { data: tokenRows } = await supabaseAdmin
+      .from("tokens")
+      .select("contract_address, dex_pair_address")
+      .in("contract_address", mints);
+    for (const t of ((tokenRows as Row[]) ?? [])) {
+      const pair = t["dex_pair_address"] as string | null;
+      if (pair) pairByMint.set(t["contract_address"] as string, pair);
+    }
   }
 
   const seen = new Set<string>();
@@ -782,6 +830,9 @@ export async function loadEntryEvaluations(limit = 20): Promise<EntryEvaluationS
       components: (r["component_scores"] as EntryComponentScores) ?? null,
       timingFeatures: (r["timing_features"] as TimingFeatures) ?? null,
       divergence: (r["price_attention_divergence"] as string) ?? "UNKNOWN",
+      priceHistorySource: (r["price_history_source"] as string) ?? "NONE",
+      timingResolution: (r["timing_resolution"] as string) ?? "INSUFFICIENT",
+      pairAddress: pairByMint.get(mint) ?? null,
       divergenceDetail: (r["divergence_detail"] as DivergenceResult["detail"]) ?? null,
       rationale: (r["rationale"] as string) ?? null,
       strongestPositiveSignal: (r["strongest_positive_signal"] as string) ?? null,

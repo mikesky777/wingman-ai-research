@@ -1,5 +1,5 @@
 /**
- * Thesis Synthesis v1 panel (Research → Thesis).
+ * Thesis Synthesis panel (Research → Thesis).
  *
  * Shows the judgement layer over already-collected evidence. Thesis Score and
  * Evidence Confidence are displayed as two clearly separate measures, and
@@ -16,7 +16,7 @@ import { Section } from "@/components/wingman/Section";
 import { EmptyState } from "@/components/wingman/EmptyState";
 import { getThesisReports, runThesisSynthesisBatch } from "@/lib/wingman/thesis.functions";
 import { TokenIdentity } from "@/components/wingman/TokenIdentity";
-import { THESIS_COMPONENTS } from "@/lib/wingman/services/research/thesis/contracts";
+import { componentsForRubric } from "@/lib/wingman/services/research/thesis/contracts";
 import { relativeTime, formatUsd } from "@/lib/wingman/format";
 import { toast } from "sonner";
 
@@ -39,12 +39,12 @@ function short(mint: string): string {
   return mint.length > 12 ? `${mint.slice(0, 5)}…${mint.slice(-4)}` : mint;
 }
 
-export function ThesisPanel() {
+export function ThesisPanel({ calibration = false }: { calibration?: boolean } = {}) {
   const queryClient = useQueryClient();
   const fetchReports = useServerFn(getThesisReports);
   const startRun = useServerFn(runThesisSynthesisBatch);
   const [openId, setOpenId] = useState<string | null>(null);
-  const [mode, setMode] = useState<"PRODUCTION" | "CALIBRATION">("PRODUCTION");
+  const mode: "PRODUCTION" | "CALIBRATION" = calibration ? "CALIBRATION" : "PRODUCTION";
 
   const { data: reports = [], isLoading } = useQuery({
     queryKey: ["thesis", "reports", mode],
@@ -78,41 +78,34 @@ export function ThesisPanel() {
 
   return (
     <Section
-      title="Thesis"
-      description="Judgement over collected evidence. Thesis Score is conviction in the idea; Evidence Confidence is how trustworthy the evidence behind it is. Neither is a probability of success, and no entry or sizing is produced here."
+      title="Thesis quality"
+      description="Judgement over collected evidence — fundamentals only. Timing (Entry) contributes zero thesis points. Thesis Score is conviction in the idea; Evidence Confidence is how trustworthy the evidence behind it is. Neither is a probability of success, and no entry or sizing is produced here."
       actions={
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex overflow-hidden rounded-md border border-border">
-            {(["PRODUCTION", "CALIBRATION"] as const).map((m) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => setMode(m)}
-                className={`px-2.5 py-1 text-[10px] font-medium tracking-wide ${
-                  mode === m ? "bg-primary/15 text-primary" : "text-muted-foreground"
-                }`}
-              >
-                {m}
-              </button>
-            ))}
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={mutation.isPending}
-            onClick={() => run("CALIBRATION")}
-          >
-            {mutation.isPending ? (
-              <Loader2 className="size-3.5 animate-spin" />
-            ) : (
-              <FlaskConical className="size-3.5" />
-            )}
-            Dry run (3)
-          </Button>
-          <Button size="sm" disabled={mutation.isPending} onClick={() => run("PRODUCTION")}>
-            <Brain className="size-3.5" />
-            Synthesize shortlist
-          </Button>
+          {calibration ? (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={mutation.isPending}
+              onClick={() => run("CALIBRATION")}
+            >
+              {mutation.isPending ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <FlaskConical className="size-3.5" />
+              )}
+              Dry run (3)
+            </Button>
+          ) : (
+            <Button size="sm" disabled={mutation.isPending} onClick={() => run("PRODUCTION")}>
+              {mutation.isPending ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <Brain className="size-3.5" />
+              )}
+              Synthesize shortlist
+            </Button>
+          )}
         </div>
       }
     >
@@ -224,7 +217,8 @@ export function ThesisPanel() {
                 ) : null}
 
                 <p className="mt-2 text-[10px] text-muted-foreground">
-                  {relativeTime(r.createdAt)} · {r.policyVersion} · {r.modelIdentifier ?? "model n/a"}
+                  {relativeTime(r.createdAt)} · {r.policyVersion} · {r.rubricVersion ?? "thesis_rubric/v1"} ·{" "}
+                  {r.promptVersion ?? ""} {r.modelIdentifier ?? "model n/a"}
                 </p>
 
                 {open ? <ThesisDetail report={r} /> : null}
@@ -276,7 +270,7 @@ function ThesisDetail({ report }: { report: Report }) {
       <div>
         <p className="label-xs mb-2">Component scores</p>
         <ul className="grid gap-1.5 sm:grid-cols-2">
-          {THESIS_COMPONENTS.map((c) => {
+          {componentsForRubric(report.rubricVersion).map((c) => {
             const value = report.components?.[c.key] ?? null;
             return (
               <li key={c.key} className="flex items-baseline justify-between gap-3 text-[11px]">
