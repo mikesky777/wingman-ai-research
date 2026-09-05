@@ -19,6 +19,7 @@ import { loadCurrentMarkets, loadRunCandidates, type LoadedCandidate } from "../
 import type { ResearchDossier } from "../deep/contracts";
 import {
   OPPORTUNITY_POLICY,
+  evaluateIndependentOriginGate,
   THESIS_COMPONENTS,
   THESIS_INPUT_POLICY_VERSION,
   THESIS_POLICY_VERSION,
@@ -328,7 +329,10 @@ interface SynthesizedCandidate {
   eligibility: { researchEligibleNow: boolean; exclusionReasons: string[] };
   market: { marketCap: number | null; priceUsd: number | null; liquidityUsd: number | null };
   setups: string[];
+  /** DIAGNOSTIC_ONLY — the opportunity gate does not read this. */
   independentSourceCount: number;
+  /** opportunity_gate/v1.1 input. Null when the dossier lacks v1.1+ semantics. */
+  distinctIndependentEvidenceOrigins: number | null;
   /** thesis_evidence/v2.1 semantics. Null when synthesis never reached a model. */
   semantics: EvidenceSemantics | null;
   validationIssues: ValidationIssue[];
@@ -468,6 +472,7 @@ export async function runThesisSynthesis(
         market: { marketCap: null, priceUsd: null, liquidityUsd: null },
         setups: [],
         independentSourceCount: 0,
+        distinctIndependentEvidenceOrigins: null,
         semantics: null,
         validationIssues: [],
         diagnostics: {},
@@ -490,6 +495,7 @@ export async function runThesisSynthesis(
             verdict: s.verdict as ThesisVerdict,
             bearSeverity: (s.bearSeverity ?? "HIGH") as BearSeverity,
             independentSourceCount: s.independentSourceCount,
+            distinctIndependentEvidenceOrigins: s.distinctIndependentEvidenceOrigins,
             eligibleNow: s.eligibility.researchEligibleNow,
           })),
       );
@@ -511,8 +517,13 @@ export async function runThesisSynthesis(
       (s.thesisScore ?? 0) >= OPPORTUNITY_POLICY.minThesisScore &&
       (s.evidence?.score ?? 0) >= OPPORTUNITY_POLICY.minEvidenceConfidence &&
       (s.bearSeverity === "LOW" || s.bearSeverity === "MODERATE");
+    const originGate = evaluateIndependentOriginGate({
+      distinctIndependentEvidenceOrigins: s.distinctIndependentEvidenceOrigins,
+      independentSourceCount: s.independentSourceCount,
+    });
     const gateDiagnostics = buildGateDiagnostics({
       independentSourceCount: s.independentSourceCount,
+      originGate,
       primarySourceCount: s.semantics?.sourceMix.primaryQuality ?? 0,
       communitySourceCount: s.semantics?.sourceMix.community ?? 0,
       evidenceConfidence: s.evidence?.score ?? 0,
@@ -634,6 +645,10 @@ async function synthesizeCandidate(args: {
     market: marketSnapshot,
     setups,
     independentSourceCount: input.coverage?.independentSourceCount ?? 0,
+    distinctIndependentEvidenceOrigins:
+      typeof input.coverage?.distinctIndependentEvidenceOrigins === "number"
+        ? input.coverage.distinctIndependentEvidenceOrigins
+        : null,
     semantics: null,
     validationIssues: [],
     diagnostics: {},
