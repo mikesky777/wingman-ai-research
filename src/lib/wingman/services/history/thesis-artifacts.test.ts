@@ -11,7 +11,6 @@ function artifact(over: Partial<ThesisArtifact> & { reportId: string }): ThesisA
     symbol: null,
     name: null,
     pairAddress: null,
-    reportId: over.reportId,
     synthesizedAt: "2026-09-05T18:00:00.000Z",
     thesisScore: null,
     evidenceConfidence: null,
