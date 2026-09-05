@@ -65,6 +65,7 @@ export type ThesisRunCode =
   | "NO_DEEP_RESEARCH_REPORTS"
   | "NO_ELIGIBLE_CANDIDATES"
   | "THESIS_INPUT_PROVENANCE_MISMATCH"
+  | "PRODUCTION_RUN_ALREADY_IN_FLIGHT"
   | "MISSING_API_KEY";
 
 export interface ThesisCandidateResult {
@@ -1063,10 +1064,25 @@ async function insertReport(args: {
       model_provider: args.provider.provider,
       model_identifier: args.provider.model,
       diagnostics: ({ ...s.diagnostics, validationIssues: s.validationIssues, error: s.error } ) as never,
+      // thesis_idempotency/v1 — production only. The partial unique index on
+      // this column is the transaction-safe guarantee that one production
+      // Deep Research artifact yields at most one canonical thesis artifact.
+      production_idempotency_key: args.isCalibration
+        ? null
+        : productionIdempotencyKey({
+            triageRunId: s.input.triageRunId ?? null,
+            mint: s.input.mint,
+            deepResearchReportId: s.input.reportId ?? null,
+          }),
     })
     .select("id")
     .single();
-  if (error) throw new Error(error.message);
+  if (error) {
+    // A concurrent production batch already wrote the canonical artifact for
+    // this exact cohort × mint × Deep Research report. Never a second one.
+    if (!args.isCalibration && isUniqueViolation(error)) return null;
+    throw new Error(error.message);
+  }
   return (data as Row)["id"] as string;
 }
 
