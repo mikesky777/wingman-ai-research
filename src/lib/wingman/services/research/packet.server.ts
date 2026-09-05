@@ -347,16 +347,49 @@ export async function packetCountsByRun(runIds: string[]): Promise<Map<string, n
   return out;
 }
 
+/**
+ * Transient Data API auth/clock errors ("JWT issued at future" from a brief
+ * gateway clock skew) must not blank the Research page. Retry briefly; any
+ * other error still surfaces immediately.
+ */
+function isTransientAuthError(message: string): boolean {
+  const m = message.toLowerCase();
+  return (
+    m.includes("issued at future") ||
+    m.includes("jwt expired") ||
+    m.includes("token used before issued")
+  );
+}
+
+async function withTransientRetry<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
+  let lastError: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      const message = error instanceof Error ? error.message : String(error);
+      if (!isTransientAuthError(message) || i === attempts - 1) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 400 * (i + 1)));
+    }
+  }
+  throw lastError;
+}
+
 /** Recent scan runs with their packet counts, for the scan-source invariant. */
 export async function loadScanSourceCandidates(limit = 25): Promise<AiScanSourceCandidate[]> {
-  const { data, error } = await supabaseAdmin
-    .from("scan_runs")
-    .select(
-      "id, status, started_at, completed_at, tokens_discovered, discovery_health, selection_policy_version, policy_epoch",
-    )
-    .order("started_at", { ascending: false })
-    .limit(limit);
-  if (error) throw new Error(error.message);
+  const data = await withTransientRetry(async () => {
+    const res = await supabaseAdmin
+      .from("scan_runs")
+      .select(
+        "id, status, started_at, completed_at, tokens_discovered, discovery_health, selection_policy_version, policy_epoch",
+      )
+      .order("started_at", { ascending: false })
+      .limit(limit);
+    if (res.error) throw new Error(res.error.message);
+    return res.data;
+  });
+
   const runs = (data ?? []) as Row[];
   const counts = await packetCountsByRun(runs.map((r) => r["id"] as string));
   return runs.map((r) => ({
