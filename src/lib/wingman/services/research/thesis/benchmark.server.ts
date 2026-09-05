@@ -175,16 +175,40 @@ export async function loadFrozenProductionCohort(): Promise<{
   };
 }
 
+/**
+ * Cost plan: the full cohort is synthesised ONCE by the challenger model, and
+ * repeat (stability) passes are intentionally concentrated on the four
+ * near-threshold / highest-interest candidates only.
+ */
+export const THESIS_BENCHMARK_STABILITY_SYMBOLS = ["STONK", "KEKODYSSEUS", "1", "Shrek"];
+export const THESIS_BENCHMARK_FULL_COHORT_PASSES = 1;
+export const THESIS_BENCHMARK_STABILITY_PASSES = 3;
+export const THESIS_BENCHMARK_MAX_CONCURRENCY = 3;
+
 export interface RunThesisBenchmarkOptions {
-  runCount?: number;
+  fullCohortPasses?: number;
+  stabilityPasses?: number;
+  /** Bounded parallelism for challenger requests (1–3). */
+  concurrency?: number;
   /** Restrict the benchmark to a subset of mints (debugging / partial reruns). */
   mints?: string[];
+  /** Legacy uniform pass count; treated as the stability pass count. */
+  runCount?: number;
 }
 
 export async function runThesisModelBenchmark(
   options: RunThesisBenchmarkOptions = {},
 ): Promise<ThesisBenchmarkResult> {
-  const runCount = Math.min(Math.max(options.runCount ?? THESIS_BENCHMARK_RUN_COUNT, 1), 5);
+  const fullCohortPasses = Math.min(
+    Math.max(options.fullCohortPasses ?? THESIS_BENCHMARK_FULL_COHORT_PASSES, 1),
+    3,
+  );
+  const stabilityPasses = Math.min(
+    Math.max(options.stabilityPasses ?? options.runCount ?? THESIS_BENCHMARK_STABILITY_PASSES, 1),
+    5,
+  );
+  const concurrency = Math.min(Math.max(options.concurrency ?? THESIS_BENCHMARK_MAX_CONCURRENCY, 1), 3);
+
 
   const base: ThesisBenchmarkResult = {
     version: THESIS_BENCHMARK_VERSION,
