@@ -49,6 +49,8 @@ export async function loadProductionFunnel(): Promise<ProductionFunnel> {
       aiShortlistMilestoneCount: 0,
       thesisReportCount: 0,
       thesisCallMilestoneCount: 0,
+      entryEvaluatedCount: 0,
+      entryActionableCount: 0,
     };
   }
 
