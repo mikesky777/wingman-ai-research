@@ -183,4 +183,7 @@ export const INITIAL_DEPLOYMENT_PCT = "60–70% of intended maximum";
 export const RESEARCH_DISCLAIMER =
   "Research framework — final sizing decision remains with the trader.";
 export const MOCK_DATA_NOTICE =
-  "Simulated data. Wingman v0 runs on mock research output and does not execute trades.";
+  "Research and scoring only — Wingman does not execute trades.";
+/** Only for genuinely simulated/demo sections, never on live production data. */
+export const SIMULATED_SECTION_NOTICE =
+  "Simulated demo data — not a live scan.";

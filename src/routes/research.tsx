@@ -6,6 +6,8 @@ import { EmptyState } from "@/components/wingman/EmptyState";
 import { Button } from "@/components/ui/button";
 import { InspectToken } from "@/components/wingman/InspectToken";
 import { TriagePanel } from "@/components/wingman/research/TriagePanel";
+import { ProductionFunnelPanel } from "@/components/wingman/research/ProductionFunnelPanel";
+import { ProductionDeepResearchPanel } from "@/components/wingman/research/ProductionDeepResearchPanel";
 import { DeepResearchPanel } from "@/components/wingman/research/DeepResearchPanel";
 import { ThesisPanel } from "@/components/wingman/research/ThesisPanel";
 import { EntryPanel } from "@/components/wingman/research/EntryPanel";
@@ -43,7 +45,11 @@ function ResearchPage() {
       subtitle="Completed deep-research reports. Ad-hoc research requests arrive in a later version."
     >
       <div className="space-y-6">
+        <ProductionFunnelPanel />
+
         <TriagePanel />
+
+        <ProductionDeepResearchPanel />
 
         <DeepResearchPanel />
 
