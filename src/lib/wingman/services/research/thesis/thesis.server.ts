@@ -1034,6 +1034,19 @@ export interface ThesisReportSummary {
   pairAddress: string | null;
   triageRank: number | null;
   sources: { ref: string; url: string | null; title: string | null; independence: string }[];
+  /** thesis_evidence/v2.1 — null on frozen pre-v2.1 reports. */
+  evidenceSemanticsVersion: string | null;
+  positiveEvidence: EvidenceSemantics["positive"];
+  negativeEvidence: EvidenceSemantics["negative"];
+  missingEvidence: EvidenceSemantics["missing"];
+  ambiguousEvidence: EvidenceSemantics["ambiguous"];
+  catalystClassification: string | null;
+  catalystVerificationBasis: string | null;
+  narrativeMaturity: string | null;
+  narrativeMaturityReasons: string[];
+  narrativeSupportCodes: string[];
+  sourceMix: EvidenceSemantics["sourceMix"] | null;
+  gateDiagnostics: GateDiagnostics | null;
 }
 
 /**
