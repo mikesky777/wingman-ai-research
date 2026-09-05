@@ -57,17 +57,35 @@ export function CohortSummaryCards({ summary }: { summary: StageSummary }) {
         detail={`${n(summary.winRate)} · current since entry > 0`}
       />
       {summary.supportsPeakMetrics ? (
-        <StatTile
-          label={`Avg ${terms.maxDd.toLowerCase()}`}
-          value={pct(summary.avgMaxDd)}
-          detail={n(summary.avgMaxDd)}
-        />
+        <>
+          <StatTile
+            label={`Avg ${terms.maxDd.toLowerCase()}`}
+            value={pct(summary.avgMaxDd)}
+            detail={`${n(summary.avgMaxDd)} · peak-to-trough decline`}
+          />
+          <StatTile
+            label={`Median ${terms.maxDd.toLowerCase()}`}
+            value={pct(summary.medianMaxDd)}
+            detail={n(summary.medianMaxDd)}
+          />
+          <StatTile
+            label={`Avg ${terms.worst.toLowerCase()}`}
+            value={pct(summary.avgWorst)}
+            detail={`${n(summary.avgWorst)} · lowest level vs frozen entry`}
+          />
+          <StatTile
+            label={`Median ${terms.worst.toLowerCase()}`}
+            value={pct(summary.medianWorst)}
+            detail={n(summary.medianWorst)}
+          />
+        </>
       ) : null}
       <StatTile
         label="Unique tokens"
         value={summary.sampleSize}
         detail="Repeat scan appearances count once"
       />
+
     </div>
   );
 }
