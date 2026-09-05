@@ -45,6 +45,14 @@ export const refreshEntryState = createServerFn({ method: "POST" })
     return runEntryStateBatch({ mode: data.mode, limit: 1, mints: [data.mint] });
   });
 
+/** How many active-cohort production THESIS_CALLs Entry timing may evaluate now. */
+export const getEntryEligibility = createServerFn({ method: "GET" }).handler(
+  async (): Promise<{ eligible: number }> => {
+    const { loadEntryEligibility } = await import("./services/entry/entry.server");
+    return loadEntryEligibility();
+  },
+);
+
 export const getEntryEvaluations = createServerFn({ method: "GET" })
   .inputValidator((input?: { mode?: "PRODUCTION" | "CALIBRATION" }) => ({
     mode: input?.mode === "CALIBRATION" ? ("calibration" as const) : ("production" as const),
