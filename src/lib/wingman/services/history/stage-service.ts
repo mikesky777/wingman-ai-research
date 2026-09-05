@@ -134,7 +134,7 @@ export const StageMilestoneService = {
             supabase
               .from("scan_candidates")
               .select(
-                "token_id, created_at, recurrence_state, market_cap, liquidity_usd, volume_24h, price_integrity_status, structural_status, participation_status",
+                "token_id, created_at, recurrence_state, market_cap, price_usd, liquidity_usd, volume_24h, price_integrity_status, structural_status, participation_status",
               )
               .in("token_id", ids)
               .order("created_at", { ascending: false })
