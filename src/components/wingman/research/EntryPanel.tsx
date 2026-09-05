@@ -165,7 +165,10 @@ export function EntryPanel({ calibration = false }: { calibration?: boolean } = 
                     ENTRY: {row.state}
                   </Badge>
                   <span className="tabular text-xs text-muted-foreground">
-                    {row.entryScore === null ? "—" : `${row.entryScore.toFixed(1)}/10`}
+                    {/* UNKNOWN means timing cannot be judged — never show a score. */}
+                    {row.state === "UNKNOWN" || row.entryScore === null
+                      ? "Entry score: —"
+                      : `${row.entryScore.toFixed(1)}/10`}
                   </span>
                   <Badge
                     variant="outline"
@@ -216,14 +219,21 @@ export function EntryPanel({ calibration = false }: { calibration?: boolean } = 
                     <DexScreenerEmbed pairAddress={row.pairAddress} contractAddress={row.mint} height={220} />
 
                     <div className="grid gap-1">
-                      {ENTRY_COMPONENTS.map((c) => (
-                        <div key={c.key} className="flex justify-between text-[11px]">
-                          <span className="text-muted-foreground">{c.label}</span>
-                          <span className="tabular">
-                            {row.components ? row.components[c.key].toFixed(2) : "—"} / {c.max}
-                          </span>
-                        </div>
-                      ))}
+                      {row.state === "UNKNOWN" ? (
+                        <p className="text-[11px] text-muted-foreground">
+                          Timing cannot be judged from the available evidence — no component
+                          scores are authoritative for this evaluation.
+                        </p>
+                      ) : (
+                        ENTRY_COMPONENTS.map((c) => (
+                          <div key={c.key} className="flex justify-between text-[11px]">
+                            <span className="text-muted-foreground">{c.label}</span>
+                            <span className="tabular">
+                              {row.components ? row.components[c.key].toFixed(2) : "—"} / {c.max}
+                            </span>
+                          </div>
+                        ))
+                      )}
                     </div>
 
                     <div className="grid gap-2 text-[11px] text-muted-foreground sm:grid-cols-2">

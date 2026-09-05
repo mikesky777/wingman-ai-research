@@ -6,10 +6,14 @@
  * modifies a Thesis Score, Evidence Confidence, position size or trade action.
  */
 import {
+  COARSE_UNSUPPORTED_REASON,
+  CANDLE_GRADE_FEATURES,
   clampComponents,
+  supportsCandleGradeClaims,
   totalEntryScore,
   type DivergenceState,
   type EntryComponentScores,
+  type TimingResolution,
 } from "./contracts";
 import type { TimingFeatures } from "./features";
 
@@ -44,12 +48,29 @@ export interface EntryScoreResult {
   whatWouldBreakEntry: string[];
   evidenceGaps: string[];
   notes: string[];
+  /** v1.1: resolution the score was computed under. */
+  resolution: TimingResolution;
+  /** v1.1: candle-grade fields ignored because the evidence is coarse. */
+  unsupportedFeatures: string[];
 }
 
 const MIN_PRACTICAL_LIQUIDITY = 15_000;
 const COMFORTABLE_LIQUIDITY = 60_000;
 
-export function classifyStructure(f: TimingFeatures): StructureVerdict {
+/**
+ * v1.1: at COARSE resolution only broad trajectory / broad deterioration may
+ * be claimed. Candle-grade structure (higher low, reclaim, compression,
+ * consolidation-bar counting, lower-high sequences) carries zero weight.
+ */
+export function classifyStructure(
+  f: TimingFeatures,
+  resolution: TimingResolution = "HIGH",
+): StructureVerdict {
+  if (!supportsCandleGradeClaims(resolution)) {
+    if (f.drawdownFromHighPct <= -70) return "DETERIORATING";
+    if (f.drawdownFromHighPct <= -40) return "DETERIORATING";
+    return "NEUTRAL";
+  }
   if (f.lowerHighs && f.drawdownFromHighPct <= -35) return "BROKEN";
   if (f.drawdownFromHighPct <= -55 && !f.higherLow) return "BROKEN";
   if (f.lowerHighs) return "DETERIORATING";
@@ -64,16 +85,28 @@ export function classifyStructure(f: TimingFeatures): StructureVerdict {
   return "NEUTRAL";
 }
 
-export function classifyExtension(f: TimingFeatures, context: EntryContext): ExtensionVerdict {
+/** COARSE evidence may still support APPROXIMATE extension (distance from base). */
+export function classifyExtension(
+  f: TimingFeatures,
+  context: EntryContext,
+  resolution: TimingResolution = "HIGH",
+): ExtensionVerdict {
+  const highRes = supportsCandleGradeClaims(resolution);
   const change1h = context.priceChange1h;
-  if (f.verticalExpansion || (typeof change1h === "number" && change1h >= 60 && f.barsSinceHigh <= 1)) {
+  if (
+    (highRes && f.verticalExpansion) ||
+    (typeof change1h === "number" && change1h >= 60 && f.barsSinceHigh <= 1)
+  ) {
     return "PARABOLIC";
   }
   if (f.distanceFromBasePct >= 120 && f.barsSinceHigh <= 2) return "PARABOLIC";
-  if (f.distanceFromBasePct >= 60 && f.consolidationBars < 3) return "STRETCHED";
+  if (f.distanceFromBasePct >= 60 && (!highRes || f.consolidationBars < 3)) return "STRETCHED";
   if (
     f.distanceFromBasePct <= 25 ||
-    (f.retracementDepthPct !== null && f.retracementDepthPct >= 30 && f.retracementDepthPct <= 70)
+    (highRes &&
+      f.retracementDepthPct !== null &&
+      f.retracementDepthPct >= 30 &&
+      f.retracementDepthPct <= 70)
   ) {
     return "RESET";
   }
@@ -84,15 +117,24 @@ export function scoreEntry(args: {
   features: TimingFeatures;
   context: EntryContext;
   divergence: DivergenceState;
+  /** v1.1 resolution firewall. Defaults to HIGH (candle-derived features). */
+  resolution?: TimingResolution;
 }): EntryScoreResult {
   const { features: f, context, divergence } = args;
+  const resolution: TimingResolution = args.resolution ?? "HIGH";
+  const highRes = supportsCandleGradeClaims(resolution);
+  const unsupportedFeatures = highRes
+    ? []
+    : CANDLE_GRADE_FEATURES.map((k) => `${k}:${COARSE_UNSUPPORTED_REASON}`);
   const notes: string[] = [];
   const gaps: string[] = [...f.gaps];
   const improve: string[] = [];
   const breaks: string[] = [];
+  if (!highRes) gaps.push("CANDLE_GRADE_FEATURES_UNSUPPORTED_AT_COARSE_RESOLUTION");
 
-  const structureVerdict = classifyStructure(f);
-  const extensionVerdict = classifyExtension(f, context);
+  const structureVerdict = classifyStructure(f, resolution);
+  const extensionVerdict = classifyExtension(f, context, resolution);
+
 
   // ---- Structure 0–3 -------------------------------------------------
   let structure = 1;
@@ -100,19 +142,23 @@ export function scoreEntry(args: {
   if (structureVerdict === "NEUTRAL") structure = 1.5;
   if (structureVerdict === "DETERIORATING") structure = 0.5;
   if (structureVerdict === "BROKEN") structure = 0;
-  if (f.higherLow && structureVerdict === "CONSTRUCTIVE") {
+  if (highRes && f.higherLow && structureVerdict === "CONSTRUCTIVE") {
     structure += 0.5;
     notes.push("Higher low in place");
   }
-  if (f.reclaimHolding) {
+  if (highRes && f.reclaimHolding) {
     structure += 0.5;
     notes.push("Reclaim holding above the derived base");
   }
-  if (f.compressionRatio !== null && f.compressionRatio <= 0.6) {
+  if (highRes && f.compressionRatio !== null && f.compressionRatio <= 0.6) {
     structure += 0.25;
     notes.push("Range compressing versus the earlier window");
   }
-  if (f.lowerHighs) breaks.push("A further lower high confirming the downtrend");
+  if (highRes && f.lowerHighs) breaks.push("A further lower high confirming the downtrend");
+  if (!highRes) {
+    notes.push("Broad trajectory only — coarse observations cannot prove candle-grade structure");
+    improve.push("Candle-resolution history that can confirm or deny a higher low");
+  }
 
   // ---- Extension 0–3 -------------------------------------------------
   let extension = 1.5;
@@ -121,6 +167,7 @@ export function scoreEntry(args: {
   if (extensionVerdict === "STRETCHED") extension = 0.75;
   if (extensionVerdict === "PARABOLIC") extension = 0.25;
   if (
+    highRes &&
     f.retracementDepthPct !== null &&
     f.retracementDepthPct >= 25 &&
     f.retracementDepthPct <= 65 &&
@@ -129,7 +176,7 @@ export function scoreEntry(args: {
     extension += 0.5;
     notes.push(`Controlled ${Math.round(f.retracementDepthPct)}% retracement of the last impulse`);
   }
-  if (f.consolidationBars >= 5 && extensionVerdict !== "PARABOLIC") {
+  if (highRes && f.consolidationBars >= 5 && extensionVerdict !== "PARABOLIC") {
     extension += 0.25;
     notes.push(`${f.consolidationBars} bars of digestion since the last expansion`);
   }
@@ -138,21 +185,34 @@ export function scoreEntry(args: {
   }
 
   // ---- Volume / order flow 0–2 ---------------------------------------
+  // v1.1: order-flow quality is judged on its OWN merits. Volume disappearing
+  // is a flow failure whether or not price has already fallen — flat price on
+  // dead volume is stagnation, not controlled consolidation. Low volume alone
+  // still never forces BROKEN; it only lowers this component and confirmations.
   let volumeFlow = 1;
   if (f.volumeTrendRatio === null) {
     volumeFlow = 0.75;
     gaps.push("VOLUME_TREND_UNAVAILABLE");
+  } else if (f.volumeTrendRatio <= 0.1) {
+    volumeFlow = 0.1;
+    notes.push("Trading activity has all but disappeared");
+    breaks.push("Order flow staying near zero");
+  } else if (f.volumeTrendRatio < 0.35) {
+    volumeFlow = 0.25;
+    notes.push("Order flow decaying sharply versus the earlier window");
+    breaks.push("Continued volume decay");
+  } else if (f.volumeTrendRatio < 0.6) {
+    volumeFlow = 0.75;
   } else if (f.volumeTrendRatio >= 1.2 && f.drawdownFromHighPct >= -25) {
     volumeFlow = 1.5;
     notes.push("Participation renewing without a price blowoff");
-  } else if (f.volumeTrendRatio < 0.35 && f.drawdownFromHighPct <= -20) {
-    volumeFlow = 0.25;
-    notes.push("Volume dying alongside price");
-    breaks.push("Continued volume decay with price making new lows");
-  } else if (f.volumeTrendRatio < 0.6) {
-    volumeFlow = 0.75;
   }
-  if (f.consolidationVolumeRatio !== null && f.consolidationVolumeRatio >= 0.35 && f.consolidationBars >= 3) {
+  if (
+    highRes &&
+    f.consolidationVolumeRatio !== null &&
+    f.consolidationVolumeRatio >= 0.35 &&
+    f.consolidationBars >= 3
+  ) {
     volumeFlow += 0.25;
     notes.push("Participation sustained through the consolidation");
   }
@@ -171,6 +231,12 @@ export function scoreEntry(args: {
     volumeFlow -= 0.25;
     notes.push("Price accelerating while participation fails to broaden");
   }
+  // v1.1 divergence safety: contextual credit can never lift collapsed flow
+  // back into constructive territory.
+  if (f.volumeTrendRatio !== null && f.volumeTrendRatio < 0.35) {
+    volumeFlow = Math.min(volumeFlow, 0.5);
+  }
+
 
   // ---- Risk definition 0–2 -------------------------------------------
   let riskDefinition = 0.5;
@@ -187,14 +253,14 @@ export function scoreEntry(args: {
   }
 
   const hasNearbyInvalidation =
-    (f.higherLow || f.consolidationBars >= 3) && f.distanceFromBasePct <= 80;
+    highRes && (f.higherLow || f.consolidationBars >= 3) && f.distanceFromBasePct <= 80;
   if (hasNearbyInvalidation) {
     riskDefinition += 0.6;
     notes.push("Nearby structural level gives a coherent invalidation");
   } else {
     improve.push("A defined higher low that bounds entry risk");
   }
-  if (f.realizedVolatilityPct >= 12) {
+  if (highRes && f.realizedVolatilityPct >= 12) {
     riskDefinition -= 0.35;
     notes.push("Highly discontinuous price action widens practical risk");
   }
@@ -208,7 +274,8 @@ export function scoreEntry(args: {
   if (extensionVerdict === "RESET") confirmations += 1;
   if (components.volumeFlow >= 1.25) confirmations += 1;
   if (components.riskDefinition >= 1.5) confirmations += 1;
-  if (divergence === "POSITIVE") confirmations += 1;
+  // Divergence stays contextual: it only confirms when order flow is alive.
+  if (divergence === "POSITIVE" && components.volumeFlow >= 0.75) confirmations += 1;
 
   if (context.damageStatus === "UNKNOWN") gaps.push("RECENT_MARKET_DAMAGE_UNKNOWN");
   if (context.researchAgeHours !== null && context.researchAgeHours > 48) {
@@ -254,6 +321,8 @@ export function scoreEntry(args: {
     whatWouldBreakEntry: [...new Set(breaks)].slice(0, 5),
     evidenceGaps: [...new Set(gaps)],
     notes,
+    resolution,
+    unsupportedFeatures,
   };
 }
 

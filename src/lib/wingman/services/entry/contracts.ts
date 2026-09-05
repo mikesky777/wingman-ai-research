@@ -16,8 +16,45 @@
  *     to change the state or any component score.
  */
 
-export const ENTRY_POLICY_VERSION = "entry_state/v1";
+export const ENTRY_POLICY_VERSION = "entry_state/v1.1";
 export const ENTRY_FEATURE_VERSION = "entry_features/v1";
+
+/** Where the timing price series came from. */
+export type PriceHistorySource = "CANDLES" | "WINGMAN_OBSERVATIONS" | "NONE";
+/** How precise that timing evidence is. */
+export type TimingResolution = "HIGH" | "COARSE" | "INSUFFICIENT";
+
+/**
+ * v1.1 resolution firewall.
+ *
+ * HIGH (candles) may prove candle-grade structure: breakout/reclaim, retest,
+ * higher low, lower-high sequences, compression, consolidation-bar counting,
+ * candle volume contraction/expansion, realized volatility, precise extension,
+ * wick rejection.
+ *
+ * COARSE (irregular Wingman observations) may prove ONLY broad claims: broad
+ * trajectory, broad stability/deterioration, approximate extension, broad
+ * volume/participation trend, broad liquidity condition, broad attention-price
+ * divergence. Candle-grade fields are still computed for diagnostics but carry
+ * ZERO decision weight and are tagged UNSUPPORTED_AT_COARSE_RESOLUTION.
+ */
+export const CANDLE_GRADE_FEATURES = [
+  "consolidationBars",
+  "compressionRatio",
+  "consolidationVolumeRatio",
+  "realizedVolatilityPct",
+  "higherLow",
+  "lowerHighs",
+  "reclaimHolding",
+  "retracementDepthPct",
+  "verticalExpansion",
+] as const;
+
+export const COARSE_UNSUPPORTED_REASON = "UNSUPPORTED_AT_COARSE_RESOLUTION";
+
+export function supportsCandleGradeClaims(resolution: TimingResolution): boolean {
+  return resolution === "HIGH";
+}
 
 export const ENTRY_STATES_V1 = [
   "WATCH",
@@ -166,6 +203,93 @@ export function assessEntryEligibility(input: EntryEligibilityInput): EntryEligi
   return { actionable: reasons.length === 0, evidenceUsable, reasons };
 }
 
+/**
+ * v1.1 composite collapse override.
+ *
+ * A single coarse constructive feature (a "higher low" read off two sparse
+ * observations) must never outrank catastrophic damage confirmed across
+ * several INDEPENDENT dimensions. Only dimensions with actual evidence count —
+ * a missing input is never damage, so missing data still routes to UNKNOWN.
+ */
+export interface EntryDamageInput {
+  drawdownFromHighPct: number | null;
+  riseFromLowPct: number | null;
+  volumeTrendRatio: number | null;
+  liquidityUsd: number | null;
+  reclaimHolding: boolean;
+  /** Candle-grade reclaim/higher-low evidence is ignored at COARSE resolution. */
+  resolution: TimingResolution;
+}
+
+export interface EntryDamageResult {
+  collapsed: boolean;
+  dimensions: string[];
+  reasons: string[];
+}
+
+export const ENTRY_DAMAGE = {
+  deepDrawdownPct: -80,
+  severeDrawdownPct: -60,
+  collapsedVolumeRatio: 0.1,
+  weakVolumeRatio: 0.25,
+  veryLowLiquidityUsd: 5_000,
+  lowLiquidityUsd: 15_000,
+  meaningfulRecoveryPct: 30,
+} as const;
+
+export function assessEntryDamage(input: EntryDamageInput): EntryDamageResult {
+  const dimensions: string[] = [];
+  const reasons: string[] = [];
+
+  const dd = input.drawdownFromHighPct;
+  if (dd !== null && dd <= ENTRY_DAMAGE.deepDrawdownPct) {
+    dimensions.push("DEEP_DRAWDOWN_FROM_WINDOW_HIGH");
+    reasons.push(`DRAWDOWN_${dd.toFixed(1)}PCT`);
+  } else if (dd !== null && dd <= ENTRY_DAMAGE.severeDrawdownPct) {
+    dimensions.push("SEVERE_DRAWDOWN_FROM_WINDOW_HIGH");
+    reasons.push(`DRAWDOWN_${dd.toFixed(1)}PCT`);
+  }
+
+  const vr = input.volumeTrendRatio;
+  if (vr !== null && vr <= ENTRY_DAMAGE.collapsedVolumeRatio) {
+    dimensions.push("COLLAPSED_RELATIVE_VOLUME");
+    reasons.push(`VOLUME_TREND_${vr.toFixed(2)}X`);
+  } else if (vr !== null && vr <= ENTRY_DAMAGE.weakVolumeRatio) {
+    dimensions.push("SEVERELY_REDUCED_RELATIVE_VOLUME");
+    reasons.push(`VOLUME_TREND_${vr.toFixed(2)}X`);
+  }
+
+  const liq = input.liquidityUsd;
+  if (liq !== null && liq < ENTRY_DAMAGE.veryLowLiquidityUsd) {
+    dimensions.push("VERY_LOW_LIQUIDITY");
+    reasons.push(`LIQUIDITY_${Math.round(liq)}USD`);
+  } else if (liq !== null && liq < ENTRY_DAMAGE.lowLiquidityUsd) {
+    dimensions.push("LOW_LIQUIDITY");
+    reasons.push(`LIQUIDITY_${Math.round(liq)}USD`);
+  }
+
+  // Lack of meaningful recovery only counts when there IS a measured drawdown.
+  const reclaimUsable = supportsCandleGradeClaims(input.resolution) && input.reclaimHolding;
+  if (
+    dd !== null &&
+    dd <= ENTRY_DAMAGE.severeDrawdownPct &&
+    input.riseFromLowPct !== null &&
+    input.riseFromLowPct < ENTRY_DAMAGE.meaningfulRecoveryPct &&
+    !reclaimUsable
+  ) {
+    dimensions.push("NO_MEANINGFUL_RECOVERY");
+    reasons.push(`RISE_FROM_LOW_${input.riseFromLowPct.toFixed(1)}PCT`);
+  }
+
+  // Composite rule: catastrophic damage requires at least one severe dimension
+  // plus corroboration from a second independent dimension.
+  const severe = dimensions.some((d) =>
+    ["DEEP_DRAWDOWN_FROM_WINDOW_HIGH", "COLLAPSED_RELATIVE_VOLUME", "VERY_LOW_LIQUIDITY"].includes(d),
+  );
+  const collapsed = severe && dimensions.length >= 2;
+  return { collapsed, dimensions, reasons };
+}
+
 export interface EntryMappingInput {
   components: EntryComponentScores;
   total: number;
@@ -182,6 +306,10 @@ export interface EntryMappingInput {
   damageFail: boolean;
   /** Enough candle history to make a structural judgement at all. */
   hasStructuralHistory: boolean;
+  /** v1.1: resolution of the timing evidence behind the components. */
+  resolution?: TimingResolution;
+  /** v1.1: composite collapse evidence. */
+  damage?: EntryDamageResult;
 }
 
 export interface EntryMappingResult {
@@ -213,9 +341,24 @@ export function mapEntryState(input: EntryMappingInput): EntryMappingResult {
     return { state: "BROKEN", reasons: ["RECENT_MARKET_DAMAGE_FAIL"] };
   }
 
+  // v1.1 collapse override: multi-dimensional confirmed damage outranks any
+  // single constructive feature. Only real negative evidence reaches here.
+  if (input.damage?.collapsed) {
+    return {
+      state: "BROKEN",
+      reasons: [
+        "COLLAPSE_OVERRIDE_MULTI_DIMENSIONAL_DAMAGE",
+        ...input.damage.dimensions,
+        ...input.damage.reasons,
+      ],
+    };
+  }
+
   if (input.extensionVerdict === "PARABOLIC" || input.components.extension <= 0.5) {
     return { state: "EXTENDED", reasons: ["ENTRY_REQUIRES_CHASING"] };
   }
+
+  const coarse = input.resolution !== undefined && !supportsCandleGradeClaims(input.resolution);
 
   if (
     input.total >= 7.5 &&
@@ -225,21 +368,47 @@ export function mapEntryState(input: EntryMappingInput): EntryMappingResult {
     input.confirmations >= 3 &&
     input.divergence !== "NEGATIVE"
   ) {
-    return { state: "BUY_ZONE", reasons: ["MULTIPLE_CONFIRMATIONS_WITH_DEFINED_RISK"] };
+    if (!coarse) {
+      return { state: "BUY_ZONE", reasons: ["MULTIPLE_CONFIRMATIONS_WITH_DEFINED_RISK"] };
+    }
+    // v1.1 resolution gate: coarse observations cannot prove candle-grade
+    // entry structure, so BUY_ZONE is unavailable. Cap at SETTING_UP only when
+    // the broad evidence genuinely supports constructive timing.
+    const broadlyConstructive =
+      input.structureVerdict === "CONSTRUCTIVE" && input.components.volumeFlow >= 1;
+    return {
+      state: broadlyConstructive ? "SETTING_UP" : "WATCH",
+      reasons: [
+        "BUY_ZONE_REQUIRES_HIGH_RESOLUTION",
+        broadlyConstructive
+          ? "BROAD_EVIDENCE_SUPPORTS_CONSTRUCTIVE_TIMING"
+          : "BROAD_EVIDENCE_INSUFFICIENT_FOR_CONSTRUCTIVE_TIMING",
+      ],
+    };
   }
+
+  // v1.1: a single severe damage dimension is not enough to call the setup
+  // BROKEN, but it does disqualify constructive or "reasonable" timing.
+  const severeSingleDamage = (input.damage?.dimensions ?? []).some((d) =>
+    /^(DEEP_DRAWDOWN|COLLAPSED_RELATIVE_VOLUME|VERY_LOW_LIQUIDITY)/.test(d),
+  );
 
   if (
     input.total >= 6 &&
     (input.structureVerdict === "CONSTRUCTIVE" || input.structureVerdict === "NEUTRAL") &&
-    input.confirmations >= 2
+    input.confirmations >= 2 &&
+    !severeSingleDamage
   ) {
     return { state: "SETTING_UP", reasons: ["CONDITIONS_IMPROVING_WITHOUT_FULL_CONFIRMATION"] };
   }
 
+
   if (
     input.total >= 4.5 &&
     input.structureVerdict !== "DETERIORATING" &&
-    input.components.riskDefinition >= 1
+    input.components.riskDefinition >= 1 &&
+    input.components.volumeFlow >= 0.5 &&
+    !severeSingleDamage
   ) {
     return { state: "ACCEPTABLE", reasons: ["REASONABLE_BUT_NOT_UNUSUALLY_ATTRACTIVE"] };
   }

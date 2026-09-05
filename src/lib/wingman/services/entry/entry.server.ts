@@ -19,12 +19,16 @@ import { refreshTokenMarket } from "../market-refresh.server";
 import {
   ENTRY_FEATURE_VERSION,
   ENTRY_POLICY_VERSION,
+  assessEntryDamage,
   assessEntryEligibility,
   classifyDivergence,
   mapEntryState,
+  supportsCandleGradeClaims,
   type DivergenceResult,
   type EntryComponentScores,
   type EntryStateV1,
+  type PriceHistorySource,
+  type TimingResolution,
 } from "./contracts";
 import { computeTimingFeatures, type EntryCandle, type TimingFeatures } from "./features";
 import { buildRationale, scoreEntry, type EntryContext } from "./scoring";
@@ -572,7 +576,37 @@ async function evaluateOne(args: {
       : null,
   };
 
-  const score = features ? scoreEntry({ features, context, divergence: divergence.state }) : null;
+  // v1.1: provenance and resolution are decided BEFORE scoring, because the
+  // resolution decides which timing claims the evidence may support at all.
+  const priceHistorySource: PriceHistorySource =
+    featureSource === "CANDLES" && features
+      ? "CANDLES"
+      : featureSource === "SNAPSHOT_SERIES"
+        ? "WINGMAN_OBSERVATIONS"
+        : "NONE";
+  const timingResolution: TimingResolution =
+    !features || !eligibility.evidenceUsable
+      ? "INSUFFICIENT"
+      : priceHistorySource === "CANDLES"
+        ? "HIGH"
+        : priceHistorySource === "WINGMAN_OBSERVATIONS"
+          ? "COARSE"
+          : "INSUFFICIENT";
+
+  const score = features
+    ? scoreEntry({ features, context, divergence: divergence.state, resolution: timingResolution })
+    : null;
+
+  const entryDamage = features
+    ? assessEntryDamage({
+        drawdownFromHighPct: features.drawdownFromHighPct,
+        riseFromLowPct: features.riseFromLowPct,
+        volumeTrendRatio: features.volumeTrendRatio,
+        liquidityUsd: market.liquidityUsd,
+        reclaimHolding: features.reclaimHolding,
+        resolution: timingResolution,
+      })
+    : { collapsed: false, dimensions: [], reasons: [] };
 
   const mapping = mapEntryState({
     components: score?.components ?? { structure: 0, extension: 0, volumeFlow: 0, riskDefinition: 0 },
@@ -584,7 +618,14 @@ async function evaluateOne(args: {
     evidenceUsable: eligibility.evidenceUsable,
     damageFail: damage.status === "FAIL",
     hasStructuralHistory: features !== null,
+    resolution: timingResolution,
+    damage: entryDamage,
   });
+
+  // v1.1: UNKNOWN means "cannot responsibly judge timing". Component values
+  // stay as non-authoritative diagnostics; they are NOT persisted as a score.
+  const authoritative = mapping.state !== "UNKNOWN";
+  const authoritativeScore = authoritative ? score : null;
 
   const previous = await previousEvaluation(input.mint);
   const changed = !previous || previous.state !== mapping.state;
@@ -594,22 +635,10 @@ async function evaluateOne(args: {
   if (!features) gaps.push("PRICE_HISTORY_INSUFFICIENT");
   if (!market.valid) gaps.push("CURRENT_MARKET_EVIDENCE_UNAVAILABLE");
 
-  // Timing-evidence provenance is first-class: Entry must state WHERE its price
-  // history came from and how precise it is. Missing/stale evidence → UNKNOWN.
-  const priceHistorySource: "CANDLES" | "WINGMAN_OBSERVATIONS" | "NONE" =
-    featureSource === "CANDLES" && features
-      ? "CANDLES"
-      : featureSource === "SNAPSHOT_SERIES"
-        ? "WINGMAN_OBSERVATIONS"
-        : "NONE";
-  const timingResolution: "HIGH" | "COARSE" | "INSUFFICIENT" =
-    !features || !eligibility.evidenceUsable
-      ? "INSUFFICIENT"
-      : priceHistorySource === "CANDLES"
-        ? "HIGH"
-        : priceHistorySource === "WINGMAN_OBSERVATIONS"
-          ? "COARSE"
-          : "INSUFFICIENT";
+  if (!supportsCandleGradeClaims(timingResolution) && features) {
+    gaps.push("CANDLE_GRADE_CLAIMS_UNSUPPORTED");
+  }
+  gaps.push(...entryDamage.dimensions);
 
   const rationale =
     features && score
@@ -638,12 +667,12 @@ async function evaluateOne(args: {
       state: mapping.state,
       previous_state: previous?.state ?? null,
       state_changed_at: stateChangedAt,
-      entry_score: score?.total ?? null,
-      score_structure: score?.components.structure ?? null,
-      score_extension: score?.components.extension ?? null,
-      score_volume_flow: score?.components.volumeFlow ?? null,
-      score_risk_definition: score?.components.riskDefinition ?? null,
-      component_scores: (score?.components ?? null) as never,
+      entry_score: authoritativeScore?.total ?? null,
+      score_structure: authoritativeScore?.components.structure ?? null,
+      score_extension: authoritativeScore?.components.extension ?? null,
+      score_volume_flow: authoritativeScore?.components.volumeFlow ?? null,
+      score_risk_definition: authoritativeScore?.components.riskDefinition ?? null,
+      component_scores: (authoritativeScore?.components ?? null) as never,
       timing_features: (features ?? null) as never,
       price_history_source: priceHistorySource,
       timing_resolution: timingResolution,
@@ -686,6 +715,12 @@ async function evaluateOne(args: {
         historyError,
         notes: score?.notes ?? [],
         asOf,
+        // Non-authoritative when the state is UNKNOWN.
+        diagnosticComponents: score?.components ?? null,
+        diagnosticEntryScore: score?.total ?? null,
+        componentsAuthoritative: authoritative,
+        unsupportedFeatures: score?.unsupportedFeatures ?? [],
+        damageOverride: entryDamage,
       } as never,
     })
     .select("id")
@@ -701,8 +736,8 @@ async function evaluateOne(args: {
       name: input.name,
       state: mapping.state,
       previousState: previous?.state ?? null,
-      entryScore: score?.total ?? null,
-      components: score?.components ?? null,
+      entryScore: authoritativeScore?.total ?? null,
+      components: authoritativeScore?.components ?? null,
       divergence: divergence.state,
       priceHistorySource,
       timingResolution,
