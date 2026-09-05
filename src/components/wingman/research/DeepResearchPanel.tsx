@@ -249,6 +249,17 @@ export function DeepResearchPanel() {
                           ? `${r.unresolvedDomains.join(", ")} — unknown, not negative.`
                           : "None."}
                       </p>
+                      {(r.dossier?.domains ?? []).some((d) => d.unresolvedReason) ? (
+                        <ul className="mt-1.5 space-y-1 text-[11px] text-muted-foreground">
+                          {(r.dossier?.domains ?? [])
+                            .filter((d) => d.unresolvedReason)
+                            .map((d) => (
+                              <li key={d.domain} className="tabular">
+                                {d.domain}: {d.unresolvedReason}
+                              </li>
+                            ))}
+                        </ul>
+                      ) : null}
                     </div>
 
                     {r.dossier?.unresolvedQuestions?.length ? (
@@ -281,6 +292,11 @@ export function DeepResearchPanel() {
                             >
                               {s.independence ?? "UNKNOWN"}
                             </Badge>
+                            {s.onChainMirror ? (
+                              <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                                ON-CHAIN MIRROR
+                              </Badge>
+                            ) : null}
                             <span className="text-muted-foreground">
                               {s.mintVerified ? "mint-verified" : "ticker match"}
                             </span>
