@@ -199,6 +199,7 @@ describe("opportunity policy", () => {
     verdict: "STRONG_THESIS" as const,
     bearSeverity: "LOW" as const,
     independentSourceCount: 4,
+    distinctIndependentEvidenceOrigins: 3,
     eligibleNow: true,
   };
 
@@ -208,7 +209,12 @@ describe("opportunity policy", () => {
     expect(qualifiesAsOpportunity({ ...good, thesisScore: 62 })).toBe(false);
     expect(qualifiesAsOpportunity({ ...good, evidenceConfidence: 40 })).toBe(false);
     expect(qualifiesAsOpportunity({ ...good, bearSeverity: "HIGH" })).toBe(false);
-    expect(qualifiesAsOpportunity({ ...good, independentSourceCount: 0 })).toBe(false);
+    expect(
+      qualifiesAsOpportunity({ ...good, distinctIndependentEvidenceOrigins: 1 }),
+    ).toBe(false);
+    expect(
+      qualifiesAsOpportunity({ ...good, distinctIndependentEvidenceOrigins: null }),
+    ).toBe(false);
   });
 
   it("never force-fills the shortlist and never exceeds 5", () => {
