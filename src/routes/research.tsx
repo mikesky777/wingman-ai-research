@@ -30,13 +30,10 @@ export const Route = createFileRoute("/research")({
 });
 
 function ResearchPage() {
-  const { data: reports = [] } = useOpportunities();
-
-
   return (
     <AppShell
       title="Research"
-      subtitle="Production pipeline: TRIAGE → DEEP RESEARCH → THESIS → ENTRY. Calibration tools live in Settings → Calibration Lab and never affect anything shown here."
+      subtitle="Production pipeline: TRIAGE → DEEP RESEARCH → THESIS → THESIS CALLS → ENTRY. Calibration tools live in Settings → Calibration Lab and never affect anything shown here."
     >
       <div className="space-y-6">
         <ProductionFunnelPanel />
@@ -47,46 +44,9 @@ function ResearchPage() {
 
         <ThesisPanel />
 
-        <EntryPanel />
+        <ThesisCallsPanel />
 
-        <Section title="Completed Reports">
-          {reports.length === 0 ? (
-            <EmptyState
-              icon={<FlaskConical className="size-4" />}
-              title="No research reports yet"
-              description="Reports appear here once a scan promotes candidates into the deep-research stage."
-            />
-          ) : (
-            <ul className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {reports.map((o) => (
-                <li key={o.id} className="rounded-md border border-border bg-surface/60 p-4">
-                  <div className="flex items-baseline justify-between gap-3">
-                    <span className="text-sm font-semibold">
-                      {o.token.name}{" "}
-                      <span className="text-muted-foreground">· {o.token.ticker}</span>
-                    </span>
-                    <span className="tabular text-xs text-muted-foreground">
-                      {o.thesisScore}/100
-                    </span>
-                  </div>
-                  <p className="mt-2 line-clamp-3 text-xs leading-relaxed text-muted-foreground">
-                    {o.report.verdict}
-                  </p>
-                  <div className="mt-3 flex items-center justify-between">
-                    <span className="text-[11px] text-muted-foreground">
-                      {relativeTime(o.report.generatedAt)}
-                    </span>
-                    <Button variant="outline" size="sm" asChild>
-                      <Link to="/token/$tokenId" params={{ tokenId: o.id }}>
-                        Open report
-                      </Link>
-                    </Button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Section>
+        <EntryPanel />
 
         <Section
           title="Inspect Token"
