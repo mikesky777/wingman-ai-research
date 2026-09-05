@@ -14,7 +14,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Section } from "@/components/wingman/Section";
 import { EmptyState } from "@/components/wingman/EmptyState";
-import { getThesisReports, runThesisSynthesisBatch } from "@/lib/wingman/thesis.functions";
+import {
+  getThesisProgress,
+  getThesisReports,
+  runThesisSynthesisBatch,
+} from "@/lib/wingman/thesis.functions";
+
 import { TokenIdentity } from "@/components/wingman/TokenIdentity";
 import { componentsForRubric } from "@/lib/wingman/services/research/thesis/contracts";
 import { relativeTime, formatUsd } from "@/lib/wingman/format";
@@ -42,6 +47,7 @@ function short(mint: string): string {
 export function ThesisPanel({ calibration = false }: { calibration?: boolean } = {}) {
   const queryClient = useQueryClient();
   const fetchReports = useServerFn(getThesisReports);
+  const fetchProgress = useServerFn(getThesisProgress);
   const startRun = useServerFn(runThesisSynthesisBatch);
   const [openId, setOpenId] = useState<string | null>(null);
   const mode: "PRODUCTION" | "CALIBRATION" = calibration ? "CALIBRATION" : "PRODUCTION";
@@ -51,12 +57,27 @@ export function ThesisPanel({ calibration = false }: { calibration?: boolean } =
     queryFn: () => fetchReports({ data: { mode } }),
   });
 
+  const { data: progress } = useQuery({
+    queryKey: ["thesis", "progress"],
+    queryFn: () => fetchProgress(),
+    enabled: !calibration,
+  });
+
   const mutation = useMutation({
-    mutationFn: (mode: "PRODUCTION" | "CALIBRATION") => startRun({ data: { mode, limit: 3 } }),
+    mutationFn: (mode: "PRODUCTION" | "CALIBRATION") =>
+      startRun({ data: mode === "CALIBRATION" ? { mode, limit: 3 } : { mode } }),
     onSuccess: (result) => {
       if (result.code === "NO_DEEP_RESEARCH_REPORTS") {
         toast.warning("No research dossiers", {
           description: "Thesis Synthesis consumes completed Deep Research reports.",
+        });
+      } else if (result.code === "NO_ELIGIBLE_CANDIDATES") {
+        toast.info("Nothing left to synthesize", {
+          description: "Every eligible candidate in this cohort already has a thesis report.",
+        });
+      } else if (result.code === "THESIS_INPUT_PROVENANCE_MISMATCH") {
+        toast.error("THESIS_INPUT_PROVENANCE_MISMATCH", {
+          description: "Inputs did not resolve to the active scan and triage run. Nothing was spent.",
         });
       } else if (result.code === "MISSING_API_KEY") {
         toast.error("Synthesis model unavailable");
@@ -65,7 +86,8 @@ export function ThesisPanel({ calibration = false }: { calibration?: boolean } =
           `${result.isCalibration ? "Calibration" : "Synthesis"} finished — ${result.completed} theses, ${result.insufficient} insufficient evidence, ${result.blocked} blocked, ${result.opportunities} qualified`,
         );
       }
-      void queryClient.invalidateQueries({ queryKey: ["thesis", "reports"] });
+      void queryClient.invalidateQueries({ queryKey: ["thesis"] });
+      void queryClient.invalidateQueries({ queryKey: ["research", "production-funnel"] });
     },
     onError: (error: unknown) => {
       toast.error("Thesis synthesis failed", {
@@ -75,6 +97,7 @@ export function ThesisPanel({ calibration = false }: { calibration?: boolean } =
   });
 
   const run = useCallback((mode: "PRODUCTION" | "CALIBRATION") => mutation.mutate(mode), [mutation]);
+  const pending = progress?.pending ?? 0;
 
   return (
     <Section
@@ -97,18 +120,38 @@ export function ThesisPanel({ calibration = false }: { calibration?: boolean } =
               Dry run (3)
             </Button>
           ) : (
-            <Button size="sm" disabled={mutation.isPending} onClick={() => run("PRODUCTION")}>
-              {mutation.isPending ? (
-                <Loader2 className="size-3.5 animate-spin" />
-              ) : (
-                <Brain className="size-3.5" />
-              )}
-              Synthesize shortlist
-            </Button>
+            <>
+              {progress ? (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <Badge variant="outline" className="tabular text-[10px]">
+                    Synthesized {progress.synthesized} / {progress.eligible}
+                  </Badge>
+                  <Badge variant="outline" className="tabular text-[10px]">
+                    Pending {progress.pending}
+                  </Badge>
+                  <Badge variant="outline" className="tabular text-[10px]">
+                    Thesis Calls {progress.thesisCalls}
+                  </Badge>
+                </div>
+              ) : null}
+              <Button
+                size="sm"
+                disabled={mutation.isPending || (progress ? pending === 0 : false)}
+                onClick={() => run("PRODUCTION")}
+              >
+                {mutation.isPending ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <Brain className="size-3.5" />
+                )}
+                Synthesize shortlist{pending > 0 ? ` (${pending})` : ""}
+              </Button>
+            </>
           )}
         </div>
       }
     >
+
       {isLoading ? (
         <p className="text-xs text-muted-foreground">Loading thesis reports…</p>
       ) : reports.length === 0 ? (

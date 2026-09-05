@@ -144,3 +144,52 @@ export async function loadCohortThesisReportIds(
       .filter((v): v is string => Boolean(v)),
   };
 }
+
+export interface CohortThesisReportRef {
+  id: string;
+  mint: string;
+  status: string;
+  thesisCallMilestoneId: string | null;
+  createdAt: string;
+}
+
+/**
+ * Every production thesis report for one exact triage run, across ALL synthesis
+ * runs of that cohort, deduplicated to the newest settled report per mint.
+ *
+ * A production cohort is synthesised in batches, so a cohort is the union of
+ * its synthesis runs — never just the newest one.
+ */
+export async function loadCohortThesisReports(
+  triageRunId: string,
+): Promise<CohortThesisReportRef[]> {
+  const { data, error } = await supabaseAdmin
+    .from("thesis_reports")
+    .select("id, mint, status, thesis_call_milestone_id, created_at")
+    .eq("triage_run_id", triageRunId)
+    .eq("is_calibration", false)
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  const rows = (data as Row[]) ?? [];
+  const byMint = new Map<string, CohortThesisReportRef>();
+  for (const r of rows) {
+    const mint = r["mint"] as string;
+    const ref: CohortThesisReportRef = {
+      id: r["id"] as string,
+      mint,
+      status: (r["status"] as string) ?? "unknown",
+      thesisCallMilestoneId: (r["thesis_call_milestone_id"] as string) ?? null,
+      createdAt: (r["created_at"] as string) ?? "",
+    };
+    const existing = byMint.get(mint);
+    if (!existing) byMint.set(mint, ref);
+    else if (existing.status === "failed" && ref.status !== "failed") byMint.set(mint, ref);
+  }
+  return [...byMint.values()];
+}
+
+/** A settled report means the candidate must not be synthesised again. */
+export function isSettledThesisStatus(status: string): boolean {
+  return status !== "failed";
+}
+

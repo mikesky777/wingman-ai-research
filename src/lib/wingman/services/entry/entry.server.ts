@@ -104,12 +104,16 @@ async function loadThesisInputs(options: {
   limit: number;
 }): Promise<ThesisInput[]> {
   // Production timing only ever evaluates the ACTIVE cohort's thesis reports.
-  let cohortRunId: string | null = null;
+  let cohortReportIds: string[] | null = null;
   if (!options.isCalibration) {
-    const { loadActiveResearchCohort } = await import("../research/cohort.server");
+    const { loadActiveResearchCohort, loadCohortThesisReports } = await import(
+      "../research/cohort.server"
+    );
     const active = await loadActiveResearchCohort();
-    if (!active.thesisSynthesisRunId) return [];
-    cohortRunId = active.thesisSynthesisRunId;
+    if (!active.triageRunId) return [];
+    const refs = await loadCohortThesisReports(active.triageRunId);
+    if (refs.length === 0) return [];
+    cohortReportIds = refs.map((r) => r.id);
   }
 
   let query = supabaseAdmin
@@ -117,9 +121,9 @@ async function loadThesisInputs(options: {
     .select("*")
     .order("created_at", { ascending: false })
     .limit(80);
-  if (cohortRunId) query = query.eq("thesis_synthesis_run_id", cohortRunId).eq("is_calibration", false);
+  if (cohortReportIds) query = query.in("id", cohortReportIds).eq("is_calibration", false);
   if (options.mints?.length) query = query.in("mint", options.mints);
-  else if (!cohortRunId && !options.isCalibration) query = query.eq("is_calibration", false);
+  else if (!cohortReportIds && !options.isCalibration) query = query.eq("is_calibration", false);
 
   const { data, error } = await query;
   if (error) throw new Error(error.message);
@@ -822,14 +826,14 @@ export async function loadEntryEvaluations(
   // Production entry state belongs to the ACTIVE cohort's thesis reports only.
   let cohortReportIds: string[] | null = null;
   if (mode === "production") {
-    const { loadActiveResearchCohort, loadCohortThesisReportIds } = await import(
+    const { loadActiveResearchCohort, loadCohortThesisReports } = await import(
       "../research/cohort.server"
     );
     const active = await loadActiveResearchCohort();
-    if (!active.thesisSynthesisRunId) return [];
-    const { reportIds } = await loadCohortThesisReportIds(active.thesisSynthesisRunId);
-    if (reportIds.length === 0) return [];
-    cohortReportIds = reportIds;
+    if (!active.triageRunId) return [];
+    const refs = await loadCohortThesisReports(active.triageRunId);
+    if (refs.length === 0) return [];
+    cohortReportIds = refs.map((r) => r.id);
   }
 
   let query = supabaseAdmin
