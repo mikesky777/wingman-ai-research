@@ -266,6 +266,7 @@ export async function runScannerPipeline(
       code: "FAILED",
       runId: null,
       activeRunId: null,
+      researchPackets: NO_PACKET_ATTEMPT,
     };
   }
 
