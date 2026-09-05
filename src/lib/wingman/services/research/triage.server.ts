@@ -97,44 +97,6 @@ export interface TriageRunResult {
   error: string | null;
 }
 
-/** Runs with their packet counts, for the scan-source invariant. */
-async function loadScanSourceCandidates(limit = 25): Promise<AiScanSourceCandidate[]> {
-  const { data, error } = await supabaseAdmin
-    .from("scan_runs")
-    .select(
-      "id, status, started_at, completed_at, tokens_discovered, discovery_health, selection_policy_version, policy_epoch",
-    )
-    .order("started_at", { ascending: false })
-    .limit(limit);
-  if (error) throw new Error(error.message);
-  const runs = (data ?? []) as Row[];
-  const counts = await packetCountsByRun(runs.map((r) => r["id"] as string));
-  return runs.map((r) => ({
-    id: r["id"] as string,
-    status: (r["status"] as string) ?? "unknown",
-    startedAt: (r["started_at"] as string) ?? null,
-    completedAt: (r["completed_at"] as string) ?? null,
-    tokensDiscovered: (r["tokens_discovered"] as number) ?? 0,
-    discoveryHealth: (r["discovery_health"] as string) ?? null,
-    selectionPolicyVersion: (r["selection_policy_version"] as string) ?? null,
-    policyEpoch: (r["policy_epoch"] as string) ?? null,
-    researchPacketCount: counts.get(r["id"] as string) ?? 0,
-  }));
-}
-
-async function packetCountsByRun(runIds: string[]): Promise<Map<string, number>> {
-  const out = new Map<string, number>();
-  for (const ids of chunkIds(runIds)) {
-    const rows = await fetchAllPages((from, to) =>
-      supabaseAdmin.from("research_packets").select("scan_run_id").in("scan_run_id", ids).range(from, to),
-    );
-    for (const r of rows) {
-      const id = r["scan_run_id"] as string;
-      out.set(id, (out.get(id) ?? 0) + 1);
-    }
-  }
-  return out;
-}
 
 interface LoadedPacketRow {
   packetId: string;
