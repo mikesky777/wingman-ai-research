@@ -80,6 +80,179 @@ export type ComponentScores = Partial<Record<ThesisComponentKey, number>>;
 
 export const THESIS_MAX_SCORE = THESIS_COMPONENTS.reduce((sum, c) => sum + c.weight, 0);
 
+/** Component keys used by the ACTIVE (v2 / v2.2) rubric. */
+export type ThesisV2ComponentKey = (typeof THESIS_COMPONENTS)[number]["key"];
+
+export const THESIS_SCORE_BANDS = [
+  "VERY_WEAK",
+  "WEAK",
+  "AVERAGE",
+  "STRONG",
+  "EXCEPTIONAL",
+] as const;
+export type ThesisScoreBand = (typeof THESIS_SCORE_BANDS)[number];
+
+export interface ThesisScoreAnchor {
+  band: ThesisScoreBand;
+  min: number;
+  max: number;
+  meaning: string;
+}
+
+export interface ThesisComponentAnchors {
+  /**
+   * Where a component should sit when the required facts are simply UNKNOWN
+   * and no adverse evidence exists. Unknown is conservative, never punitive.
+   */
+  unknownEvidenceDefault: [number, number];
+  anchors: ThesisScoreAnchor[];
+}
+
+function bands(
+  weight: 10 | 15 | 20,
+  meanings: [string, string, string, string, string],
+): ThesisScoreAnchor[] {
+  const cuts: Record<10 | 15 | 20, [number, number][]> = {
+    20: [
+      [0, 4],
+      [5, 8],
+      [9, 12],
+      [13, 16],
+      [17, 20],
+    ],
+    15: [
+      [0, 3],
+      [4, 6],
+      [7, 9],
+      [10, 12],
+      [13, 15],
+    ],
+    10: [
+      [0, 1],
+      [2, 3],
+      [4, 6],
+      [7, 8],
+      [9, 10],
+    ],
+  };
+  return THESIS_SCORE_BANDS.map((band, i) => ({
+    band,
+    min: cuts[weight][i]![0],
+    max: cuts[weight][i]![1],
+    meaning: meanings[i]!,
+  }));
+}
+
+/**
+ * thesis_rubric/v2.2 anchors.
+ *
+ * Every band is REACHABLE: the top band describes an excellent real memecoin
+ * thesis supported by the evidence at hand, not theoretical perfection.
+ */
+export const THESIS_COMPONENT_ANCHORS: Record<ThesisV2ComponentKey, ThesisComponentAnchors> = {
+  memeQuality: {
+    unknownEvidenceDefault: [9, 11],
+    anchors: bands(20, [
+      "Generic or purely derivative meme with no identity of its own.",
+      "Recognizable format but shallow, copied or interchangeable identity.",
+      "Recognizable meme with a coherent identity and some staying power.",
+      "Identifiable lore with a clear origin story, consistent symbolism or a defensible creator/cultural link.",
+      "Culturally sticky, durable lore: widely recognized reference, self-sustaining community canon, or a strong verified creator/origin link. Absence of mainstream media coverage does NOT cap this band.",
+    ]),
+  },
+  catalystNarrative: {
+    unknownEvidenceDefault: [8, 10],
+    anchors: bands(20, [
+      "No coherent narrative and no catalyst; the token stands for nothing identifiable.",
+      "Vague or borrowed narrative; any catalyst is speculative.",
+      "Serviceable narrative with limited reach, or a plausible catalyst supporting a modest narrative.",
+      "Strong, clearly articulated narrative with real relevance, OR a credible verified catalyst supporting a sound narrative.",
+      "Exceptional narrative with genuine cultural or ecosystem relevance — optionally reinforced by a verified catalyst. A strong narrative WITHOUT any scheduled catalyst can reach this band.",
+    ]),
+  },
+  distribution: {
+    unknownEvidenceDefault: [7, 9],
+    anchors: bands(15, [
+      "Verified insider- or single-entity-controlled supply; distribution is thesis-breaking.",
+      "Severe concentration evidenced, with clear control or dump capability.",
+      "Ordinary memecoin concentration: elevated top-10 share, no evidenced insider control. Unknown holder identity also sits here.",
+      "Better-than-typical distribution: broad holder base, no concerning clusters evidenced.",
+      "Healthy, broad and well-dispersed distribution evidenced with growing holders and no control risk.",
+    ]),
+  },
+  liquidity: {
+    unknownEvidenceDefault: [7, 9],
+    anchors: bands(15, [
+      "Severe evidenced exit risk: liquidity far too thin for the market cap, exit realistically impossible without collapse.",
+      "Thin liquidity relative to market cap; exit meaningfully impaired.",
+      "Workable liquidity for the size: exit possible with normal slippage for a typical position.",
+      "Good depth relative to market cap with healthy turnover.",
+      "Deep, well-supported liquidity with strong turnover; exitability is a genuine strength.",
+    ]),
+  },
+  devIntegrity: {
+    unknownEvidenceDefault: [5, 6],
+    anchors: bands(10, [
+      "Evidenced bad actor: rug history, confirmed malicious behaviour or clearly adverse launch history.",
+      "Concrete adverse signals evidenced (suspicious launch mechanics, evidenced dev sell-down).",
+      "NEUTRAL: developer unknown, anonymous or unverified with NO adverse evidence. Anonymity alone belongs here, not lower.",
+      "Identifiable team or clean, verifiable launch mechanics with no adverse history.",
+      "Strong, verified integrity: known reputable creator or fully verifiable clean launch and conduct.",
+    ]),
+  },
+  mindshare: {
+    unknownEvidenceDefault: [4, 5],
+    anchors: bands(10, [
+      "Evidenced manufactured/botted amplification, or essentially no participation at all.",
+      "Weak participation: little activity and no signs of organic engagement.",
+      "Small but organic participation, or participation of unestablished organicity. Unproven organicity sits here — never lower by assumption.",
+      "Growing, recurring organic participation across more than one venue.",
+      "Broad organic mindshare with self-sustaining, recurring cultural spread.",
+    ]),
+  },
+  valuation: {
+    unknownEvidenceDefault: [4, 5],
+    anchors: bands(10, [
+      "Heavily priced in: valuation already reflects the full narrative with no realistic upside room.",
+      "Demanding valuation relative to narrative strength, liquidity and maturity.",
+      "Fair: valuation broadly matches the evidenced narrative, mindshare and maturity.",
+      "Attractive: meaningful upside room relative to what is already priced in.",
+      "Highly asymmetric: strong narrative and participation with valuation still far below what that would justify. Low market cap ALONE never reaches this band.",
+    ]),
+  },
+};
+
+/** Structured reason categories persisted alongside each component score. */
+export const THESIS_COMPONENT_REASON_CODES = [
+  "STRONG_POSITIVE_EVIDENCE",
+  "MODERATE_POSITIVE_EVIDENCE",
+  "MIXED_EVIDENCE",
+  "AFFIRMATIVE_NEGATIVE_EVIDENCE",
+  "CONSERVATIVE_UNKNOWN_EVIDENCE",
+  "NOT_EVALUABLE",
+] as const;
+export type ThesisComponentReasonCode = (typeof THESIS_COMPONENT_REASON_CODES)[number];
+
+export interface ThesisComponentReason {
+  score: number;
+  band: ThesisScoreBand;
+  reasonCode: ThesisComponentReasonCode;
+  reason: string;
+}
+
+export type ThesisComponentReasons = Partial<
+  Record<ThesisV2ComponentKey, ThesisComponentReason>
+>;
+
+/** Band a score falls in for a given component (deterministic, never scored). */
+export function bandForScore(key: ThesisV2ComponentKey, score: number): ThesisScoreBand {
+  const { anchors } = THESIS_COMPONENT_ANCHORS[key];
+  const hit = anchors.find((a) => score >= a.min && score <= a.max);
+  return hit?.band ?? "VERY_WEAK";
+}
+
+
+
 /** Timing concepts that must never contribute Thesis points. */
 export const THESIS_FORBIDDEN_TIMING_KEYS = [
   "chartContext",
