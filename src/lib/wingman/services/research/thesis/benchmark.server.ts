@@ -270,7 +270,38 @@ export async function runThesisModelBenchmark(
     cohortRunId: cohort.runId,
     cohortModel: cohort.model,
     pairByMint: await loadPairAddresses(baselines.map((b) => b.mint)),
+    narrativeByRunMint: await loadBenchmarkNarratives(
+      batches.map((b) => b.runId ?? "").filter(Boolean),
+    ),
   });
+}
+
+export interface BenchmarkNarrative {
+  catalystKind: string;
+  strongestCatalyst: string | null;
+  strongestBearCase: string | null;
+}
+
+/** Catalyst / bear text lives on the persisted calibration reports. */
+async function loadBenchmarkNarratives(
+  runIds: string[],
+): Promise<Map<string, BenchmarkNarrative>> {
+  const out = new Map<string, BenchmarkNarrative>();
+  if (runIds.length === 0) return out;
+  const { data } = await supabaseAdmin
+    .from("thesis_reports")
+    .select(
+      "thesis_synthesis_run_id, mint, catalyst_kind, strongest_catalyst, strongest_bear_case",
+    )
+    .in("thesis_synthesis_run_id", runIds);
+  for (const r of ((data as Row[] | null) ?? [])) {
+    out.set(`${r["thesis_synthesis_run_id"] as string}:${r["mint"] as string}`, {
+      catalystKind: (r["catalyst_kind"] as string) ?? "NONE",
+      strongestCatalyst: (r["strongest_catalyst"] as string) ?? null,
+      strongestBearCase: (r["strongest_bear_case"] as string) ?? null,
+    });
+  }
+  return out;
 }
 
 async function loadPairAddresses(mints: string[]): Promise<Map<string, string | null>> {
