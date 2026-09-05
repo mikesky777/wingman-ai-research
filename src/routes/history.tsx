@@ -282,9 +282,9 @@ function StageView({ stage }: { stage: FunnelStage }) {
           stage === "SURVIVOR"
             ? `Unique tokens with a frozen First Survivor selection. ${policy === "CURRENT" ? `Only calls made under ${POLICY_LABELS.CURRENT_V1.toLowerCase()} (CURRENT_V1).` : "Every historical call, across all policy eras."} Descriptive historical measurement — not thesis returns or simulated trading.`
             : stage === "SETUP_QUALIFIED"
-              ? "Unique tokens the first time they qualified for a recognized BASE or REACCEL setup. BASE and REACCEL keep separate frozen baselines; since / peak / worst / max drawdown use valid observations after that moment only."
+              ? `Unique tokens the first time they qualified for a recognized BASE or REACCEL setup. ${policy === "CURRENT" ? `Only setups recorded under ${POLICY_LABELS.CURRENT_V1.toLowerCase()} (CURRENT_V1).` : "Every historical setup, across all policy eras."} BASE and REACCEL keep separate frozen baselines; since / peak / max drawdown use valid observations after that moment only.`
               : stage === "AI_SHORTLIST"
-                ? "Unique tokens the AI triage layer shortlisted, measured from the frozen market state at shortlisting. Since / peak / worst / max drawdown use valid observations after that moment only."
+                ? "Unique tokens the AI triage layer shortlisted, measured from the frozen market state at shortlisting. Since / peak / max drawdown use valid observations after that moment only."
                 : "Unique tokens whose thesis passed every opportunity gate. Created only by a real thesis run, measured from the frozen market state at the call."
         }
       >
