@@ -952,7 +952,10 @@ async function insertRun(input: {
     })
     .select("id")
     .single();
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (!input.isCalibration && isUniqueViolation(error)) return null;
+    throw new Error(error.message);
+  }
   return (data as Row)["id"] as string;
 }
 
