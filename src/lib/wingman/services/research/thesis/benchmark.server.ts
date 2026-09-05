@@ -490,7 +490,11 @@ export function buildBenchmarkComparison(args: {
         medScore !== null &&
         b.thesisScore !== null &&
         (medScore >= 70) !== (b.thesisScore >= 70),
+      isStabilityCandidate: args.stabilityMints.has(b.mint),
+      passesRun: samples.length,
+      bearSeverityStable: new Set(samples.map((s) => s.bearSeverity ?? "NONE")).size <= 1,
     };
+
   });
 
   const scoreDeltas = comparisons.map((c) => c.scoreDelta).filter((v): v is number => v !== null);
