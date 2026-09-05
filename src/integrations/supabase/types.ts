@@ -1892,9 +1892,12 @@ export type Database = {
       }
       thesis_reports: {
         Row: {
+          ambiguous_evidence: Json | null
           bear_case_severity: string | null
           blocked_reasons: string[]
+          catalyst_classification: string | null
           catalyst_kind: string | null
+          catalyst_verification_basis: string | null
           catalysts: string[]
           chain: string
           component_scores: Json | null
@@ -1906,6 +1909,9 @@ export type Database = {
           evidence_confidence: number | null
           evidence_confidence_components: Json | null
           evidence_gaps: string[]
+          evidence_polarity_counts: Json | null
+          evidence_semantics_version: string | null
+          gate_diagnostics: Json | null
           id: string
           input_policy_version: string
           invalidation: string[]
@@ -1913,11 +1919,16 @@ export type Database = {
           liquidity_at_synthesis: number | null
           market_cap_at_synthesis: number | null
           mint: string
+          missing_evidence: Json | null
           model_identifier: string | null
           model_provider: string | null
           name: string | null
+          narrative_maturity: string | null
+          narrative_maturity_reasons: Json | null
           narrative_thesis: string | null
+          negative_evidence: Json | null
           one_sentence_thesis: string | null
+          positive_evidence: Json | null
           price_at_synthesis: number | null
           prompt_version: string
           qualified_as_opportunity: boolean
@@ -1935,6 +1946,7 @@ export type Database = {
           sections: Json | null
           setups: string[]
           shortlist_milestone_id: string | null
+          source_mix: Json | null
           status: string
           strongest_bear_case: string | null
           strongest_bull_case: string | null
@@ -1954,9 +1966,12 @@ export type Database = {
           why_now_market_signal: string | null
         }
         Insert: {
+          ambiguous_evidence?: Json | null
           bear_case_severity?: string | null
           blocked_reasons?: string[]
+          catalyst_classification?: string | null
           catalyst_kind?: string | null
+          catalyst_verification_basis?: string | null
           catalysts?: string[]
           chain?: string
           component_scores?: Json | null
@@ -1968,6 +1983,9 @@ export type Database = {
           evidence_confidence?: number | null
           evidence_confidence_components?: Json | null
           evidence_gaps?: string[]
+          evidence_polarity_counts?: Json | null
+          evidence_semantics_version?: string | null
+          gate_diagnostics?: Json | null
           id?: string
           input_policy_version: string
           invalidation?: string[]
@@ -1975,11 +1993,16 @@ export type Database = {
           liquidity_at_synthesis?: number | null
           market_cap_at_synthesis?: number | null
           mint: string
+          missing_evidence?: Json | null
           model_identifier?: string | null
           model_provider?: string | null
           name?: string | null
+          narrative_maturity?: string | null
+          narrative_maturity_reasons?: Json | null
           narrative_thesis?: string | null
+          negative_evidence?: Json | null
           one_sentence_thesis?: string | null
+          positive_evidence?: Json | null
           price_at_synthesis?: number | null
           prompt_version: string
           qualified_as_opportunity?: boolean
@@ -1997,6 +2020,7 @@ export type Database = {
           sections?: Json | null
           setups?: string[]
           shortlist_milestone_id?: string | null
+          source_mix?: Json | null
           status: string
           strongest_bear_case?: string | null
           strongest_bull_case?: string | null
@@ -2016,9 +2040,12 @@ export type Database = {
           why_now_market_signal?: string | null
         }
         Update: {
+          ambiguous_evidence?: Json | null
           bear_case_severity?: string | null
           blocked_reasons?: string[]
+          catalyst_classification?: string | null
           catalyst_kind?: string | null
+          catalyst_verification_basis?: string | null
           catalysts?: string[]
           chain?: string
           component_scores?: Json | null
@@ -2030,6 +2057,9 @@ export type Database = {
           evidence_confidence?: number | null
           evidence_confidence_components?: Json | null
           evidence_gaps?: string[]
+          evidence_polarity_counts?: Json | null
+          evidence_semantics_version?: string | null
+          gate_diagnostics?: Json | null
           id?: string
           input_policy_version?: string
           invalidation?: string[]
@@ -2037,11 +2067,16 @@ export type Database = {
           liquidity_at_synthesis?: number | null
           market_cap_at_synthesis?: number | null
           mint?: string
+          missing_evidence?: Json | null
           model_identifier?: string | null
           model_provider?: string | null
           name?: string | null
+          narrative_maturity?: string | null
+          narrative_maturity_reasons?: Json | null
           narrative_thesis?: string | null
+          negative_evidence?: Json | null
           one_sentence_thesis?: string | null
+          positive_evidence?: Json | null
           price_at_synthesis?: number | null
           prompt_version?: string
           qualified_as_opportunity?: boolean
@@ -2059,6 +2094,7 @@ export type Database = {
           sections?: Json | null
           setups?: string[]
           shortlist_milestone_id?: string | null
+          source_mix?: Json | null
           status?: string
           strongest_bear_case?: string | null
           strongest_bull_case?: string | null
