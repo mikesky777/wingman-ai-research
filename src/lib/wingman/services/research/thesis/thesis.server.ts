@@ -352,17 +352,50 @@ export async function runThesisSynthesis(
     provider = createLovableThesisProvider({ apiKey });
   }
 
+  // Production always resolves the ACTIVE cohort itself. A caller-supplied
+  // triage run may only narrow to the active one, never to a historical one.
+  let activeScanId: string | null = null;
+  let activeTriageRunId: string | null = options.triageRunId ?? null;
+  if (!isCalibration) {
+    const { loadActiveResearchCohort } = await import("../cohort.server");
+    const active = await loadActiveResearchCohort();
+    if (!active.scan || !active.triageRunId) {
+      return emptyBatch(mode, "NO_DEEP_RESEARCH_REPORTS", provider);
+    }
+    if (activeTriageRunId && activeTriageRunId !== active.triageRunId) {
+      return emptyBatch(mode, "THESIS_INPUT_PROVENANCE_MISMATCH", provider);
+    }
+    activeScanId = active.scan.id;
+    activeTriageRunId = active.triageRunId;
+  }
+
   const inputs = await loadThesisInputs({
     isCalibration,
     ...(options.reportIds?.length ? { reportIds: options.reportIds } : {}),
+    ...(activeTriageRunId ? { triageRunId: activeTriageRunId } : {}),
   });
-  const cohort = options.triageRunId
-    ? inputs.filter((c) => c.triageRunId === options.triageRunId)
+  const cohort = activeTriageRunId
+    ? inputs.filter((c) => c.triageRunId === activeTriageRunId)
     : inputs;
   if (cohort.length === 0) return emptyBatch(mode, "NO_DEEP_RESEARCH_REPORTS", provider);
 
   const limit = Math.min(Math.max(options.limit ?? 3, 1), 15);
   const selected = cohort.slice(0, limit);
+
+  // HARD provenance gate, before any model spend: every input must resolve to
+  // the exact active scan AND the exact active triage run.
+  if (!isCalibration) {
+    const assertion = assertThesisInputProvenance(
+      selected.map((c) => ({
+        reportId: c.reportId,
+        mint: c.mint,
+        triageRunId: c.triageRunId,
+        sourceScanId: c.sourceScanId,
+      })),
+      { scanId: activeScanId, triageRunId: activeTriageRunId },
+    );
+    if (!assertion.ok) return emptyBatch(mode, "THESIS_INPUT_PROVENANCE_MISMATCH", provider);
+  }
 
   // Current eligibility is re-checked against the scan the packets came from.
   const scanIds = [...new Set(selected.map((c) => c.sourceScanId).filter((v): v is string => Boolean(v)))];
