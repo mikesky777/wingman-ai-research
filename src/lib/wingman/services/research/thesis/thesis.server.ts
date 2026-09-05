@@ -879,15 +879,75 @@ export interface ThesisReportSummary {
   sources: { ref: string; url: string | null; title: string | null; independence: string }[];
 }
 
-/** Newest thesis reports, read-only, for the Research workbench. */
-export async function loadThesisReports(limit = 12): Promise<ThesisReportSummary[]> {
-  const { data, error } = await supabaseAdmin
-    .from("thesis_reports")
-    .select("*")
-    .order("created_at", { ascending: false })
-    .limit(limit);
-  if (error) throw new Error(error.message);
-  const rows = (data as Row[]) ?? [];
+/**
+ * Newest thesis reports, read-only, for the Research workbench.
+ * Production and calibration are never mixed: the caller picks the mode and
+ * production shows the newest production synthesis run in full.
+ */
+export async function loadThesisReports(
+  limit = 12,
+  mode: ThesisMode = "production",
+): Promise<ThesisReportSummary[]> {
+  const isCalibration = mode === "calibration";
+  let rows: Row[] = [];
+  if (!isCalibration) {
+    // Newest production synthesis run, complete cohort.
+    const { data: runRow } = await supabaseAdmin
+      .from("thesis_synthesis_runs")
+      .select("id")
+      .eq("is_calibration", false)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const runId = runRow ? ((runRow as Row)["id"] as string) : null;
+    if (!runId) return [];
+    const { data, error } = await supabaseAdmin
+      .from("thesis_reports")
+      .select("*")
+      .eq("thesis_synthesis_run_id", runId)
+      .order("thesis_score", { ascending: false, nullsFirst: false })
+      .limit(50);
+    if (error) throw new Error(error.message);
+    rows = (data as Row[]) ?? [];
+  } else {
+    const { data, error } = await supabaseAdmin
+      .from("thesis_reports")
+      .select("*")
+      .eq("is_calibration", true)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (error) throw new Error(error.message);
+    rows = (data as Row[]) ?? [];
+  }
+
+  const mints = [...new Set(rows.map((r) => r["mint"] as string))];
+  const pairByMint = new Map<string, string | null>();
+  const rankByMint = new Map<string, number | null>();
+  if (mints.length) {
+    const { data: tokenRows } = await supabaseAdmin
+      .from("tokens")
+      .select("contract_address, dex_pair_address")
+      .in("contract_address", mints);
+    for (const t of (tokenRows as Row[] | null) ?? []) {
+      pairByMint.set(t["contract_address"] as string, (t["dex_pair_address"] as string) ?? null);
+    }
+    const triageIds = [
+      ...new Set(
+        rows.map((r) => r["triage_run_id"] as string | null).filter((v): v is string => Boolean(v)),
+      ),
+    ];
+    if (triageIds.length) {
+      const { data: decisionRows } = await supabaseAdmin
+        .from("ai_triage_decisions")
+        .select("mint, triage_rank, triage_run_id")
+        .in("triage_run_id", triageIds)
+        .in("mint", mints);
+      for (const d of (decisionRows as Row[] | null) ?? []) {
+        rankByMint.set(d["mint"] as string, (d["triage_rank"] as number) ?? null);
+      }
+    }
+  }
+
 
   const reportIds = [
     ...new Set(
