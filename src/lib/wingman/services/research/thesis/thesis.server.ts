@@ -27,7 +27,6 @@ import {
   buildThesisSystemPrompt,
   buildThesisUserPrompt,
   computeEvidenceConfidence,
-  type EvidenceConfidenceBreakdown,
   deriveVerdict,
   redactCompactForThesis,
   selectOpportunities,
