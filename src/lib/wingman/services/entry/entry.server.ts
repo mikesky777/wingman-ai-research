@@ -133,6 +133,13 @@ async function loadThesisInputs(options: {
   if (cohortReportIds) query = query.in("id", cohortReportIds).eq("is_calibration", false);
   if (options.mints?.length) query = query.in("mint", options.mints);
   else if (!cohortReportIds && !options.isCalibration) query = query.eq("is_calibration", false);
+  if (monitoredMints) {
+    const allowed = options.mints?.length
+      ? monitoredMints.filter((m) => options.mints!.includes(m))
+      : monitoredMints;
+    if (allowed.length === 0) return [];
+    query = query.in("mint", allowed);
+  }
 
   const { data, error } = await query;
   if (error) throw new Error(error.message);
