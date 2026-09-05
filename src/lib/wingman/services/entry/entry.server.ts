@@ -711,6 +711,12 @@ async function evaluateOne(args: {
         historyError,
         notes: score?.notes ?? [],
         asOf,
+        // Non-authoritative when the state is UNKNOWN.
+        diagnosticComponents: score?.components ?? null,
+        diagnosticEntryScore: score?.total ?? null,
+        componentsAuthoritative: authoritative,
+        unsupportedFeatures: score?.unsupportedFeatures ?? [],
+        damageOverride: entryDamage,
       } as never,
     })
     .select("id")
