@@ -4,6 +4,7 @@ import { Section, KeyValue } from "@/components/wingman/Section";
 import { EmptyState } from "@/components/wingman/EmptyState";
 import { THESIS_CATEGORIES, MOCK_DATA_NOTICE } from "@/lib/wingman/config";
 import { CalibrationLab } from "@/components/wingman/research/CalibrationLab";
+import { LegacyOutcomesDiagnostics } from "@/components/wingman/research/LegacyOutcomes";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({
@@ -89,8 +90,9 @@ function SettingsPage() {
         </Section>
       </div>
 
-      <div className="mt-6">
+      <div className="mt-6 space-y-6">
         <CalibrationLab />
+        <LegacyOutcomesDiagnostics />
       </div>
     </AppShell>
   );

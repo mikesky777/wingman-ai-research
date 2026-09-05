@@ -7,10 +7,14 @@ import {
   emptyProvenance,
   filterStageRows,
   keepFirstMilestone,
+  liveSinceStage,
+  stageSupportsPeakMetrics,
+  summarizeStageRows,
   sortStageRows,
   survivorRowFromCohortToken,
   uniqueStageRows,
   type QualifyingSetup,
+  type LiveQuote,
   type StageAppearance,
   type StageRow,
 } from "./milestones";
@@ -312,5 +316,45 @@ describe("stage read model", () => {
     expect(mapped.peakPct).toBe(token.peakSinceCallPct);
     expect(mapped.maxAdversePct).toBe(token.maxAdverseSinceCallPct);
     expect(mapped.drawdownPct).toBe(token.drawdownSinceCallPct);
+  });
+});
+
+describe("live overlay respects outcome_market_validity/v1", () => {
+  const base = row({ contractAddress: "MintAAA", entryMarketCap: 100_000, sincePct: 12 });
+
+  it("computes Since Stage from a valid live quote against the frozen baseline", () => {
+    const reading = liveSinceStage(base, { marketCap: 150_000, liquidityUsd: 40_000 });
+    expect(reading.source).toBe("LIVE");
+    expect(reading.pct).toBeCloseTo(50);
+  });
+
+  it("reports a drained-pool live quote as unavailable, never as zero", () => {
+    const reading = liveSinceStage(base, { marketCap: 900_000, liquidityUsd: 12 });
+    expect(reading.source).toBe("LIVE_INVALID");
+    expect(reading.reason).toBe("DRAINED_LIQUIDITY");
+    expect(reading.pct).toBeNull();
+  });
+
+  it("rejects an implausible market-cap-to-liquidity live quote", () => {
+    const reading = liveSinceStage(base, { marketCap: 5_000_000_000, liquidityUsd: 200 });
+    expect(reading.source).toBe("LIVE_INVALID");
+    expect(reading.pct).toBeNull();
+  });
+
+  it("falls back to the persisted value when no live quote exists", () => {
+    expect(liveSinceStage(base, null)).toMatchObject({ source: "PERSISTED", pct: 12 });
+  });
+
+  it("excludes invalid live quotes from cohort statistics", () => {
+    const live = new Map<string, LiveQuote | null>([["MintAAA", { marketCap: 900_000, liquidityUsd: 12 }]]);
+    const summary = summarizeStageRows("SURVIVOR", [base], live);
+    expect(summary.avgSince.value).toBeNull();
+    expect(summary.winRate.n).toBe(0);
+  });
+
+  it("only exposes peak/drawdown statistics for stages with an outcome series", () => {
+    expect(stageSupportsPeakMetrics("SURVIVOR")).toBe(true);
+    expect(stageSupportsPeakMetrics("AI_SHORTLIST")).toBe(false);
+    expect(summarizeStageRows("AI_SHORTLIST", [base]).supportsPeakMetrics).toBe(false);
   });
 });

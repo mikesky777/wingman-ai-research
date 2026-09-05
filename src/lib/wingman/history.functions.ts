@@ -40,3 +40,12 @@ export const getProductionArtifacts = createServerFn({ method: "GET" }).handler(
   );
   return loadProductionArtifacts();
 });
+
+/**
+ * Deep Research + Thesis Synthesized ARTIFACT rows for History.
+ * Read-only: no milestone, baseline or performance metric is created here.
+ */
+export const getHistoryArtifacts = createServerFn({ method: "GET" }).handler(async () => {
+  const { loadHistoryArtifacts } = await import("./services/history/artifacts.server");
+  return loadHistoryArtifacts();
+});

@@ -12,7 +12,8 @@ import { DexScreenerEmbed } from "./DexScreenerEmbed";
 import { formatDate, formatUsd, relativeTime } from "@/lib/wingman/format";
 import {
   STAGE_TERMS,
-  liveSinceStagePct,
+  liveSinceStage,
+  stageSupportsPeakMetrics,
   type StageRow,
 } from "@/lib/wingman/services/history/milestones";
 import type { LiveMarketValues } from "@/lib/wingman/services/history/live-market";
@@ -34,7 +35,11 @@ export function HistoryTokenDrawer({
 }) {
   if (!token) return null;
   const terms = STAGE_TERMS[token.stage];
-  const since = liveSinceStagePct(token, live?.marketCap ?? null);
+  const since = liveSinceStage(
+    token,
+    live ? { marketCap: live.marketCap, liquidityUsd: live.liquidityUsd } : null,
+  );
+  const showSeries = stageSupportsPeakMetrics(token.stage);
   const pairAddress = live?.pairAddress ?? token.dexPairAddress;
   const p = token.provenance;
 
@@ -119,11 +124,21 @@ export function HistoryTokenDrawer({
                   value:
                     token.entryLiquidityUsd !== null ? formatUsd(token.entryLiquidityUsd) : "—",
                 },
-                { label: `${terms.since} (live)`, value: pct(since) },
+                {
+                  label: `${terms.since} (live)`,
+                  value:
+                    since.source === "LIVE_INVALID"
+                      ? "Unavailable — current market observation invalid"
+                      : pct(since.pct),
+                },
                 { label: `${terms.since} (persisted)`, value: pct(token.sincePct) },
-                { label: terms.peak, value: pct(token.peakPct) },
-                { label: terms.maxDd, value: pct(token.maxAdversePct) },
-                { label: "Peak-to-trough", value: pct(token.drawdownPct) },
+                ...(showSeries
+                  ? [
+                      { label: terms.peak, value: pct(token.peakPct) },
+                      { label: terms.maxDd, value: pct(token.maxAdversePct) },
+                      { label: "Peak-to-trough", value: pct(token.drawdownPct) },
+                    ]
+                  : []),
                 { label: "Baseline complete", value: token.baselineComplete ? "YES" : "NO" },
                 { label: "Price integrity", value: token.priceIntegrityStatus ?? "—" },
                 { label: "Structural", value: token.structuralStatus ?? "—" },

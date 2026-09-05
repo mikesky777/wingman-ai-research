@@ -8,7 +8,8 @@ import { formatDate, formatUsd, relativeTime } from "@/lib/wingman/format";
 import { cn } from "@/lib/utils";
 import {
   STAGE_TERMS,
-  liveSinceStagePct,
+  liveSinceStage,
+  stageSupportsPeakMetrics,
   type FunnelStage,
   type StageRow,
 } from "@/lib/wingman/services/history/milestones";
@@ -39,6 +40,8 @@ export function CohortTable({
   onSelect: (tokenId: string) => void;
 }) {
   const terms = STAGE_TERMS[stage];
+  // Peak / max-drawdown columns exist only where an outcome series is tracked.
+  const showSeries = stageSupportsPeakMetrics(stage);
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[1100px] text-left">
@@ -56,8 +59,8 @@ export function CohortTable({
             <th className="text-right">1h</th>
             <th className="text-right">24h</th>
             <th className="text-right">{terms.since}</th>
-            <th className="text-right">{terms.peak}</th>
-            <th className="text-right">{terms.maxDd}</th>
+            {showSeries ? <th className="text-right">{terms.peak}</th> : null}
+            {showSeries ? <th className="text-right">{terms.maxDd}</th> : null}
             <th className="text-right">Entered</th>
             <th>Seen now</th>
             <th className="text-right">Last seen</th>
@@ -66,7 +69,10 @@ export function CohortTable({
         <tbody>
           {tokens.map((t) => {
             const l = t.contractAddress ? live[t.contractAddress] : undefined;
-            const since = liveSinceStagePct(t, l?.marketCap ?? null);
+            const since = liveSinceStage(
+              t,
+              l ? { marketCap: l.marketCap, liquidityUsd: l.liquidityUsd } : null,
+            );
             return (
               <tr
                 key={t.tokenId}
@@ -117,11 +123,27 @@ export function CohortTable({
                 <td className={cn("tabular text-right text-sm", tone(l?.priceChange24h ?? null))}>
                   {pct(l?.priceChange24h ?? null)}
                 </td>
-                <td className={cn("tabular text-right text-sm", tone(since))}>{pct(since)}</td>
-                <td className="tabular text-right text-sm text-primary">{pct(t.peakPct)}</td>
-                <td className="tabular text-right text-sm text-destructive">
-                  {pct(t.maxAdversePct)}
+                <td
+                  className={cn(
+                    "tabular text-right text-sm",
+                    since.source === "LIVE_INVALID" ? "text-warning" : tone(since.pct),
+                  )}
+                  title={
+                    since.source === "LIVE_INVALID"
+                      ? `Current market observation invalid (${since.reason ?? "INVALID_MARKET"}) — preserved for audit, excluded from metrics.`
+                      : undefined
+                  }
+                >
+                  {since.source === "LIVE_INVALID" ? "Unavailable" : pct(since.pct)}
                 </td>
+                {showSeries ? (
+                  <td className="tabular text-right text-sm text-primary">{pct(t.peakPct)}</td>
+                ) : null}
+                {showSeries ? (
+                  <td className="tabular text-right text-sm text-destructive">
+                    {pct(t.maxAdversePct)}
+                  </td>
+                ) : null}
                 <td className="tabular text-right text-xs text-muted-foreground">
                   {t.enteredAt ? formatDate(t.enteredAt) : "—"}
                 </td>

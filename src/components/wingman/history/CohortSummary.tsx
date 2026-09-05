@@ -5,6 +5,9 @@
  * portfolio return and never a thesis return. Where a live market cap exists,
  * Since Stage is displayed against the FROZEN stage-entry baseline; persisted
  * records stay untouched.
+ *
+ * Peak / max-drawdown tiles are rendered ONLY for stages that genuinely track
+ * an outcome series. Unsupported statistics are hidden, never shown empty.
  */
 import { StatTile } from "@/components/wingman/StatTile";
 import type { Stat } from "@/lib/wingman/services/history/cohort";
@@ -33,27 +36,33 @@ export function CohortSummaryCards({ summary }: { summary: StageSummary }) {
         value={pct(summary.medianSince)}
         detail={n(summary.medianSince)}
       />
-      <StatTile
-        label={`Avg ${terms.peak.toLowerCase()}`}
-        value={pct(summary.avgPeak)}
-        tone="primary"
-        detail={`${n(summary.avgPeak)} · persisted observations`}
-      />
-      <StatTile
-        label={`Median ${terms.peak.toLowerCase()}`}
-        value={pct(summary.medianPeak)}
-        detail={n(summary.medianPeak)}
-      />
+      {summary.supportsPeakMetrics ? (
+        <>
+          <StatTile
+            label={`Avg ${terms.peak.toLowerCase()}`}
+            value={pct(summary.avgPeak)}
+            tone="primary"
+            detail={`${n(summary.avgPeak)} · persisted observations`}
+          />
+          <StatTile
+            label={`Median ${terms.peak.toLowerCase()}`}
+            value={pct(summary.medianPeak)}
+            detail={n(summary.medianPeak)}
+          />
+        </>
+      ) : null}
       <StatTile
         label="Win rate"
         value={summary.winRate.value === null ? "—" : `${summary.winRate.value.toFixed(0)}%`}
         detail={`${n(summary.winRate)} · current since entry > 0`}
       />
-      <StatTile
-        label={`Avg ${terms.maxDd.toLowerCase()}`}
-        value={pct(summary.avgMaxDd)}
-        detail={n(summary.avgMaxDd)}
-      />
+      {summary.supportsPeakMetrics ? (
+        <StatTile
+          label={`Avg ${terms.maxDd.toLowerCase()}`}
+          value={pct(summary.avgMaxDd)}
+          detail={n(summary.avgMaxDd)}
+        />
+      ) : null}
       <StatTile
         label="Unique tokens"
         value={summary.sampleSize}

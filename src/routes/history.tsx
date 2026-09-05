@@ -6,21 +6,19 @@ import { syncStageMilestones } from "@/lib/wingman/history.functions";
 import { Loader2, RefreshCw } from "lucide-react";
 import { AppShell } from "@/components/wingman/AppShell";
 import { Section } from "@/components/wingman/Section";
-import { StatTile } from "@/components/wingman/StatTile";
 import { EmptyState } from "@/components/wingman/EmptyState";
 import { Button } from "@/components/ui/button";
-import { useOutcomes } from "@/lib/wingman/hooks";
-import { OutcomeService } from "@/lib/wingman/services";
 import { HistoryCohortService } from "@/lib/wingman/services/history/cohort-service";
 import { StageMilestoneService } from "@/lib/wingman/services/history/stage-service";
 import {
-  FUNNEL_STAGES,
   STAGE_TERMS,
   filterStageRows,
   sortStageRows,
+  stageSupportsPeakMetrics,
   summarizeStageRows,
   survivorRowFromCohortToken,
   type FunnelStage,
+  type LiveQuote,
   type StageRow,
   type StageSetupFilter,
   type StageSort,
@@ -36,7 +34,11 @@ import { CohortTable } from "@/components/wingman/history/CohortTable";
 import { HistoryTokenDrawer } from "@/components/wingman/history/HistoryTokenDrawer";
 import { useLiveMarket } from "@/components/wingman/history/useLiveMarket";
 import { ProductionArtifacts } from "@/components/wingman/history/ProductionArtifacts";
-import { formatDate, formatUsd, relativeTime } from "@/lib/wingman/format";
+import {
+  DeepResearchArtifacts,
+  ThesisSynthesizedArtifacts,
+} from "@/components/wingman/history/ArtifactViews";
+import { relativeTime } from "@/lib/wingman/format";
 import { MOCK_DATA_NOTICE } from "@/lib/wingman/config";
 import { cn } from "@/lib/utils";
 
@@ -61,14 +63,22 @@ export const Route = createFileRoute("/history")({
   component: HistoryPage,
 });
 
-const STATUS_TONE: Record<string, string> = {
-  TARGET_HIT: "border-positive/40 bg-positive/10 text-positive",
-  OPEN: "border-primary/40 bg-primary/10 text-primary",
-  EXPIRED: "border-border-strong text-muted-foreground",
-  INVALIDATED: "border-destructive/40 bg-destructive/10 text-destructive",
-};
+/**
+ * History tabs follow the real production funnel. Deep Research and Thesis
+ * Synthesized are ARTIFACT tabs: real persisted reports with no stage-relative
+ * performance baseline. The legacy seeded Outcomes view is not part of the
+ * production workflow; those demo rows remain untouched in the database.
+ */
+type Tab = FunnelStage | "DEEP_RESEARCH" | "THESIS_SYNTHESIZED";
 
-type Tab = "OUTCOMES" | FunnelStage;
+const TABS: { key: Tab; label: string }[] = [
+  { key: "SETUP_QUALIFIED", label: STAGE_TERMS.SETUP_QUALIFIED.title },
+  { key: "SURVIVOR", label: STAGE_TERMS.SURVIVOR.title },
+  { key: "AI_SHORTLIST", label: STAGE_TERMS.AI_SHORTLIST.title },
+  { key: "DEEP_RESEARCH", label: "Deep Research" },
+  { key: "THESIS_SYNTHESIZED", label: "Thesis Synthesized" },
+  { key: "THESIS_CALL", label: STAGE_TERMS.THESIS_CALL.title },
+];
 
 function HistoryPage() {
   const [tab, setTab] = useState<Tab>("SURVIVOR");
@@ -117,7 +127,7 @@ function HistoryPage() {
         <ProductionArtifacts />
 
         <div className="flex flex-wrap items-center gap-1">
-          {([...FUNNEL_STAGES, "OUTCOMES"] as Tab[]).map((key) => (
+          {TABS.map(({ key, label }) => (
             <button
               key={key}
               onClick={() => setTab(key)}
@@ -128,12 +138,18 @@ function HistoryPage() {
                   : "border-border-strong text-muted-foreground hover:text-foreground",
               )}
             >
-              {key === "OUTCOMES" ? "Outcomes" : STAGE_TERMS[key as FunnelStage].title}
+              {label}
             </button>
           ))}
         </div>
 
-        {tab === "OUTCOMES" ? <OutcomesView /> : <StageView stage={tab as FunnelStage} />}
+        {tab === "DEEP_RESEARCH" ? (
+          <DeepResearchArtifacts />
+        ) : tab === "THESIS_SYNTHESIZED" ? (
+          <ThesisSynthesizedArtifacts />
+        ) : (
+          <StageView stage={tab} />
+        )}
       </div>
     </AppShell>
   );
@@ -204,9 +220,13 @@ function StageView({ stage }: { stage: FunnelStage }) {
   );
 
   const live = useLiveMarket(addresses, true);
+  // Liquidity travels with the quote so `outcome_market_validity/v1` can reject
+  // drained-pool prints instead of publishing a valid-looking Since Stage.
   const liveByAddress = useMemo(() => {
-    const map = new Map<string, number | null>();
-    for (const [address, value] of Object.entries(live.values)) map.set(address, value.marketCap);
+    const map = new Map<string, LiveQuote | null>();
+    for (const [address, value] of Object.entries(live.values)) {
+      map.set(address, { marketCap: value.marketCap, liquidityUsd: value.liquidityUsd });
+    }
     return map;
   }, [live.values]);
 
@@ -218,20 +238,7 @@ function StageView({ stage }: { stage: FunnelStage }) {
   const active = cohort.find((t) => t.tokenId === selected) ?? null;
   const activeLive = active?.contractAddress ? (live.values[active.contractAddress] ?? null) : null;
   const terms = STAGE_TERMS[stage];
-
-  if (stage === "AI_SHORTLIST" || stage === "THESIS_CALL") {
-    return (
-      <Section
-        title={terms.title}
-        description="Reserved for AI triage and thesis synthesis. Nothing is simulated here."
-      >
-        <EmptyState
-          title="No stage entries yet"
-          description="This stage is created only by a real AI run, with the exact research packet it saw."
-        />
-      </Section>
-    );
-  }
+  const supportsSeries = stageSupportsPeakMetrics(stage);
 
   const setupFilters: StageSetupFilter[] =
     stage === "SURVIVOR" ? ["ALL", "BASE", "REACCEL", "NONE"] : ["ALL", "BASE", "REACCEL"];
@@ -270,7 +277,11 @@ function StageView({ stage }: { stage: FunnelStage }) {
         description={
           stage === "SURVIVOR"
             ? `Unique tokens with a frozen First Survivor selection. ${policy === "CURRENT" ? `Only calls made under ${POLICY_LABELS.CURRENT_V1.toLowerCase()} (CURRENT_V1).` : "Every historical call, across all policy eras."} Descriptive historical measurement — not thesis returns or simulated trading.`
-            : "Unique tokens the first time they qualified for a recognized BASE or REACCEL setup."
+            : stage === "SETUP_QUALIFIED"
+              ? "Unique tokens the first time they qualified for a recognized BASE or REACCEL setup."
+              : stage === "AI_SHORTLIST"
+                ? "Unique tokens the AI triage layer shortlisted, measured from the frozen market state at shortlisting. Stage-relative peak and drawdown are not tracked for this stage."
+                : "Unique tokens whose thesis passed every opportunity gate. Created only by a real thesis run."
         }
       >
         <div className="mb-3 flex flex-wrap items-center gap-1">
@@ -316,10 +327,12 @@ function StageView({ stage }: { stage: FunnelStage }) {
           ))}
           <span className="label-xs mr-1 ml-4">Sort</span>
           {(
-            [
-              ["RECENT", "Most recent"],
-              ["PEAK", `Highest ${terms.peak.toLowerCase()}`],
-            ] as [StageSort, string][]
+            supportsSeries
+              ? ([
+                  ["RECENT", "Most recent"],
+                  ["PEAK", `Highest ${terms.peak.toLowerCase()}`],
+                ] as [StageSort, string][])
+              : ([["RECENT", "Most recent"]] as [StageSort, string][])
           ).map(([key, label]) => (
             <button
               key={key}
@@ -345,7 +358,9 @@ function StageView({ stage }: { stage: FunnelStage }) {
                 ? "No calls have been made yet under the current policy. Switch to All history to see earlier calls, measured under the rules that were live at the time."
                 : stage === "SURVIVOR"
                   ? "A token joins this cohort once it is selected as a Wingman Survivor."
-                  : "A token joins this cohort the first time it qualifies for BASE or REACCEL."
+                  : stage === "SETUP_QUALIFIED"
+                    ? "A token joins this cohort the first time it qualifies for BASE or REACCEL."
+                    : "This stage is created only by a real AI run, with the exact research packet it saw."
             }
           />
 
@@ -376,110 +391,6 @@ function StageView({ stage }: { stage: FunnelStage }) {
       </details>
 
       <HistoryTokenDrawer token={active} live={activeLive} onClose={() => setSelected(null)} />
-    </div>
-  );
-}
-
-function OutcomesView() {
-  const { data: outcomes = [], isLoading } = useOutcomes();
-  const stats = OutcomeService.stats(outcomes);
-  const rate = (band: { hits: number; total: number } | null) =>
-    band ? `${Math.round((band.hits / band.total) * 100)}% (${band.hits}/${band.total})` : "—";
-
-  return (
-    <div className="space-y-6">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatTile
-          label="Average thesis score"
-          value={stats.averageThesisScore ?? "—"}
-          detail="Across all discoveries"
-        />
-        <StatTile
-          label="Average max return"
-          value={stats.averageMaxReturnPct == null ? "—" : `+${stats.averageMaxReturnPct}%`}
-          tone="positive"
-          detail="Peak vs discovery market cap"
-        />
-        <StatTile
-          label="Hit rate — 80+"
-          value={rate(stats.hitRate80Plus)}
-          tone="primary"
-          detail="≥100% max gain counts as a hit"
-        />
-        <StatTile
-          label="Hit rate — 70–79"
-          value={rate(stats.hitRate70to79)}
-          detail="≥100% max gain counts as a hit"
-        />
-      </div>
-
-      <Section
-        title="Recorded outcomes"
-        description="Descriptive measurement of past Wingman discoveries."
-      >
-        {isLoading ? (
-          <p className="text-xs text-muted-foreground">Loading outcomes…</p>
-        ) : outcomes.length === 0 ? (
-          <EmptyState
-            title="No outcomes recorded yet"
-            description="Outcomes appear once discoveries have been tracked over time."
-          />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px] text-left">
-              <thead>
-                <tr className="[&>th]:label-xs [&>th]:pb-2.5 [&>th]:pr-4 [&>th]:font-medium">
-                  <th>Token</th>
-                  <th className="text-right">Thesis</th>
-                  <th className="text-right">MC @ discovery</th>
-                  <th className="text-right">Peak MC</th>
-                  <th className="text-right">Max gain</th>
-                  <th className="text-right">Max DD</th>
-                  <th>Status</th>
-                  <th className="text-right">Discovered</th>
-                </tr>
-              </thead>
-              <tbody>
-                {outcomes.map((o) => (
-                  <tr
-                    key={o.id}
-                    className="[&>td]:border-t [&>td]:border-border [&>td]:py-3 [&>td]:pr-4"
-                  >
-                    <td>
-                      <span className="text-sm font-medium">{o.token.name}</span>
-                      <span className="tabular block text-[11px] text-muted-foreground">
-                        {o.token.ticker}
-                      </span>
-                    </td>
-                    <td className="tabular text-right text-sm">{o.thesisScoreAtDiscovery}</td>
-                    <td className="tabular text-right text-sm">
-                      {formatUsd(o.marketCapAtDiscoveryUsd)}
-                    </td>
-                    <td className="tabular text-right text-sm">{formatUsd(o.peakMarketCapUsd)}</td>
-                    <td className="tabular text-right text-sm text-positive">+{o.maxGainPct}%</td>
-                    <td className="tabular text-right text-sm text-destructive">
-                      {o.maxDrawdownPct}%
-                    </td>
-                    <td>
-                      <span
-                        className={cn(
-                          "rounded border px-1.5 py-0.5 font-mono text-[10px] tracking-wide",
-                          STATUS_TONE[o.status] ?? "border-border-strong text-muted-foreground",
-                        )}
-                      >
-                        {o.status}
-                      </span>
-                    </td>
-                    <td className="tabular text-right text-xs text-muted-foreground">
-                      {formatDate(o.discoveredAt)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Section>
     </div>
   );
 }
