@@ -19,7 +19,7 @@ import type { DeepResearchReportSummary } from "./deep/deep-research.server";
 import { classifyResearchFailure } from "./deep/failure";
 import {
   loadActiveResearchCohort,
-  loadCohortThesisReportIds,
+  loadCohortThesisReports,
   type ActiveResearchCohort,
 } from "./cohort.server";
 import { deriveCohortStages, type CohortStages } from "./cohort";
