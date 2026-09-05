@@ -2179,6 +2179,103 @@ export type Database = {
           },
         ]
       }
+      thesis_synthesis_baselines: {
+        Row: {
+          baseline_origin: string
+          baseline_version: string
+          chain: string | null
+          created_at: string
+          deep_research_run_id: string | null
+          id: string
+          is_calibration: boolean
+          liquidity_usd: number | null
+          market_cap: number | null
+          market_source: string | null
+          mint: string
+          observed_at: string | null
+          price_usd: number | null
+          research_packet_id: string | null
+          source_pair_address: string | null
+          source_scan_id: string | null
+          synthesized_at: string
+          thesis_report_id: string
+          thesis_synthesis_run_id: string | null
+          token_id: string | null
+          triage_run_id: string | null
+          volume_24h: number | null
+        }
+        Insert: {
+          baseline_origin?: string
+          baseline_version?: string
+          chain?: string | null
+          created_at?: string
+          deep_research_run_id?: string | null
+          id?: string
+          is_calibration?: boolean
+          liquidity_usd?: number | null
+          market_cap?: number | null
+          market_source?: string | null
+          mint: string
+          observed_at?: string | null
+          price_usd?: number | null
+          research_packet_id?: string | null
+          source_pair_address?: string | null
+          source_scan_id?: string | null
+          synthesized_at: string
+          thesis_report_id: string
+          thesis_synthesis_run_id?: string | null
+          token_id?: string | null
+          triage_run_id?: string | null
+          volume_24h?: number | null
+        }
+        Update: {
+          baseline_origin?: string
+          baseline_version?: string
+          chain?: string | null
+          created_at?: string
+          deep_research_run_id?: string | null
+          id?: string
+          is_calibration?: boolean
+          liquidity_usd?: number | null
+          market_cap?: number | null
+          market_source?: string | null
+          mint?: string
+          observed_at?: string | null
+          price_usd?: number | null
+          research_packet_id?: string | null
+          source_pair_address?: string | null
+          source_scan_id?: string | null
+          synthesized_at?: string
+          thesis_report_id?: string
+          thesis_synthesis_run_id?: string | null
+          token_id?: string | null
+          triage_run_id?: string | null
+          volume_24h?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "thesis_synthesis_baselines_thesis_report_id_fkey"
+            columns: ["thesis_report_id"]
+            isOneToOne: true
+            referencedRelation: "thesis_reports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "thesis_synthesis_baselines_thesis_synthesis_run_id_fkey"
+            columns: ["thesis_synthesis_run_id"]
+            isOneToOne: false
+            referencedRelation: "thesis_synthesis_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "thesis_synthesis_baselines_token_id_fkey"
+            columns: ["token_id"]
+            isOneToOne: false
+            referencedRelation: "tokens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       thesis_synthesis_runs: {
         Row: {
           blocked_count: number
