@@ -186,10 +186,13 @@ export function ProductionFunnelPanel() {
         />
       </div>
       <p className="mt-3 text-[11px] text-muted-foreground">
-        Scan {data.scan.id?.slice(0, 8) ?? "—"} · triage {t ? t.id.slice(0, 8) : "—"} ·{" "}
+        Scan {data.scan.id?.slice(0, 8) ?? "—"}
+        {data.scan.completedAt ? ` · completed ${relativeTime(data.scan.completedAt)}` : ""} ·{" "}
+        {data.scan.policyVersion ?? "—"} · triage {t ? t.id.slice(0, 8) : "—"} ·{" "}
         {data.cohortShortlistCount} shortlisted in this cohort ·{" "}
         {t?.triagePolicyVersion ?? "—"}
       </p>
+
     </Section>
   );
 }
