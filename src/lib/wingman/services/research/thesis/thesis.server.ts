@@ -722,7 +722,7 @@ async function synthesizeCandidate(args: {
       strongestBullCase: validated.strongestBullCase,
       strongestBearCase: validated.strongestBearCase,
       strongestCatalyst: validated.strongestCatalyst,
-      catalystKind: validated.catalystKind,
+      catalystKind: legacyCatalystKind(semantics.catalystClassification),
       whyNowMarketSignal: validated.whyNowMarketSignal,
       strongestConcern: validated.strongestConcern,
       catalysts: validated.catalysts,
@@ -731,6 +731,7 @@ async function synthesizeCandidate(args: {
       supportingClaimRefs: validated.supportingClaimRefs,
       supportingSourceRefs: validated.supportingSourceRefs,
     },
+    semantics,
     validationIssues: validated.issues,
     diagnostics: {
       provider: response.diagnostics,
@@ -738,6 +739,8 @@ async function synthesizeCandidate(args: {
       dossierStatus: input.dossierStatus,
       searchUnavailable: input.searchUnavailable,
       inputPolicyVersion: THESIS_INPUT_POLICY_VERSION,
+      evidenceSemanticsVersion: THESIS_EVIDENCE_SEMANTICS_VERSION,
+      evidenceSemanticsIssues: semantics.issues,
       redactedPacketKeys: ["outcomes"],
     },
   };
