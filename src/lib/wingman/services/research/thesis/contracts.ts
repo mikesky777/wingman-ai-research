@@ -281,7 +281,11 @@ export interface ValidatedThesisOutput {
   strongestBullCase: string | null;
   strongestBearCase: string | null;
   bearSeverity: BearSeverity;
+  /** Real external catalyst only; null when none was verified. */
   strongestCatalyst: string | null;
+  catalystKind: CatalystKind;
+  /** Timing context from market behaviour — never presented as a catalyst. */
+  whyNowMarketSignal: string | null;
   strongestConcern: string | null;
   catalysts: string[];
   invalidation: string[];
