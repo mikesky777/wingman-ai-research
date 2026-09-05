@@ -177,9 +177,16 @@ async function loadThesisInputs(options: {
   const out: ThesisInputCandidate[] = [];
   for (const r of reports) {
     const mint = r["mint"] as string;
+    const run = runs.get(r["deep_research_run_id"] as string) ?? null;
+    if (!options.isCalibration) {
+      // Production only synthesises completed shortlist research with full provenance.
+      const status = (run?.["status"] as string) ?? "";
+      if (status !== "completed") continue;
+      if (!run?.["shortlist_milestone_id"]) continue;
+      if (!run?.["research_packet_id"]) continue;
+    }
     if (seen.has(mint)) continue; // newest report per mint only
     seen.add(mint);
-    const run = runs.get(r["deep_research_run_id"] as string) ?? null;
     const diagnostics = (run?.["diagnostics"] as Record<string, unknown> | null) ?? null;
     const dossier = (r["dossier"] as unknown as ResearchDossier) ?? null;
     const triageRunId = (run?.["triage_run_id"] as string) ?? null;
