@@ -34,6 +34,7 @@ import { CohortTable } from "@/components/wingman/history/CohortTable";
 import { HistoryTokenDrawer } from "@/components/wingman/history/HistoryTokenDrawer";
 import { useLiveMarket } from "@/components/wingman/history/useLiveMarket";
 import { ProductionArtifacts } from "@/components/wingman/history/ProductionArtifacts";
+import { LiveLifecycleLedger } from "@/components/wingman/history/LiveLifecycleLedger";
 import {
   DeepResearchArtifacts,
   ThesisSynthesizedArtifacts,
@@ -69,7 +70,7 @@ export const Route = createFileRoute("/history")({
  * performance baseline. The legacy seeded Outcomes view is not part of the
  * production workflow; those demo rows remain untouched in the database.
  */
-type Tab = FunnelStage | "DEEP_RESEARCH" | "THESIS_SYNTHESIZED";
+type Tab = FunnelStage | "DEEP_RESEARCH" | "THESIS_SYNTHESIZED" | "LIVE_LIFECYCLE";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "SETUP_QUALIFIED", label: STAGE_TERMS.SETUP_QUALIFIED.title },
@@ -78,6 +79,7 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "DEEP_RESEARCH", label: "Deep Research" },
   { key: "THESIS_SYNTHESIZED", label: "Thesis Synthesized" },
   { key: "THESIS_CALL", label: STAGE_TERMS.THESIS_CALL.title },
+  { key: "LIVE_LIFECYCLE", label: "Live lifecycle" },
 ];
 
 function HistoryPage() {
@@ -143,7 +145,9 @@ function HistoryPage() {
           ))}
         </div>
 
-        {tab === "DEEP_RESEARCH" ? (
+        {tab === "LIVE_LIFECYCLE" ? (
+          <LiveLifecycleLedger />
+        ) : tab === "DEEP_RESEARCH" ? (
           <DeepResearchArtifacts />
         ) : tab === "THESIS_SYNTHESIZED" ? (
           <ThesisSynthesizedArtifacts />

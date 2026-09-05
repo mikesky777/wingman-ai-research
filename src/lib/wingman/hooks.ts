@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { OutcomeService, ResearchService, ScannerService } from "./services";
 import { getLiveCalls } from "./live-calls.functions";
+import { getLiveLifecycle } from "./live-lifecycle.functions";
 import { getLiveCallSizing } from "./sizing.functions";
 
 /** Query keys for every backend-read surface. */
@@ -17,6 +18,7 @@ export const wingmanKeys = {
   watchlist: ["wingman", "watchlist"] as const,
   liveCalls: ["wingman", "live-calls"] as const,
   liveCallSizing: ["wingman", "live-call-sizing"] as const,
+  liveLifecycle: ["wingman", "live-lifecycle"] as const,
 };
 
 /**
