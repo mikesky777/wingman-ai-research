@@ -1,15 +1,28 @@
 /**
  * Production research funnel read-model (server-only).
  *
- * Follows the exact production provenance chain:
- *   production scan → Research Packets → production triage → AI_SHORTLIST →
- *   production Deep Research reports → Thesis.
- * Calibration artefacts are excluded at every query.
+ * ROOT = the active eligible production scan (ai_scan_source/v1). Every stage
+ * below is scoped by exact provenance to that scan:
+ *   scan → packets(scan_run_id) → triage(source_scan_id) →
+ *   deep research(triage_run_id) → thesis(thesis_synthesis_run_id) →
+ *   entry(thesis_report_id) → sizing(thesis_call_id).
+ *
+ * Counters describe the ACTIVE COHORT only. All-time, first-entry milestone
+ * counts belong to History, which is a different concept: a token can recur
+ * across scans, so a first-ever milestone never proves current membership.
+ * Calibration artefacts are excluded at every query, and a missing downstream
+ * artefact is reported honestly instead of borrowing the previous cohort's.
  */
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { loadLatestTriage, type TriageRunSummary } from "./triage.server";
 import type { DeepResearchReportSummary } from "./deep/deep-research.server";
 import { classifyResearchFailure } from "./deep/failure";
+import {
+  loadActiveResearchCohort,
+  loadCohortThesisReportIds,
+  type ActiveResearchCohort,
+} from "./cohort.server";
+import { deriveCohortStages, type CohortStages } from "./cohort";
 import {
   buildProductionShortlist,
   countShortlistStatuses,
@@ -26,52 +39,66 @@ export interface ProductionFunnel {
     completedAt: string | null;
     discoveredTokenCount: number | null;
     policyVersion: string | null;
+    packetCount: number;
   } | null;
+  /** Why no scan is active, when scan is null. */
+  eligibility: ActiveResearchCohort["eligibility"] | null;
+  stages: CohortStages;
   triage: TriageRunSummary | null;
+  triageRunId: string | null;
+  thesisSynthesisRunId: string | null;
   shortlist: ProductionShortlistEntry[];
   deepResearch: ShortlistStatusCounts;
-  aiShortlistMilestoneCount: number;
+  /** Active-cohort AI shortlist = DEEP_RESEARCH decisions of the active triage run. */
+  cohortShortlistCount: number;
   thesisReportCount: number;
-  thesisCallMilestoneCount: number;
+  thesisCallCount: number;
   entryEvaluatedCount: number;
   entryActionableCount: number;
+  sizingCount: number;
 }
 
-/** Loads the current production funnel. Read-only. */
-export async function loadProductionFunnel(): Promise<ProductionFunnel> {
-  const triage = await loadLatestTriage("PRODUCTION");
-  if (!triage) {
-    return {
-      scan: null,
-      triage: null,
-      shortlist: [],
-      deepResearch: { total: 0, completed: 0, pending: 0, blockedOrFailed: 0 },
-      aiShortlistMilestoneCount: 0,
+function emptyFunnel(cohort: ActiveResearchCohort | null): ProductionFunnel {
+  return {
+    scan: cohort?.scan
+      ? { ...cohort.scan }
+      : null,
+    eligibility: cohort?.eligibility ?? null,
+    stages: deriveCohortStages({
+      packetCount: cohort?.scan?.packetCount ?? 0,
+      triageRunId: null,
+      triageStatus: null,
+      shortlistCount: 0,
+      deepResearchAttempted: 0,
+      deepResearchCompleted: 0,
+      thesisSynthesisRunId: null,
       thesisReportCount: 0,
-      thesisCallMilestoneCount: 0,
       entryEvaluatedCount: 0,
-      entryActionableCount: 0,
-    };
-  }
+      thesisCallCount: 0,
+      sizingCount: 0,
+    }),
+    triage: null,
+    triageRunId: null,
+    thesisSynthesisRunId: null,
+    shortlist: [],
+    deepResearch: { total: 0, completed: 0, pending: 0, blockedOrFailed: 0 },
+    cohortShortlistCount: 0,
+    thesisReportCount: 0,
+    thesisCallCount: 0,
+    entryEvaluatedCount: 0,
+    entryActionableCount: 0,
+    sizingCount: 0,
+  };
+}
 
-  const scanId = triage.run.sourceScanId;
-  let scan: ProductionFunnel["scan"] = null;
-  if (scanId) {
-    const { data } = await supabaseAdmin
-      .from("scan_runs")
-      .select("id, completed_at, tokens_discovered, selection_policy_version")
-      .eq("id", scanId)
-      .maybeSingle();
-    const r = (data as Row | null) ?? null;
-    if (r) {
-      scan = {
-        id: r["id"] as string,
-        completedAt: (r["completed_at"] as string) ?? null,
-        discoveredTokenCount: (r["tokens_discovered"] as number) ?? null,
-        policyVersion: (r["selection_policy_version"] as string) ?? null,
-      };
-    }
-  }
+/** Loads the current production funnel for the ACTIVE cohort. Read-only. */
+export async function loadProductionFunnel(): Promise<ProductionFunnel> {
+  const cohort = await loadActiveResearchCohort();
+  if (!cohort.scan) return emptyFunnel(cohort);
+  if (!cohort.triageRunId) return emptyFunnel(cohort);
+
+  const triage = await loadLatestTriage("PRODUCTION", { sourceScanId: cohort.scan.id });
+  if (!triage) return emptyFunnel(cohort);
 
   // Deep Research attempts belonging to THIS production triage run only.
   const { data: runRows, error: runError } = await supabaseAdmin
@@ -116,52 +143,91 @@ export async function loadProductionFunnel(): Promise<ProductionFunnel> {
       coveragePct: (rep?.["evidence_coverage_pct"] as number) ?? null,
       researchedAt: (rep?.["created_at"] as string) ?? (r["started_at"] as string) ?? null,
       failureCode: failure ? failure.code : null,
-      retryable: failure ? failure.retryable : false,
+      retryable: failure ? failure.retryable : null,
     };
   });
 
   const shortlist = buildProductionShortlist(triage.decisions, attempts);
+  const deepResearch = countShortlistStatuses(shortlist);
 
-  const { count: milestoneCount } = await supabaseAdmin
-    .from("token_stage_milestones")
-    .select("id", { count: "exact", head: true })
-    .eq("stage", "AI_SHORTLIST");
-  const { count: thesisCallCount } = await supabaseAdmin
-    .from("token_stage_milestones")
-    .select("id", { count: "exact", head: true })
-    .eq("stage", "THESIS_CALL");
-  const { count: thesisReports } = await supabaseAdmin
-    .from("thesis_reports")
-    .select("id", { count: "exact", head: true })
-    .eq("is_calibration", false);
+  // Thesis / entry / sizing: exact active-cohort provenance only.
+  let thesisReportCount = 0;
+  let thesisCallCount = 0;
+  let entryEvaluatedCount = 0;
+  let entryActionableCount = 0;
+  let sizingCount = 0;
 
-  const { data: entryRows } = await supabaseAdmin
-    .from("entry_state_evaluations")
-    .select("mint, state, evaluated_at")
-    .eq("is_calibration", false)
-    .order("evaluated_at", { ascending: false })
-    .limit(500);
-  const latestEntryByMint = new Map<string, string>();
-  for (const row of ((entryRows as Row[]) ?? [])) {
-    const mint = row["mint"] as string;
-    if (!latestEntryByMint.has(mint)) latestEntryByMint.set(mint, (row["state"] as string) ?? "UNKNOWN");
+  if (cohort.thesisSynthesisRunId) {
+    const { reportIds, callMilestoneIds } = await loadCohortThesisReportIds(
+      cohort.thesisSynthesisRunId,
+    );
+    thesisReportCount = reportIds.length;
+    thesisCallCount = callMilestoneIds.length;
+
+    if (reportIds.length) {
+      const { data: entryRows } = await supabaseAdmin
+        .from("entry_state_evaluations")
+        .select("mint, state, evaluated_at, thesis_report_id")
+        .eq("is_calibration", false)
+        .in("thesis_report_id", reportIds)
+        .order("evaluated_at", { ascending: false })
+        .limit(500);
+      const latestEntryByMint = new Map<string, string>();
+      for (const row of (entryRows as Row[]) ?? []) {
+        const mint = row["mint"] as string;
+        if (!latestEntryByMint.has(mint)) {
+          latestEntryByMint.set(mint, (row["state"] as string) ?? "UNKNOWN");
+        }
+      }
+      entryEvaluatedCount = latestEntryByMint.size;
+      entryActionableCount = [...latestEntryByMint.values()].filter(
+        (state) => state === "BUY_ZONE" || state === "ACCEPTABLE",
+      ).length;
+    }
+
+    if (callMilestoneIds.length) {
+      const { count } = await supabaseAdmin
+        .from("sizing_recommendations")
+        .select("id", { count: "exact", head: true })
+        .in("thesis_call_id", callMilestoneIds);
+      sizingCount = count ?? 0;
+    }
   }
-  const entryActionableCount = [...latestEntryByMint.values()].filter(
-    (state) => state === "BUY_ZONE" || state === "ACCEPTABLE",
+
+  const cohortShortlistCount = triage.decisions.filter(
+    (d) => d.decision === "DEEP_RESEARCH",
   ).length;
 
   return {
-    scan,
+    scan: { ...cohort.scan },
+    eligibility: cohort.eligibility,
+    stages: deriveCohortStages({
+      packetCount: cohort.scan.packetCount,
+      triageRunId: triage.run.id,
+      triageStatus: triage.run.status,
+      shortlistCount: cohortShortlistCount,
+      deepResearchAttempted: attempts.length,
+      deepResearchCompleted: deepResearch.completed,
+      thesisSynthesisRunId: cohort.thesisSynthesisRunId,
+      thesisReportCount,
+      entryEvaluatedCount,
+      thesisCallCount,
+      sizingCount,
+    }),
     triage: triage.run,
+    triageRunId: triage.run.id,
+    thesisSynthesisRunId: cohort.thesisSynthesisRunId,
     shortlist,
-    deepResearch: countShortlistStatuses(shortlist),
-    aiShortlistMilestoneCount: milestoneCount ?? 0,
-    thesisCallMilestoneCount: thesisCallCount ?? 0,
-    thesisReportCount: thesisReports ?? 0,
-    entryEvaluatedCount: latestEntryByMint.size,
+    deepResearch,
+    cohortShortlistCount,
+    thesisReportCount,
+    thesisCallCount,
+    entryEvaluatedCount,
     entryActionableCount,
+    sizingCount,
   };
 }
+
 
 /** Loads one persisted Deep Research report by id, in the panel's shape. */
 export async function loadDeepResearchReportById(
