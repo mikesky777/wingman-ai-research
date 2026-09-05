@@ -137,10 +137,13 @@ export interface DeepResearchBatchResult {
 
 export interface RunDeepResearchOptions {
   mode?: DeepResearchMode;
-  /** Calibration only: cap the dry-run subset (3–5). */
+  /** Cap the researched subset by persisted AI triage rank (calibration: 3–5). */
   limit?: number;
-  /** Calibration only: research a specific triage run instead of the newest. */
+  /** Production only: skip the first N shortlist ranks (continue a batch). */
+  offset?: number;
+  /** Research a specific triage run instead of the newest. */
   triageRunId?: string;
+
   budget?: Partial<ResearchBudget>;
   provider?: DeepResearchProvider;
   search?: ExternalSearchProvider;
@@ -264,9 +267,12 @@ export async function runDeepResearch(
   if (isCalibration) {
     const limit = Math.min(5, Math.max(3, options.limit ?? 3));
     shortlist = shortlist.slice(0, limit);
-  } else if (typeof options.limit === "number" && options.limit > 0) {
-    shortlist = shortlist.slice(0, options.limit);
+  } else {
+    const offset = typeof options.offset === "number" && options.offset > 0 ? options.offset : 0;
+    const limit = typeof options.limit === "number" && options.limit > 0 ? options.limit : shortlist.length;
+    shortlist = shortlist.slice(offset, offset + limit);
   }
+
 
 
   // Freshness / eligibility recheck against the scan the packets came from.
@@ -346,8 +352,15 @@ export async function runDeepResearch(
       results.push(result);
 
     } catch (error) {
-      // Failure isolation: one bad candidate never aborts the batch.
+      // Failure isolation: one bad candidate never aborts the batch. A run row
+      // opened before the failure must not be left dangling as "running".
+      await failDanglingRun(
+        triageRun.id,
+        candidate.mint,
+        error instanceof Error ? error.message.slice(0, 400) : "Unknown error",
+      );
       results.push({
+
         mint: candidate.mint,
         symbol: candidate.symbol,
         status: "failed",
@@ -1071,4 +1084,26 @@ export async function loadExternalSearchStatus(): Promise<ExternalSearchStatus> 
     lastRunResultsReturned: telemetry?.resultsReturned ?? 0,
     lastRunOutcomes: telemetry?.outcomes ?? {},
   };
+}
+
+/**
+ * Marks a run row that was opened but never finished (provider crash, gateway
+ * rejection) as failed. Reports, sources, claims and milestones are untouched.
+ */
+async function failDanglingRun(
+  triageRunId: string,
+  mint: string,
+  message: string,
+): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from("deep_research_runs")
+    .update({
+      status: "failed",
+      error: message,
+      completed_at: new Date().toISOString(),
+    })
+    .eq("triage_run_id", triageRunId)
+    .eq("mint", mint)
+    .eq("status", "running");
+  if (error) console.error("failDanglingRun", error.message);
 }
