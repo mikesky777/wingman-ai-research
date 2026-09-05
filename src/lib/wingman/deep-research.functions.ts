@@ -12,10 +12,11 @@ import type {
 } from "./services/research/deep/deep-research.server";
 
 export const runDeepResearchBatch = createServerFn({ method: "POST" })
-  .inputValidator((input?: { mode?: "PRODUCTION" | "CALIBRATION"; limit?: number; triageRunId?: string | null }) => ({
+  .inputValidator((input?: { mode?: "PRODUCTION" | "CALIBRATION"; limit?: number; offset?: number; triageRunId?: string | null }) => ({
     mode: input?.mode === "PRODUCTION" ? ("production" as const) : ("calibration" as const),
-    // Deliberate top-N batches by persisted AI triage rank (1–12).
+    // Deliberate rank-ordered batches by persisted AI triage rank (1–12).
     limit: Math.min(Math.max(input?.limit ?? 3, 1), 12),
+    offset: Math.min(Math.max(input?.offset ?? 0, 0), 24),
     triageRunId: input?.triageRunId ?? null,
   }))
 
@@ -24,9 +25,11 @@ export const runDeepResearchBatch = createServerFn({ method: "POST" })
     return runDeepResearch({
       mode: data.mode,
       limit: data.limit,
+      offset: data.offset,
       ...(data.triageRunId ? { triageRunId: data.triageRunId } : {}),
     });
   });
+
 
 export const getDeepResearchReports = createServerFn({ method: "GET" }).handler(
   async (): Promise<DeepResearchReportSummary[]> => {
