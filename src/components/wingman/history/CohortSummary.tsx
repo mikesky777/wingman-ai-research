@@ -68,16 +68,6 @@ export function CohortSummaryCards({ summary }: { summary: StageSummary }) {
             value={pct(summary.medianMaxDd)}
             detail={n(summary.medianMaxDd)}
           />
-          <StatTile
-            label={`Avg ${terms.worst.toLowerCase()}`}
-            value={pct(summary.avgWorst)}
-            detail={`${n(summary.avgWorst)} · lowest level vs frozen entry`}
-          />
-          <StatTile
-            label={`Median ${terms.worst.toLowerCase()}`}
-            value={pct(summary.medianWorst)}
-            detail={n(summary.medianWorst)}
-          />
         </>
       ) : null}
       <StatTile

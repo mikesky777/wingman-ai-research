@@ -60,7 +60,6 @@ export function CohortTable({
             <th className="text-right">24h</th>
             <th className="text-right">{terms.since}</th>
             {showSeries ? <th className="text-right">{terms.peak}</th> : null}
-            {showSeries ? <th className="text-right">{terms.worst}</th> : null}
             {showSeries ? (
               <th
                 className="text-right"
@@ -146,11 +145,6 @@ export function CohortTable({
                 </td>
                 {showSeries ? (
                   <td className="tabular text-right text-sm text-primary">{pct(t.peakPct)}</td>
-                ) : null}
-                {showSeries ? (
-                  <td className={cn("tabular text-right text-sm", tone(t.maxAdversePct))}>
-                    {pct(t.maxAdversePct)}
-                  </td>
                 ) : null}
                 {showSeries ? (
                   <td className="tabular text-right text-sm text-destructive">
