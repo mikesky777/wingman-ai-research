@@ -470,7 +470,11 @@ export async function runThesisSynthesis(
   }
   const markets = await loadCurrentMarkets(tokenIds);
 
+  // Cohort lock: a partial unique index allows only one in-flight production
+  // run per triage cohort, so an overlapping/double-clicked request is
+  // rejected here — before any model spend.
   const runId = await insertRun({ isCalibration, provider, inputs: selected });
+  if (runId === null) return emptyBatch(mode, "PRODUCTION_RUN_ALREADY_IN_FLIGHT", provider);
 
   const synthesized: SynthesizedCandidate[] = [];
   for (const input of selected) {
