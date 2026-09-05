@@ -8,9 +8,11 @@ import {
   History,
   Settings,
   Crosshair,
+  PhoneCall,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MOCK_DATA_NOTICE } from "@/lib/wingman/config";
+import { useLiveCalls } from "@/lib/wingman/hooks";
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -20,6 +22,24 @@ const NAV = [
   { to: "/history", label: "History", icon: History },
   { to: "/settings", label: "Settings", icon: Settings },
 ] as const;
+
+/** First-class nav entry for official production THESIS_CALL records. */
+function LiveCallsNavBadge() {
+  const { data } = useLiveCalls();
+  const count = data?.count ?? 0;
+  return (
+    <span
+      className={cn(
+        "ml-auto inline-flex min-w-5 items-center justify-center rounded-full border px-1.5 text-[10px] font-medium tabular-nums",
+        count > 0
+          ? "border-primary/50 bg-primary/15 text-primary"
+          : "border-border text-muted-foreground",
+      )}
+    >
+      {count}
+    </span>
+  );
+}
 
 export function AppShell({
   title,
@@ -68,6 +88,15 @@ export function AppShell({
               </Link>
             );
           })}
+          <Link
+            to="/"
+            hash="live-calls"
+            className="group flex items-center gap-2.5 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
+          >
+            <PhoneCall className="size-4" />
+            Live Calls
+            <LiveCallsNavBadge />
+          </Link>
         </nav>
 
         <div className="border-t border-sidebar-border px-5 py-4">
