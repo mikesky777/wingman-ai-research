@@ -395,10 +395,18 @@ export function mapEntryState(input: EntryMappingInput): EntryMappingResult {
     return { state: "SETTING_UP", reasons: ["CONDITIONS_IMPROVING_WITHOUT_FULL_CONFIRMATION"] };
   }
 
+  // v1.1: a single severe damage dimension is not enough to call the setup
+  // BROKEN, but it does disqualify "reasonable" timing.
+  const severeSingleDamage = (input.damage?.dimensions ?? []).some((d) =>
+    /^(DEEP_DRAWDOWN|COLLAPSED_RELATIVE_VOLUME|VERY_LOW_LIQUIDITY)/.test(d),
+  );
+
   if (
     input.total >= 4.5 &&
     input.structureVerdict !== "DETERIORATING" &&
-    input.components.riskDefinition >= 1
+    input.components.riskDefinition >= 1 &&
+    input.components.volumeFlow >= 0.5 &&
+    !severeSingleDamage
   ) {
     return { state: "ACCEPTABLE", reasons: ["REASONABLE_BUT_NOT_UNUSUALLY_ATTRACTIVE"] };
   }
