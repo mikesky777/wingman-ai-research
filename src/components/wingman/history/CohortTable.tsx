@@ -60,7 +60,15 @@ export function CohortTable({
             <th className="text-right">24h</th>
             <th className="text-right">{terms.since}</th>
             {showSeries ? <th className="text-right">{terms.peak}</th> : null}
-            {showSeries ? <th className="text-right">{terms.maxDd}</th> : null}
+            {showSeries ? <th className="text-right">{terms.worst}</th> : null}
+            {showSeries ? (
+              <th
+                className="text-right"
+                title="Worst decline from a post-entry running peak. Never positive."
+              >
+                {terms.maxDd}
+              </th>
+            ) : null}
             <th className="text-right">Entered</th>
             <th>Seen now</th>
             <th className="text-right">Last seen</th>
@@ -140,8 +148,13 @@ export function CohortTable({
                   <td className="tabular text-right text-sm text-primary">{pct(t.peakPct)}</td>
                 ) : null}
                 {showSeries ? (
-                  <td className="tabular text-right text-sm text-destructive">
+                  <td className={cn("tabular text-right text-sm", tone(t.maxAdversePct))}>
                     {pct(t.maxAdversePct)}
+                  </td>
+                ) : null}
+                {showSeries ? (
+                  <td className="tabular text-right text-sm text-destructive">
+                    {pct(t.drawdownPct)}
                   </td>
                 ) : null}
                 <td className="tabular text-right text-xs text-muted-foreground">

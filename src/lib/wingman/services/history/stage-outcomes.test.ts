@@ -49,10 +49,26 @@ describe("stage outcomes", () => {
     expect(out.maxAdversePct).toBeNull();
   });
 
+  it("keeps true max drawdown non-positive while worst-vs-entry may be positive", () => {
+    const out = deriveStageOutcome(
+      { enteredAt: "2026-01-01T00:00:00Z", marketCapAtEntry: 100_000, priceAtEntry: 0.1 },
+      {
+        candidates: [],
+        snapshots: [snap("2026-01-01T01:00:00Z", 300_000), snap("2026-01-01T02:00:00Z", 180_000)],
+      },
+      "2026-01-01T03:00:00Z",
+    );
+    // Lowest post-entry level is still above entry: worst-vs-entry is positive.
+    expect(out.maxAdversePct).toBeCloseTo(80, 5);
+    // True peak-to-trough drawdown must never be positive.
+    expect(out.drawdownPct).toBeLessThanOrEqual(0);
+    expect(out.drawdownPct).toBeCloseTo(-40, 5);
+  });
+
   it("supports peak metrics only for stages with a frozen baseline", () => {
     expect(stageSupportsPeakMetrics("SURVIVOR")).toBe(true);
     expect(stageSupportsPeakMetrics("AI_SHORTLIST")).toBe(true);
     expect(stageSupportsPeakMetrics("THESIS_CALL")).toBe(true);
-    expect(stageSupportsPeakMetrics("SETUP_QUALIFIED")).toBe(false);
+    expect(stageSupportsPeakMetrics("SETUP_QUALIFIED")).toBe(true);
   });
 });

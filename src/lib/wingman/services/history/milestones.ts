@@ -312,12 +312,16 @@ export interface StageRow {
 }
 
 /** Stage-appropriate wording. Survivor metrics are never called thesis returns. */
-export const STAGE_TERMS: Record<FunnelStage, { title: string; since: string; peak: string; entry: string; maxDd: string }> = {
+export const STAGE_TERMS: Record<
+  FunnelStage,
+  { title: string; since: string; peak: string; entry: string; worst: string; maxDd: string }
+> = {
   SETUP_QUALIFIED: {
     title: "Setup Qualified",
     since: "Since setup",
     peak: "Peak since setup",
     entry: "MC @ setup",
+    worst: "Worst since setup",
     maxDd: "Max DD since setup",
   },
   SURVIVOR: {
@@ -325,6 +329,7 @@ export const STAGE_TERMS: Record<FunnelStage, { title: string; since: string; pe
     since: "Since survivor",
     peak: "Peak since survivor",
     entry: "MC @ survivor",
+    worst: "Worst since survivor",
     maxDd: "Max DD since survivor",
   },
   AI_SHORTLIST: {
@@ -332,6 +337,7 @@ export const STAGE_TERMS: Record<FunnelStage, { title: string; since: string; pe
     since: "Since shortlist",
     peak: "Peak since shortlist",
     entry: "MC @ shortlist",
+    worst: "Worst since shortlist",
     maxDd: "Max DD since shortlist",
   },
   THESIS_CALL: {
@@ -339,6 +345,7 @@ export const STAGE_TERMS: Record<FunnelStage, { title: string; since: string; pe
     since: "Since thesis call",
     peak: "Peak since thesis call",
     entry: "MC @ thesis call",
+    worst: "Worst since thesis call",
     maxDd: "Max DD since thesis call",
   },
 };
@@ -531,7 +538,12 @@ export function liveSinceStagePct(row: StageRow, live?: LiveQuote | null): numbe
  * Thesis Synthesized artifacts captured no baseline and stay artifact-only.
  */
 export function stageSupportsPeakMetrics(stage: FunnelStage): boolean {
-  return stage === "SURVIVOR" || stage === "AI_SHORTLIST" || stage === "THESIS_CALL";
+  return (
+    stage === "SETUP_QUALIFIED" ||
+    stage === "SURVIVOR" ||
+    stage === "AI_SHORTLIST" ||
+    stage === "THESIS_CALL"
+  );
 }
 
 export interface StageSummary {
@@ -543,7 +555,12 @@ export interface StageSummary {
   avgPeak: Stat;
   medianPeak: Stat;
   winRate: Stat;
+  /** True peak-to-trough decline (<= 0). Never positive. */
   avgMaxDd: Stat;
+  medianMaxDd: Stat;
+  /** Worst market-cap level vs the frozen baseline (maximum adverse excursion). */
+  avgWorst: Stat;
+  medianWorst: Stat;
 }
 
 export function summarizeStageRows(
@@ -567,7 +584,10 @@ export function summarizeStageRows(
       validSince.length === 0
         ? { value: null, n: 0 }
         : { value: (wins / validSince.length) * 100, n: validSince.length },
-    avgMaxDd: mean(cohort.map((r) => r.maxAdversePct)),
+    avgMaxDd: mean(cohort.map((r) => r.drawdownPct)),
+    medianMaxDd: median(cohort.map((r) => r.drawdownPct)),
+    avgWorst: mean(cohort.map((r) => r.maxAdversePct)),
+    medianWorst: median(cohort.map((r) => r.maxAdversePct)),
   };
 }
 

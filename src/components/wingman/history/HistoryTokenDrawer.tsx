@@ -135,8 +135,8 @@ export function HistoryTokenDrawer({
                 ...(showSeries
                   ? [
                       { label: terms.peak, value: pct(token.peakPct) },
-                      { label: terms.maxDd, value: pct(token.maxAdversePct) },
-                      { label: "Peak-to-trough", value: pct(token.drawdownPct) },
+                      { label: terms.worst, value: pct(token.maxAdversePct) },
+                      { label: terms.maxDd, value: pct(token.drawdownPct) },
                     ]
                   : []),
                 { label: "Baseline complete", value: token.baselineComplete ? "YES" : "NO" },
