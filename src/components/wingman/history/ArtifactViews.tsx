@@ -276,7 +276,6 @@ export function ThesisSynthesizedArtifacts() {
         />
       ) : (
         <div className="space-y-4">
-          <SetupFilterBar value={setup} onChange={setSetup} />
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="font-mono text-[10px] tracking-wide text-muted-foreground">
               {counts.storedArtifacts} stored artifacts · {counts.thesisEvents} thesis decisions ·{" "}
@@ -324,26 +323,29 @@ export function ThesisSynthesizedArtifacts() {
             </label>
           </div>
           <ThesisSummaryCards summary={summary} />
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="label-xs mr-1 text-muted-foreground">Sort</span>
-            {SORTS.map((s) => (
-              <button
-                key={s.id}
-                onClick={() => setSort(s.id)}
-                className={`rounded border px-2 py-1 font-mono text-[10px] tracking-wide ${
-                  sort === s.id
-                    ? "border-primary text-primary"
-                    : "border-border text-muted-foreground"
-                }`}
-              >
-                {s.label}
-              </button>
-            ))}
-            {unmeasured > 0 ? (
-              <span className="text-[10px] text-muted-foreground">
-                {unmeasured} of {measuredPopulation.length} without a thesis-time baseline
-              </span>
-            ) : null}
+          <div className="flex flex-wrap items-center gap-4">
+            <SetupFilterBar value={setup} onChange={setSetup} />
+            <div className="flex flex-1 flex-wrap items-center gap-2">
+              <span className="label-xs mr-1 text-muted-foreground">Sort</span>
+              {SORTS.map((s) => (
+                <button
+                  key={s.id}
+                  onClick={() => setSort(s.id)}
+                  className={`rounded border px-2 py-1 font-mono text-[10px] tracking-wide ${
+                    sort === s.id
+                      ? "border-primary text-primary"
+                      : "border-border text-muted-foreground"
+                  }`}
+                >
+                  {s.label}
+                </button>
+              ))}
+              {unmeasured > 0 ? (
+                <span className="text-[10px] text-muted-foreground">
+                  {unmeasured} of {measuredPopulation.length} without a thesis-time baseline
+                </span>
+              ) : null}
+            </div>
           </div>
           <ul className="grid gap-3 md:grid-cols-2">
             {sorted.map((r) => (
