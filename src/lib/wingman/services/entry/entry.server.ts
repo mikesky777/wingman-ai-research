@@ -98,11 +98,49 @@ function num(v: unknown): number | null {
   return typeof v === "number" && Number.isFinite(v) ? v : null;
 }
 
+/**
+ * Mints with a production THESIS_CALL that is currently ACTIVE-monitored.
+ * A missing monitoring row defaults to ACTIVE (new calls begin ACTIVE); there
+ * is no automatic age cutoff.
+ */
+async function loadActivelyMonitoredCallMints(): Promise<string[]> {
+  const { data: callRows, error } = await supabaseAdmin
+    .from("token_stage_milestones")
+    .select("contract_address")
+    .eq("stage", "THESIS_CALL");
+  if (error) throw new Error(error.message);
+  const mints = [
+    ...new Set(((callRows as Row[]) ?? []).map((r) => r["contract_address"] as string).filter(Boolean)),
+  ];
+  if (mints.length === 0) return [];
+
+  const { data: monitoringRows, error: monitoringError } = await supabaseAdmin
+    .from("thesis_call_monitoring")
+    .select("mint, status")
+    .in("mint", mints);
+  if (monitoringError) throw new Error(monitoringError.message);
+  const blocked = new Set(
+    ((monitoringRows as Row[]) ?? [])
+      .filter((r) => (r["status"] as string) !== "ACTIVE")
+      .map((r) => r["mint"] as string),
+  );
+  return mints.filter((m) => !blocked.has(m));
+}
+
 async function loadThesisInputs(options: {
   isCalibration: boolean;
   mints?: string[];
   limit: number;
 }): Promise<ThesisInput[]> {
+  // Production timing only ever evaluates production THESIS_CALL records that
+  // are currently under ACTIVE monitoring. A synthesized thesis without a call,
+  // or a call that is RESEARCH_DUE / INACTIVE / INVALIDATED, is never timed.
+  let monitoredMints: string[] | null = null;
+  if (!options.isCalibration) {
+    monitoredMints = await loadActivelyMonitoredCallMints();
+    if (monitoredMints.length === 0) return [];
+  }
+
   // Production timing only ever evaluates the ACTIVE cohort's thesis reports.
   let cohortReportIds: string[] | null = null;
   if (!options.isCalibration) {
@@ -124,6 +162,13 @@ async function loadThesisInputs(options: {
   if (cohortReportIds) query = query.in("id", cohortReportIds).eq("is_calibration", false);
   if (options.mints?.length) query = query.in("mint", options.mints);
   else if (!cohortReportIds && !options.isCalibration) query = query.eq("is_calibration", false);
+  if (monitoredMints) {
+    const allowed = options.mints?.length
+      ? monitoredMints.filter((m) => options.mints!.includes(m))
+      : monitoredMints;
+    if (allowed.length === 0) return [];
+    query = query.in("mint", allowed);
+  }
 
   const { data, error } = await query;
   if (error) throw new Error(error.message);
@@ -455,6 +500,17 @@ export async function runEntryStateBatch(
 
   const distribution: Record<string, number> = {};
   for (const r of results) distribution[r.state] = (distribution[r.state] ?? 0) + 1;
+
+  // Fresh production timing can flip Live state. Reconcile transitions only —
+  // never rewrite a call or a past lifecycle event. Non-fatal.
+  if (!isCalibration && !asOf) {
+    try {
+      const { reconcileLiveLifecycle } = await import("../live/lifecycle.server");
+      await reconcileLiveLifecycle();
+    } catch {
+      /* lifecycle reconciliation is advisory; entry results stand on their own */
+    }
+  }
 
   return {
     mode,

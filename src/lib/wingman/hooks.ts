@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { OutcomeService, ResearchService, ScannerService } from "./services";
 import { getLiveCalls } from "./live-calls.functions";
+import { getLiveLifecycle } from "./live-lifecycle.functions";
 import { getLiveCallSizing } from "./sizing.functions";
 
 /** Query keys for every backend-read surface. */
@@ -17,6 +18,7 @@ export const wingmanKeys = {
   watchlist: ["wingman", "watchlist"] as const,
   liveCalls: ["wingman", "live-calls"] as const,
   liveCallSizing: ["wingman", "live-call-sizing"] as const,
+  liveLifecycle: ["wingman", "live-lifecycle"] as const,
 };
 
 /**
@@ -38,6 +40,17 @@ export function useLiveCallSizing() {
   return useQuery({
     queryKey: wingmanKeys.liveCallSizing,
     queryFn: () => getLiveCallSizing(),
+  });
+}
+
+/**
+ * Live lifecycle: current monitoring state plus the append-only ledger of
+ * activations, deactivations and monitoring-status changes.
+ */
+export function useLiveLifecycle() {
+  return useQuery({
+    queryKey: wingmanKeys.liveLifecycle,
+    queryFn: () => getLiveLifecycle(),
   });
 }
 

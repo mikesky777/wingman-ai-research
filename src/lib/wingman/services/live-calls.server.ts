@@ -71,6 +71,14 @@ export interface LiveCall {
     priceHistorySource: string | null;
     structuralStatus: string | null;
   };
+  /** Current lifecycle state — the open Live episode that qualifies this card. */
+  lifecycle: {
+    monitoringStatus: string;
+    monitoringReason: string | null;
+    episodeNumber: number;
+    liveSince: string;
+    priorEpisodes: number;
+  };
 }
 
 export interface LiveCallsResult {
@@ -104,14 +112,32 @@ function assessOperational(input: {
   };
 }
 
-/** Loads every production Live Call. Read-only; never writes. */
+/**
+ * Loads the CURRENT Live Calls. Read-only; never writes.
+ *
+ * A card appears only while an open Live episode exists for its production
+ * THESIS_CALL — i.e. all Live conditions are true right now. Historical
+ * activations and deactivations stay in History and are never hidden.
+ * At most one card per exact Solana mint; there is NO cap on how many
+ * distinct mints may be Live.
+ */
 export async function loadLiveCalls(): Promise<LiveCallsResult> {
+  const { loadLiveLifecycle } = await import("./live/lifecycle.server");
+  const lifecycle = await loadLiveLifecycle();
+  const liveByMilestone = new Map(
+    lifecycle.calls
+      .filter((c) => c.isLive && c.currentEpisode)
+      .map((c) => [c.thesisCallMilestoneId, c] as const),
+  );
+  if (liveByMilestone.size === 0) return { count: 0, calls: [] };
+
   const { data: milestoneRows, error } = await supabaseAdmin
     .from("token_stage_milestones")
     .select(
       "id, token_id, contract_address, first_entered_at, market_cap_at_entry, liquidity_at_entry, setup_at_entry, policy_version, milestone_version, research_report_id",
     )
     .eq("stage", "THESIS_CALL")
+    .in("id", [...liveByMilestone.keys()])
     .order("first_entered_at", { ascending: false });
   if (error) throw new Error(error.message);
 
@@ -253,8 +279,34 @@ export async function loadLiveCalls(): Promise<LiveCallsResult> {
         priceHistorySource: (entry?.["price_history_source"] as string | null) ?? null,
         structuralStatus: structuralByMint.get(mint) ?? null,
       },
+      lifecycle: (() => {
+        const state = liveByMilestone.get(m["id"] as string)!;
+        const episode = state.currentEpisode!;
+        return {
+          monitoringStatus: state.monitoringStatus,
+          monitoringReason: state.monitoringReason,
+          episodeNumber: episode.episodeNumber,
+          liveSince: episode.activatedAt,
+          priorEpisodes: Math.max(state.episodes.length - 1, 0),
+        };
+      })(),
     };
   });
 
-  return { count: calls.length, calls };
+  // Rule 9: at most one card per exact mint (newest activation wins).
+  const byMint = new Map<string, LiveCall>();
+  for (const call of calls) {
+    const existing = byMint.get(call.mint);
+    if (
+      !existing ||
+      Date.parse(call.lifecycle.liveSince) > Date.parse(existing.lifecycle.liveSince)
+    ) {
+      byMint.set(call.mint, call);
+    }
+  }
+  const deduped = [...byMint.values()].sort(
+    (a, b) => Date.parse(b.lifecycle.liveSince) - Date.parse(a.lifecycle.liveSince),
+  );
+
+  return { count: deduped.length, calls: deduped };
 }
