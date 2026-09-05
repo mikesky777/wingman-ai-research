@@ -246,11 +246,11 @@ export async function loadProductionArtifacts(): Promise<ProductionArtifacts> {
       .order("created_at", { ascending: false }),
     supabaseAdmin
       .from("token_stage_milestones")
-      .select("token_id, entered_at")
+      .select("token_id, first_entered_at")
       .eq("stage", "AI_SHORTLIST"),
     supabaseAdmin
       .from("token_stage_milestones")
-      .select("token_id, entered_at")
+      .select("token_id, first_entered_at")
       .eq("stage", "THESIS_CALL"),
   ]);
 
@@ -294,14 +294,14 @@ export async function loadProductionArtifacts(): Promise<ProductionArtifacts> {
     shortlistRows.map((r) => {
       const token = byId.get(r["token_id"] as string);
       const mint = (token?.["contract_address"] as string) ?? (r["token_id"] as string);
-      return { ...identity(token, mint), at: (r["entered_at"] as string) ?? null };
+      return { ...identity(token, mint), at: (r["first_entered_at"] as string) ?? null };
     }),
   );
   const calls = dedupe(
     callRows.map((r) => {
       const token = byId.get(r["token_id"] as string);
       const mint = (token?.["contract_address"] as string) ?? (r["token_id"] as string);
-      return { ...identity(token, mint), at: (r["entered_at"] as string) ?? null };
+      return { ...identity(token, mint), at: (r["first_entered_at"] as string) ?? null };
     }),
   );
   const deep = dedupe(
