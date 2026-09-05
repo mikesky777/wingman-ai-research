@@ -60,7 +60,6 @@ export function CohortTable({
             <th className="text-right">24h</th>
             <th className="text-right">{terms.since}</th>
             {showSeries ? <th className="text-right">{terms.peak}</th> : null}
-            {showSeries ? <th className="text-right">{terms.worst}</th> : null}
             {showSeries ? (
               <th
                 className="text-right"
