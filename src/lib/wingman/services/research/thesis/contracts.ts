@@ -161,7 +161,7 @@ export const THESIS_COMPONENT_ANCHORS: Record<ThesisV2ComponentKey, ThesisCompon
     ]),
   },
   catalystNarrative: {
-    unknownEvidenceDefault: [8, 10],
+    unknownEvidenceDefault: [9, 12],
     anchors: bands(20, [
       "No coherent narrative and no catalyst; the token stands for nothing identifiable.",
       "Vague or borrowed narrative; any catalyst is speculative.",
