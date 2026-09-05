@@ -446,16 +446,87 @@ export function sortStageRows(rows: StageRow[], sort: StageSort): StageRow[] {
   });
 }
 
-/** Live Since Stage against the FROZEN entry baseline. Persisted rows untouched. */
-export function liveSinceStagePct(row: StageRow, liveMarketCap: number | null | undefined): number | null {
+/**
+ * A live market quote used only for display. Liquidity is required to judge
+ * validity: `outcome_market_validity/v1` applies to live quotes exactly as it
+ * applies to persisted observations.
+ */
+export interface LiveQuote {
+  marketCap: number | null;
+  liquidityUsd: number | null;
+}
+
+export type SinceStageSource = "LIVE" | "PERSISTED" | "LIVE_INVALID" | "NONE";
+
+export interface SinceStageReading {
+  pct: number | null;
+  source: SinceStageSource;
+  validity: OutcomeMarketValidity | null;
+  reason: MarketValidityAssessment["reason"];
+}
+
+/**
+ * Live Since Stage against the FROZEN entry baseline.
+ *
+ * An INVALID_MARKET live quote (drained pool, implausible MC/liquidity) can
+ * never produce a valid-looking return: it is reported as unavailable rather
+ * than coerced to zero or silently replaced by the persisted value. The
+ * invalid observation itself is preserved untouched for audit.
+ */
+export function liveSinceStage(
+  row: StageRow,
+  live?: LiveQuote | null,
+): SinceStageReading {
+  const persisted: SinceStageReading = {
+    pct: row.sincePct,
+    source: row.sincePct === null ? "NONE" : "PERSISTED",
+    validity: null,
+    reason: null,
+  };
+  if (!live || !isNum(live.marketCap)) return persisted;
+
+  const assessment = assessMarketValidity({
+    liquidityUsd: live.liquidityUsd,
+    marketCap: live.marketCap,
+  });
+  if (!isMetricUsable(assessment.validity)) {
+    return {
+      pct: null,
+      source: "LIVE_INVALID",
+      validity: assessment.validity,
+      reason: assessment.reason,
+    };
+  }
+
   const baseline = row.entryMarketCap;
-  if (!isNum(baseline) || baseline <= 0 || !isNum(liveMarketCap)) return row.sincePct;
-  return ((liveMarketCap - baseline) / baseline) * 100;
+  if (!isNum(baseline) || baseline <= 0) return persisted;
+  return {
+    pct: ((live.marketCap - baseline) / baseline) * 100,
+    source: "LIVE",
+    validity: assessment.validity,
+    reason: assessment.reason,
+  };
+}
+
+/** Numeric convenience form; invalid live quotes yield null, never 0. */
+export function liveSinceStagePct(row: StageRow, live?: LiveQuote | null): number | null {
+  return liveSinceStage(row, live).pct;
+}
+
+/**
+ * Stage-relative peak / max-drawdown series exist only where an outcome
+ * baseline is genuinely tracked over time (First Survivor today). Every other
+ * stage has a frozen entry baseline but no series, so those metrics are hidden
+ * rather than rendered empty.
+ */
+export function stageSupportsPeakMetrics(stage: FunnelStage): boolean {
+  return stage === "SURVIVOR";
 }
 
 export interface StageSummary {
   stage: FunnelStage;
   sampleSize: number;
+  supportsPeakMetrics: boolean;
   avgSince: Stat;
   medianSince: Stat;
   avgPeak: Stat;
@@ -467,7 +538,7 @@ export interface StageSummary {
 export function summarizeStageRows(
   stage: FunnelStage,
   rows: StageRow[],
-  live?: Map<string, number | null> | null,
+  live?: Map<string, LiveQuote | null> | null,
 ): StageSummary {
   const cohort = uniqueStageRows(rows);
   const since = cohort.map((r) => liveSinceStagePct(r, live?.get(r.contractAddress ?? "") ?? null));
@@ -476,6 +547,7 @@ export function summarizeStageRows(
   return {
     stage,
     sampleSize: cohort.length,
+    supportsPeakMetrics: stageSupportsPeakMetrics(stage),
     avgSince: mean(since),
     medianSince: median(since),
     avgPeak: mean(cohort.map((r) => r.peakPct)),
@@ -487,3 +559,4 @@ export function summarizeStageRows(
     avgMaxDd: mean(cohort.map((r) => r.maxAdversePct)),
   };
 }
+
