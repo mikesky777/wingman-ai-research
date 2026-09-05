@@ -128,6 +128,12 @@ export function dedupeResults(results: ExternalSearchResult[]): ExternalSearchRe
 export const SOURCE_INDEPENDENCE = [
   "PROJECT_OWNED",
   "PROJECT_AFFILIATED",
+  /**
+   * User-generated community chatter about the project (social replies, group
+   * chats, forums). Real evidence of activity, but NEVER independent
+   * corroboration: community lore is not an outside verification.
+   */
+  "COMMUNITY",
   "INDEPENDENT",
   "UNKNOWN",
 ] as const;
@@ -136,36 +142,48 @@ export type SourceIndependence = (typeof SOURCE_INDEPENDENCE)[number];
 /** Launch platforms and project-controlled listing pages: content is project-supplied. */
 const AFFILIATED_HOSTS = /(^|\.)(pump\.fun|bonk\.fun|letsbonk\.fun|moonshot\.money|dexscreener\.com|dextools\.io)$/;
 
-function hostOf(url: string): string | null {
-  try {
-    return new URL(url).hostname.toLowerCase().replace(/^www\./, "");
-  } catch {
-    return null;
-  }
-}
+/** Community / user-generated platforms. Not the project, not an independent outlet. */
+const COMMUNITY_HOSTS =
+  /(^|\.)(x\.com|twitter\.com|t\.me|telegram\.org|discord\.com|discord\.gg|reddit\.com|4chan\.org|warpcast\.com|farcaster\.xyz|tiktok\.com|instagram\.com|facebook\.com|threads\.net)$/;
 
-/** Social handle/path identity, e.g. x.com/foo/status/1 → x.com|foo. */
-function socialIdentity(url: string): string | null {
+/**
+ * Sites that merely REFLECT Solana chain state (explorers, wallets, DEX and
+ * data aggregators). Ten of them agreeing is one underlying observation, not
+ * ten independent corroborations.
+ */
+const ON_CHAIN_MIRROR_HOSTS =
+  /(^|\.)(solscan\.io|solana\.fm|solanabeach\.io|explorer\.solana\.com|xray\.helius\.xyz|birdeye\.so|dexscreener\.com|dextools\.io|geckoterminal\.com|defined\.fi|jup\.ag|jupiter\.ag|phantom\.app|gmgn\.ai|rugcheck\.xyz|bubblemaps\.io|holderscan\.com|coingecko\.com|coinmarketcap\.com|pump\.fun)$/;
+
+/** True when the source only mirrors on-chain state rather than adding evidence. */
+export function isOnChainMirror(url: string | null): boolean {
+  if (!url) return false;
   const host = hostOf(url);
-  if (!host) return null;
-  try {
-    const path = new URL(url).pathname.split("/").filter(Boolean);
-    if (/(^|\.)x\.com$|(^|\.)twitter\.com$/.test(host)) {
-      const handle = path[0]?.toLowerCase();
-      if (!handle || handle === "i" || handle === "search") return null;
-      return `x.com|${handle}`;
-    }
-    if (/(^|\.)t\.me$/.test(host)) return path[0] ? `t.me|${path[0].toLowerCase()}` : null;
-    return null;
-  } catch {
-    return null;
-  }
+  return host ? ON_CHAIN_MIRROR_HOSTS.test(host) : false;
 }
 
 /**
- * A source is only INDEPENDENT when it is provably not the project speaking.
- * A different domain alone proves nothing — launchpad pages and reposts of the
- * project's own account stay project-side.
+ * Underlying evidence ORIGIN of a source, separate from the source count. All
+ * on-chain mirrors collapse to one origin; social sources collapse per account.
+ */
+export function evidenceOriginOf(url: string | null): string {
+  if (!url) return "UNKNOWN_ORIGIN";
+  if (isOnChainMirror(url)) return "ONCHAIN_STATE";
+  const identity = socialIdentity(url);
+  if (identity) return `SOCIAL:${identity}`;
+  const host = hostOf(url);
+  return host ? `HOST:${host}` : "UNKNOWN_ORIGIN";
+}
+
+/** Number of genuinely distinct evidence origins behind a set of source URLs. */
+export function countDistinctEvidenceOrigins(urls: (string | null)[]): number {
+  return new Set(urls.map((u) => evidenceOriginOf(u))).size;
+}
+
+/**
+ * A source is only INDEPENDENT when it is provably not the project speaking
+ * AND not user-generated community chatter. A different domain alone proves
+ * nothing — launchpad pages and reposts of the project's own account stay
+ * project-side, and social/forum posts are COMMUNITY.
  */
 export function classifyIndependence(input: {
   url: string | null;
@@ -187,13 +205,16 @@ export function classifyIndependence(input: {
   const identity = socialIdentity(input.url);
   if (identity && officialIdentities.has(identity)) return "PROJECT_OWNED";
   if (officialHosts.has(host)) {
-    // Same social platform but a different account is not the project itself.
-    if (identity && !officialIdentities.has(identity)) return "INDEPENDENT";
+    // Same social platform but a different account is community chatter,
+    // never independent verification.
+    if (identity && !officialIdentities.has(identity)) return "COMMUNITY";
     return "PROJECT_OWNED";
   }
   if (AFFILIATED_HOSTS.test(host)) return "PROJECT_AFFILIATED";
+  if (COMMUNITY_HOSTS.test(host)) return "COMMUNITY";
   return "INDEPENDENT";
 }
+
 
 /* ------------------------------------------------------------------ */
 /* Query strategy                                                      */
