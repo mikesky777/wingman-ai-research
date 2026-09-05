@@ -653,7 +653,8 @@ async function synthesizeCandidate(args: {
   });
 
   const response = await provider.complete({ system, user });
-  const validated = validateThesisOutput(parseThesisJson(response.text), {
+  const rawOutput = parseThesisJson(response.text);
+  const validated = validateThesisOutput(rawOutput, {
     sourceRefs,
     claimRefs,
   });
