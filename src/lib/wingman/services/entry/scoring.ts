@@ -167,6 +167,7 @@ export function scoreEntry(args: {
   if (extensionVerdict === "STRETCHED") extension = 0.75;
   if (extensionVerdict === "PARABOLIC") extension = 0.25;
   if (
+    highRes &&
     f.retracementDepthPct !== null &&
     f.retracementDepthPct >= 25 &&
     f.retracementDepthPct <= 65 &&
@@ -175,7 +176,7 @@ export function scoreEntry(args: {
     extension += 0.5;
     notes.push(`Controlled ${Math.round(f.retracementDepthPct)}% retracement of the last impulse`);
   }
-  if (f.consolidationBars >= 5 && extensionVerdict !== "PARABOLIC") {
+  if (highRes && f.consolidationBars >= 5 && extensionVerdict !== "PARABOLIC") {
     extension += 0.25;
     notes.push(`${f.consolidationBars} bars of digestion since the last expansion`);
   }
