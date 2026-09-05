@@ -682,7 +682,10 @@ export interface ValidationIssue {
 
 export interface ValidatedThesisOutput {
   components: ComponentScores;
+  /** thesis_rubric/v2.2 — one persisted reason per scored component. */
+  componentReasons: ThesisComponentReasons;
   thesisScore: number;
+
   oneSentenceThesis: string | null;
   narrativeThesis: string | null;
   sections: ThesisSections;
