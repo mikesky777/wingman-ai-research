@@ -579,6 +579,10 @@ export async function runThesisSynthesis(
       gateDiagnostics,
     });
 
+    // The canonical artifact was written by a concurrent production batch.
+    // No second artifact, no second baseline, no rewrite of the existing one.
+    if (reportId === null) continue;
+
     // Freeze the thesis-time market baseline once, append-only. Never
     // rewritten and never fatal to a synthesis that already succeeded.
     await captureThesisBaseline({
