@@ -775,8 +775,51 @@ export async function loadLatestTriage(): Promise<{
       .order("triage_rank", { ascending: true, nullsFirst: false })
       .range(from, to),
   );
+  // Resolve token identity from the exact persisted Research Packet each
+  // decision referenced. Read-only: never changes decisions or packets.
+  const packetIds = [
+    ...new Set(
+      rows
+        .map((d) => (d["research_packet_id"] as string) ?? null)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  const identityByPacketId = new Map<
+    string,
+    { symbol: string | null; name: string | null; pairAddress: string | null }
+  >();
+  if (packetIds.length) {
+    for (const chunk of chunkIds(packetIds)) {
+      const { data: packets, error: packetError } = await supabaseAdmin
+        .from("research_packets")
+        .select("id, packet")
+        .in("id", chunk);
+      if (packetError) throw new Error(packetError.message);
+      for (const p of packets ?? []) {
+        const identity = (p["packet"] as Record<string, unknown> | null)?.[
+          "identity"
+        ] as Record<string, unknown> | undefined;
+        const pairFact = identity?.["pairAddress"] as { value?: unknown } | undefined;
+        identityByPacketId.set(p["id"] as string, {
+          symbol: (identity?.["symbol"] as string) ?? null,
+          name: (identity?.["name"] as string) ?? null,
+          pairAddress: typeof pairFact?.value === "string" ? pairFact.value : null,
+        });
+      }
+    }
+  }
+
   const decisions: PersistedTriageDecision[] = rows.map((d) => ({
     mint: d["mint"] as string,
+    ...(() => {
+      const pid = (d["research_packet_id"] as string) ?? null;
+      const idn = pid ? identityByPacketId.get(pid) : undefined;
+      return {
+        symbol: idn?.symbol ?? null,
+        name: idn?.name ?? null,
+        pairAddress: idn?.pairAddress ?? null,
+      };
+    })(),
     candidateSource: (d["candidate_source"] as string) ?? null,
     setup: (d["setup"] as string) ?? null,
     decision: d["decision"] as string,
