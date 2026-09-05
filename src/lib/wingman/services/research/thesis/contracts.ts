@@ -338,12 +338,50 @@ export function computeEvidenceConfidence(
   if (!input.narrativeResolved) add("NARRATIVE_UNRESOLVED", 10, "origin/narrative not resolved");
   if (input.marketStale) add("STALE_MARKET", 5, "current market evidence is stale");
   if (input.searchUnavailable) {
-    add("SEARCH_UNAVAILABLE", 20, "external search was unavailable — absence of sources is unproven");
+    // DEGRADED search is deliberately NOT given an invented weight here; it is
+    // carried on the artifact so calibration can decide later.
+    add(
+      "SEARCH_UNAVAILABLE",
+      20,
+      "external search was unavailable — absence of sources is unproven",
+      { searchHealth },
+    );
   }
-  if (input.sourceCount === 0) add("NO_SOURCES", 10, "no sources at all");
+  if (input.sourceCount === 0) add("NO_SOURCES", 10, "no sources at all", { searchHealth });
 
   const total = deductions.reduce((sum, d) => sum + d.points, 0);
-  return { score: Math.max(0, Math.min(100, 100 - total)), deductions };
+  const rawScore = 100 - total;
+  const score = Math.max(0, Math.min(100, rawScore));
+  return {
+    version: EVIDENCE_CONFIDENCE_VERSION,
+    score,
+    rawScore,
+    totalDeductions: total,
+    floored: rawScore !== score,
+    searchHealth,
+    unresolvedReasons,
+    deductions,
+    diagnostics: {
+      rawSourceCount: input.rawSourceCount ?? input.sourceCount,
+      sourceCount: input.sourceCount,
+      independentSourceCount: input.independentSourceCount,
+      distinctIndependentEvidenceOrigins: distinctIndependentOrigins,
+      distinctEvidenceOrigins: input.distinctEvidenceOrigins ?? 0,
+      effectiveIndependentSources: independent,
+      projectSourceCount: input.projectSourceCount ?? 0,
+      communitySourceCount: input.communitySourceCount ?? 0,
+      onChainMirrorCount: input.onChainMirrorCount ?? 0,
+      corroboratedClaimCount: input.corroboratedClaimCount ?? 0,
+      conflictingClaimCount: input.conflictingClaimCount,
+      tokenIdentityConfidence: input.tokenIdentityConfidence ?? null,
+      projectAttributionConfidence: input.projectAttributionConfidence,
+      unresolvedDomainCount: input.unresolvedDomainCount,
+      totalDomainCount: input.totalDomainCount,
+      packetEvidenceGapCount: input.packetEvidenceGapCount,
+      marketStale: input.marketStale,
+      searchUnavailable: input.searchUnavailable,
+    },
+  };
 }
 
 export interface VerdictInput {
