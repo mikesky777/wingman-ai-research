@@ -501,9 +501,14 @@ export function buildBenchmarkComparison(args: {
   const confDeltas = comparisons.map((c) => c.confidenceDelta).filter((v): v is number => v !== null);
   const spreads = comparisons.map((c) => c.challengerScoreSpread).filter((v): v is number => v !== null);
   const verdictChanges = comparisons.filter((c) => c.verdictChanged).length;
-  const unstable = comparisons.filter((c) => !c.verdictStable || (c.challengerScoreSpread ?? 0) > 10).length;
+  // Stability is only measurable where repeat passes were purchased.
+  const repeated = comparisons.filter((c) => c.passesRun > 1);
+  const unstable = repeated.filter(
+    (c) => !c.verdictStable || (c.challengerScoreSpread ?? 0) > 10,
+  ).length;
 
   const meanScoreDelta = mean(scoreDeltas);
+
   const recommendation = deriveBenchmarkRecommendation({
     meanScoreDelta,
     unstable,
