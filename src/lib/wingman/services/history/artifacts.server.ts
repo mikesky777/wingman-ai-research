@@ -164,15 +164,21 @@ export async function loadHistoryArtifacts(): Promise<HistoryArtifacts> {
       promptVersion: str(r, "prompt_version"),
       modelProvider: str(r, "model_provider"),
       modelIdentifier: str(r, "model_identifier"),
-      sourceScanId: null,
+      sourceScanId: scanByRun.get(str(r, "thesis_synthesis_run_id") ?? "") ?? null,
       triageRunId: str(r, "triage_run_id"),
       deepResearchRunId: str(r, "deep_research_run_id"),
+      deepResearchReportId: str(r, "deep_research_report_id"),
+      // Overwritten by classifyThesisArtifacts below.
+      canonicalWithinCohortMint: true,
+      sameCohortRerun: false,
+      recurrenceNumberAcrossProductionCohorts: 0,
+      timeSincePriorCanonicalSynthesisMs: null,
       baseline: m.baseline,
       performance: m.performance,
     };
   });
 
-  return { deepResearch, thesis };
+  return { deepResearch, thesis: classifyThesisArtifacts(thesis) };
 }
 
 interface ThesisMeasurement {
