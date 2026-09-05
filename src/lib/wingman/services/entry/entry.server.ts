@@ -809,10 +809,25 @@ export async function loadEntryEvaluations(
   limit = 20,
   mode: "production" | "calibration" = "production",
 ): Promise<EntryEvaluationSummary[]> {
-  const { data, error } = await supabaseAdmin
+  // Production entry state belongs to the ACTIVE cohort's thesis reports only.
+  let cohortReportIds: string[] | null = null;
+  if (mode === "production") {
+    const { loadActiveResearchCohort, loadCohortThesisReportIds } = await import(
+      "../research/cohort.server"
+    );
+    const active = await loadActiveResearchCohort();
+    if (!active.thesisSynthesisRunId) return [];
+    const { reportIds } = await loadCohortThesisReportIds(active.thesisSynthesisRunId);
+    if (reportIds.length === 0) return [];
+    cohortReportIds = reportIds;
+  }
+
+  let query = supabaseAdmin
     .from("entry_state_evaluations")
     .select("*")
-    .eq("is_calibration", mode === "calibration")
+    .eq("is_calibration", mode === "calibration");
+  if (cohortReportIds) query = query.in("thesis_report_id", cohortReportIds);
+  const { data, error } = await query
     .order("evaluated_at", { ascending: false })
     .limit(200);
   if (error) throw new Error(error.message);
