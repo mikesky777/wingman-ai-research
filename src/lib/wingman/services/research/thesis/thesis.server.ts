@@ -880,6 +880,7 @@ export interface ThesisReportSummary {
   qualifiedAsOpportunity: boolean;
   thesisCallMilestoneId: string | null;
   policyVersion: string;
+  rubricVersion: string | null;
   promptVersion: string;
   modelIdentifier: string | null;
   deepResearchReportId: string | null;
