@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { PIPELINE_STAGES } from "@/lib/wingman/config";
 import {
   useLatestFunnel,
+  useLatestScanAttempt,
   useRunDiagnostics,
   useWorkbenchCandidates,
 } from "@/lib/wingman/hooks";
@@ -22,12 +23,17 @@ import {
   DiscoveryProviderPanel,
   type DiscoveryProviderStatus,
 } from "@/components/wingman/scanner/DiscoveryProviderPanel";
+import { ScanProvenanceBar } from "@/components/wingman/scanner/ScanProvenanceBar";
 import {
+  SCAN_ACK_TIMEOUT_MS,
+  isScanControlBlocked,
   scanStatusMessage,
   scanUiState,
   shouldRefreshCandidates,
+  showsPreviousScanResults,
   type ScanAttempt,
 } from "@/lib/wingman/services/scanner/run-lifecycle";
+
 import { getStrategySettings } from "@/lib/wingman/strategy.functions";
 import { formatNumber, formatUsd } from "@/lib/wingman/format";
 import {
