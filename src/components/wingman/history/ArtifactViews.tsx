@@ -249,10 +249,14 @@ export function ThesisSynthesizedArtifacts() {
   const [sort, setSort] = useState<ThesisArtifactSort>("RECENT");
   const [population, setPopulation] = useState<ThesisPopulation>("THESIS_EVENTS");
   const [setup, setSetup] = useState<HistorySetupFilter>("ALL");
+  // Preserved same-cohort reruns stay out of the primary card list unless the
+  // audit toggle is on. KPIs never include them either way.
+  const [showReruns, setShowReruns] = useState(false);
   const allRows: ThesisArtifact[] = data?.thesis ?? [];
   // Cards and KPIs always use the same selected setup population.
   const rows = filterBySetup(allRows, setup);
-  const sorted = sortThesisArtifacts(rows, sort);
+  const visibleRows = showReruns ? rows : rows.filter((r) => !r.sameCohortRerun);
+  const sorted = sortThesisArtifacts(visibleRows, sort);
   const counts = thesisPopulationCounts(rows);
   const measuredPopulation = selectThesisPopulation(rows, population);
   const summary = summarizeThesisArtifacts(measuredPopulation);
@@ -275,30 +279,49 @@ export function ThesisSynthesizedArtifacts() {
           <SetupFilterBar value={setup} onChange={setSetup} />
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="font-mono text-[10px] tracking-wide text-muted-foreground">
-              {counts.storedArtifacts} stored artifacts · {counts.thesisEvents} thesis events ·{" "}
+              {counts.storedArtifacts} stored artifacts · {counts.thesisEvents} thesis decisions ·{" "}
               {counts.uniqueTokens} unique tokens
             </span>
-            <div className="flex items-center gap-1">
-              <span className="label-xs mr-1 text-muted-foreground">Population</span>
-              {(
-                [
-                  ["THESIS_EVENTS", "THESIS EVENTS"],
-                  ["UNIQUE_TOKENS", "UNIQUE TOKENS"],
-                ] as [ThesisPopulation, string][]
-              ).map(([id, label]) => (
-                <button
-                  key={id}
-                  onClick={() => setPopulation(id)}
-                  className={`rounded border px-2 py-1 font-mono text-[10px] tracking-wide ${
-                    population === id
-                      ? "border-primary text-primary"
-                      : "border-border text-muted-foreground"
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-1">
+                <span className="label-xs mr-1 text-muted-foreground">Population</span>
+                {(
+                  [
+                    ["THESIS_EVENTS", "THESIS DECISIONS"],
+                    ["UNIQUE_TOKENS", "UNIQUE TOKENS"],
+                  ] as [ThesisPopulation, string][]
+                ).map(([id, label]) => (
+                  <button
+                    key={id}
+                    onClick={() => setPopulation(id)}
+                    className={`rounded border px-2 py-1 font-mono text-[10px] tracking-wide ${
+                      population === id
+                        ? "border-primary text-primary"
+                        : "border-border text-muted-foreground"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                {population === "THESIS_EVENTS"
+                  ? "Every canonical thesis decision counts, including later re-evaluations of the same mint."
+                  : "Each exact mint counts once, using its earliest eligible canonical thesis decision."}
+              </p>
             </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-1">
+            <span className="label-xs mr-1 text-muted-foreground">Audit</span>
+            <label className="flex cursor-pointer items-center gap-1.5 rounded border border-border px-2 py-1 font-mono text-[10px] tracking-wide text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={showReruns}
+                onChange={(e) => setShowReruns(e.target.checked)}
+                className="size-3 accent-primary"
+              />
+              Show same-cohort reruns
+            </label>
           </div>
           <ThesisSummaryCards summary={summary} />
           <div className="flex flex-wrap items-center gap-2">
