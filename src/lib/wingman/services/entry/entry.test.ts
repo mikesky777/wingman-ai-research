@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import {
   ENTRY_COMPONENTS,
   ENTRY_MAX_SCORE,
+  assessEntryDamage,
   assessEntryEligibility,
   classifyDivergence,
   clampComponents,
@@ -337,5 +338,126 @@ describe("no execution surface", () => {
     for (const banned of ["position size", "stop loss", "stop-loss", "buy order", "sell order", "swap"]) {
       expect(text).not.toContain(banned);
     }
+  });
+});
+
+/**
+ * Entry State v1.1 — resolution safety.
+ */
+describe("v1.1 resolution gating", () => {
+  const evalUnix = 1_700_000_000 + 17 * 300;
+
+  it("never awards candle-grade structure credit at COARSE resolution", () => {
+    const features = computeTimingFeatures(candles(constructive), evalUnix)!;
+    const high = scoreEntry({ features, context: baseContext, divergence: "POSITIVE", resolution: "HIGH" });
+    const coarse = scoreEntry({ features, context: baseContext, divergence: "POSITIVE", resolution: "COARSE" });
+    expect(coarse.structureVerdict).not.toBe("CONSTRUCTIVE");
+    expect(coarse.components.structure).toBeLessThan(high.components.structure);
+    expect(coarse.evidenceGaps).toContain("CANDLE_GRADE_FEATURES_UNSUPPORTED_AT_COARSE_RESOLUTION");
+    expect(coarse.unsupportedFeatures.join(",")).toContain("UNSUPPORTED_AT_COARSE_RESOLUTION");
+  });
+
+  it("blocks BUY_ZONE when the evidence is coarse", () => {
+    const args = {
+      components: { structure: 3, extension: 2.5, volumeFlow: 1.5, riskDefinition: 2 },
+      total: 9,
+      structureVerdict: "CONSTRUCTIVE" as const,
+      extensionVerdict: "RESET" as const,
+      confirmations: 4,
+      divergence: "POSITIVE" as const,
+      evidenceUsable: true,
+      damageFail: false,
+      hasStructuralHistory: true,
+    };
+    expect(mapEntryState({ ...args, resolution: "HIGH" }).state).toBe("BUY_ZONE");
+    const coarse = mapEntryState({ ...args, resolution: "COARSE" });
+    expect(coarse.state).not.toBe("BUY_ZONE");
+    expect(coarse.reasons).toContain("BUY_ZONE_REQUIRES_HIGH_RESOLUTION");
+  });
+});
+
+describe("v1.1 collapse override", () => {
+  it("treats multi-dimensional catastrophic damage as BROKEN despite a coarse higher low", () => {
+    const damage = assessEntryDamage({
+      drawdownFromHighPct: -98.36,
+      riseFromLowPct: 4,
+      volumeTrendRatio: 0.02,
+      liquidityUsd: 2_566,
+      reclaimHolding: true,
+      resolution: "COARSE",
+    });
+    expect(damage.collapsed).toBe(true);
+    const mapped = mapEntryState({
+      components: { structure: 2, extension: 2.5, volumeFlow: 1, riskDefinition: 1 },
+      total: 6.5,
+      structureVerdict: "CONSTRUCTIVE",
+      extensionVerdict: "RESET",
+      confirmations: 3,
+      divergence: "POSITIVE",
+      evidenceUsable: true,
+      damageFail: false,
+      hasStructuralHistory: true,
+      resolution: "COARSE",
+      damage,
+    });
+    expect(mapped.state).toBe("BROKEN");
+    expect(mapped.reasons).toContain("COLLAPSE_OVERRIDE_MULTI_DIMENSIONAL_DAMAGE");
+  });
+
+  it("never turns missing evidence into damage", () => {
+    const damage = assessEntryDamage({
+      drawdownFromHighPct: null,
+      riseFromLowPct: null,
+      volumeTrendRatio: null,
+      liquidityUsd: null,
+      reclaimHolding: false,
+      resolution: "COARSE",
+    });
+    expect(damage.collapsed).toBe(false);
+    expect(damage.dimensions).toEqual([]);
+  });
+
+  it("does not collapse on a single dimension alone", () => {
+    expect(
+      assessEntryDamage({
+        drawdownFromHighPct: -85,
+        riseFromLowPct: 120,
+        volumeTrendRatio: 1.4,
+        liquidityUsd: 90_000,
+        reclaimHolding: false,
+        resolution: "HIGH",
+      }).collapsed,
+    ).toBe(false);
+  });
+});
+
+describe("v1.1 volume decay", () => {
+  it("penalises dead order flow even when price has not fallen", () => {
+    const flat = candles(new Array(18).fill(10).map((v, i) => v + (i % 2) * 0.01));
+    const features = computeTimingFeatures(flat, flat[flat.length - 1]!.unixTime)!;
+    const dead = scoreEntry({
+      features: { ...features, volumeTrendRatio: 0.04, drawdownFromHighPct: -1 },
+      context: baseContext,
+      divergence: "POSITIVE",
+      resolution: "COARSE",
+    });
+    expect(dead.components.volumeFlow).toBeLessThanOrEqual(0.5);
+  });
+
+  it("does not make low volume BROKEN by itself", () => {
+    const mapped = mapEntryState({
+      components: { structure: 1.5, extension: 1.75, volumeFlow: 0.1, riskDefinition: 1 },
+      total: 4.35,
+      structureVerdict: "NEUTRAL",
+      extensionVerdict: "MODERATE",
+      confirmations: 0,
+      divergence: "POSITIVE",
+      evidenceUsable: true,
+      damageFail: false,
+      hasStructuralHistory: true,
+      resolution: "COARSE",
+      damage: { collapsed: false, dimensions: [], reasons: [] },
+    });
+    expect(mapped.state).not.toBe("BROKEN");
   });
 });
