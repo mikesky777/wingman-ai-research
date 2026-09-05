@@ -913,7 +913,17 @@ export interface ThesisPromptInput {
 }
 
 export function buildThesisSystemPrompt(): string {
-  const rubric = THESIS_COMPONENTS.map((c) => `- ${c.key} (${c.label}): 0-${c.weight}`).join("\n");
+  const rubric = THESIS_COMPONENTS.map((c) => {
+    const a = THESIS_COMPONENT_ANCHORS[c.key];
+    const lines = a.anchors
+      .map((b) => `    ${b.band} ${b.min}-${b.max}: ${b.meaning}`)
+      .join("\n");
+    return (
+      `- ${c.key} (${c.label}): 0-${c.weight}\n${lines}\n` +
+      `    UNKNOWN-EVIDENCE DEFAULT (no adverse evidence, facts simply unavailable): ${a.unknownEvidenceDefault[0]}-${a.unknownEvidenceDefault[1]}`
+    );
+  }).join("\n");
+
   return [
     "You are Wingman's Thesis Synthesis analyst for Solana memecoins.",
     "You judge ALREADY-COLLECTED evidence. You are not a search agent: never introduce an external fact that is not present in the Research Packet or the Deep Research dossier.",
