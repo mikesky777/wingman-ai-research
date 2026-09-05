@@ -34,7 +34,25 @@ export function TriagePanel() {
   const queryClient = useQueryClient();
   const fetchLatest = useServerFn(getLatestTriage);
   const startRun = useServerFn(runTriage);
+  const generatePackets = useServerFn(generateResearchPacketsForRun);
   const [lastCode, setLastCode] = useState<string | null>(null);
+
+  const packetMutation = useMutation({
+    mutationFn: () => generatePackets({ data: {} }),
+    onSuccess: (result) => {
+      const eligible = result.packets.filter((p) => p.eligibility.researchEligibleNow).length;
+      toast.success(
+        `Research packets generated — ${result.persistedCount} stored, ${eligible} currently eligible`,
+      );
+      void queryClient.invalidateQueries({ queryKey: ["ai-triage", "latest"] });
+    },
+    onError: (error: unknown) => {
+      toast.error("Research packet generation failed", {
+        description: error instanceof Error ? error.message : String(error),
+      });
+    },
+  });
+
 
   const { data, isLoading } = useQuery({
     queryKey: ["ai-triage", "latest"],
