@@ -43,6 +43,10 @@ export interface EntryEvaluationResult {
   entryScore: number | null;
   components: EntryComponentScores | null;
   divergence: string;
+  /** Where the timing price series came from. */
+  priceHistorySource: "CANDLES" | "WINGMAN_OBSERVATIONS" | "NONE";
+  /** How precise that timing evidence is. */
+  timingResolution: "HIGH" | "COARSE" | "INSUFFICIENT";
   rationale: string | null;
   strongestPositiveSignal: string | null;
   strongestEntryRisk: string | null;
@@ -740,6 +744,9 @@ export interface EntryEvaluationSummary {
   components: EntryComponentScores | null;
   timingFeatures: TimingFeatures | null;
   divergence: string;
+  priceHistorySource: string;
+  timingResolution: string;
+  pairAddress: string | null;
   divergenceDetail: DivergenceResult["detail"] | null;
   rationale: string | null;
   strongestPositiveSignal: string | null;
@@ -782,6 +789,20 @@ export async function loadEntryEvaluations(limit = 20): Promise<EntryEvaluationS
     historyByMint.set(mint, list);
   }
 
+  // Exact persisted DexScreener pair per mint (never built from ticker/name).
+  const mints = [...new Set(rows.map((r) => r["mint"] as string))];
+  const pairByMint = new Map<string, string>();
+  if (mints.length) {
+    const { data: tokenRows } = await supabaseAdmin
+      .from("tokens")
+      .select("contract_address, dex_pair_address")
+      .in("contract_address", mints);
+    for (const t of ((tokenRows as Row[]) ?? [])) {
+      const pair = t["dex_pair_address"] as string | null;
+      if (pair) pairByMint.set(t["contract_address"] as string, pair);
+    }
+  }
+
   const seen = new Set<string>();
   const out: EntryEvaluationSummary[] = [];
   for (const r of rows) {
@@ -803,6 +824,9 @@ export async function loadEntryEvaluations(limit = 20): Promise<EntryEvaluationS
       components: (r["component_scores"] as EntryComponentScores) ?? null,
       timingFeatures: (r["timing_features"] as TimingFeatures) ?? null,
       divergence: (r["price_attention_divergence"] as string) ?? "UNKNOWN",
+      priceHistorySource: (r["price_history_source"] as string) ?? "NONE",
+      timingResolution: (r["timing_resolution"] as string) ?? "INSUFFICIENT",
+      pairAddress: pairByMint.get(mint) ?? null,
       divergenceDetail: (r["divergence_detail"] as DivergenceResult["detail"]) ?? null,
       rationale: (r["rationale"] as string) ?? null,
       strongestPositiveSignal: (r["strongest_positive_signal"] as string) ?? null,
