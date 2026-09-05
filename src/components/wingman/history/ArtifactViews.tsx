@@ -323,7 +323,7 @@ export function ThesisSynthesizedArtifacts() {
             </label>
           </div>
           <ThesisSummaryCards summary={summary} />
-          <div className="flex flex-wrap items-start gap-4">
+          <div className="flex flex-wrap items-center gap-4">
             <SetupFilterBar value={setup} onChange={setSetup} />
             <div className="flex flex-1 flex-wrap items-center gap-2">
               <span className="label-xs mr-1 text-muted-foreground">Sort</span>
