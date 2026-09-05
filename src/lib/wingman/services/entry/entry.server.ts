@@ -127,6 +127,25 @@ async function loadActivelyMonitoredCallMints(): Promise<string[]> {
   return mints.filter((m) => !blocked.has(m));
 }
 
+/**
+ * How many production candidates Entry timing could evaluate right now:
+ * production THESIS_CALLs under ACTIVE monitoring within the active cohort.
+ * Mirrors the scoping in loadThesisInputs without touching market data.
+ */
+export async function loadEntryEligibility(): Promise<{ eligible: number }> {
+  const monitoredMints = await loadActivelyMonitoredCallMints();
+  if (monitoredMints.length === 0) return { eligible: 0 };
+  const { loadActiveResearchCohort, loadCohortThesisReports } = await import(
+    "../research/cohort.server"
+  );
+  const active = await loadActiveResearchCohort();
+  if (!active.triageRunId) return { eligible: 0 };
+  const refs = await loadCohortThesisReports(active.triageRunId);
+  if (refs.length === 0) return { eligible: 0 };
+  const cohortMints = new Set(refs.map((r) => r.mint));
+  return { eligible: monitoredMints.filter((m) => cohortMints.has(m)).length };
+}
+
 async function loadThesisInputs(options: {
   isCalibration: boolean;
   mints?: string[];
