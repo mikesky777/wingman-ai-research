@@ -127,11 +127,21 @@ export function DeepResearchPanel() {
                       </Badge>
                     ) : null}
                     <Badge variant="outline" className="text-[10px]">
-                      {r.identityAttributionConfidence}
+                      IDENTITY {r.tokenIdentityConfidence ?? r.identityAttributionConfidence}
                     </Badge>
+                    {r.projectAttributionConfidence ? (
+                      <Badge variant="outline" className="text-[10px]">
+                        ATTRIBUTION {r.projectAttributionConfidence}
+                      </Badge>
+                    ) : null}
                     {r.status === "insufficient_evidence" ? (
                       <Badge variant="outline" className="border-warning/40 text-[10px] text-warning">
                         INSUFFICIENT EVIDENCE
+                      </Badge>
+                    ) : null}
+                    {r.status === "search_limited" ? (
+                      <Badge variant="outline" className="border-warning/40 text-[10px] text-warning">
+                        SEARCH LIMITED
                       </Badge>
                     ) : null}
                     {r.status === "search_unavailable" ? (
@@ -139,18 +149,48 @@ export function DeepResearchPanel() {
                         SEARCH UNAVAILABLE
                       </Badge>
                     ) : null}
+                    {r.searchHealth && r.searchHealth !== "READY" ? (
+                      <Badge variant="outline" className="border-warning/40 text-[10px] text-warning">
+                        SEARCH {r.searchHealth}
+                        {r.searchFailedAttempts ? ` (${r.searchFailedAttempts} failed)` : ""}
+                      </Badge>
+                    ) : null}
+                    {r.evidenceSemanticsVersion ? null : (
+                      <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                        LEGACY EVIDENCE SEMANTICS
+                      </Badge>
+                    )}
                   </div>
                   <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
                     <span className="tabular">coverage {r.coveragePct ?? 0}%</span>
                     <span className="tabular">{r.sourceCount} sources</span>
                     <span
                       className={`tabular ${r.independentSourceCount === 0 ? "text-warning" : ""}`}
-                      title="Sources not published by the token itself"
+                      title="Sources not published by the token itself and not community chatter"
                     >
                       {r.independentSourceCount} independent
                     </span>
+                    {r.communitySourceCount === null ? null : (
+                      <span className="tabular" title="Community chatter — never counted as independent">
+                        {r.communitySourceCount} community
+                      </span>
+                    )}
+                    {r.distinctEvidenceOrigins === null ? null : (
+                      <span
+                        className="tabular"
+                        title="Genuinely distinct evidence origins; on-chain mirrors count once"
+                      >
+                        {r.distinctEvidenceOrigins} origins
+                      </span>
+                    )}
+                    {r.onChainMirrorCount ? (
+                      <span className="tabular" title="Sources that only mirror the same on-chain state">
+                        {r.onChainMirrorCount} mirrors
+                      </span>
+                    ) : null}
                     <span className="tabular">{r.conflictingClaimCount} conflicts</span>
                     <span>{relativeTime(r.createdAt)}</span>
+
 
                     <Button variant="ghost" size="sm" onClick={() => setOpenId(open ? null : r.id)}>
                       {open ? "Hide" : "Open dossier"}
@@ -209,6 +249,17 @@ export function DeepResearchPanel() {
                           ? `${r.unresolvedDomains.join(", ")} — unknown, not negative.`
                           : "None."}
                       </p>
+                      {(r.dossier?.domains ?? []).some((d) => d.unresolvedReason) ? (
+                        <ul className="mt-1.5 space-y-1 text-[11px] text-muted-foreground">
+                          {(r.dossier?.domains ?? [])
+                            .filter((d) => d.unresolvedReason)
+                            .map((d) => (
+                              <li key={d.domain} className="tabular">
+                                {d.domain}: {d.unresolvedReason}
+                              </li>
+                            ))}
+                        </ul>
+                      ) : null}
                     </div>
 
                     {r.dossier?.unresolvedQuestions?.length ? (
@@ -241,6 +292,11 @@ export function DeepResearchPanel() {
                             >
                               {s.independence ?? "UNKNOWN"}
                             </Badge>
+                            {s.onChainMirror ? (
+                              <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                                ON-CHAIN MIRROR
+                              </Badge>
+                            ) : null}
                             <span className="text-muted-foreground">
                               {s.mintVerified ? "mint-verified" : "ticker match"}
                             </span>

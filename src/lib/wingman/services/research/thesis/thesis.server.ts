@@ -238,6 +238,7 @@ async function loadThesisInputs(options: {
       sourceScanId: triageRunId ? (triageScans.get(triageRunId) ?? null) : null,
       searchUnavailable:
         (r["status"] as string) === "search_unavailable" ||
+        (r["status"] as string) === "search_limited" ||
         Boolean(diagnostics?.["externalSearchUnavailable"]),
       coverage: dossier?.coverage ?? null,
       createdAt: (r["created_at"] as string) ?? "",

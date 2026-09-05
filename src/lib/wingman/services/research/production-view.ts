@@ -12,6 +12,8 @@ export type DeepResearchUiStatus =
   | "COMPLETED"
   | "PARTIAL"
   | "INSUFFICIENT_EXTERNAL_EVIDENCE"
+  /** Settled, but external search failed: partial evidence, not a full dossier. */
+  | "SEARCH_LIMITED"
   | "BLOCKED"
   | "FAILED";
 
@@ -79,6 +81,8 @@ export function mapDeepResearchStatus(
       return "COMPLETED";
     case "partial":
       return "PARTIAL";
+    case "search_limited":
+      return "SEARCH_LIMITED";
     case "insufficient_evidence":
     case "search_unavailable":
       return "INSUFFICIENT_EXTERNAL_EVIDENCE";

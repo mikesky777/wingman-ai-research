@@ -28,6 +28,7 @@ import {
 const statusTone: Record<DeepResearchUiStatus, string> = {
   COMPLETED: "border-positive/40 bg-positive/10 text-positive",
   PARTIAL: "border-warning/40 bg-warning/10 text-warning",
+  SEARCH_LIMITED: "border-warning/40 bg-warning/10 text-warning",
   INSUFFICIENT_EXTERNAL_EVIDENCE: "border-warning/40 bg-warning/10 text-warning",
   RUNNING: "border-border-strong bg-surface text-foreground",
   NOT_STARTED: "border-border bg-surface text-muted-foreground",

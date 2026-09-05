@@ -20,6 +20,8 @@ const MINT = "9BB6NFEcjBCtnNLFko2FqVQBq8HHM13kCyYcdQbgpump";
 
 function source(overrides: Partial<ResearchSource> = {}): ResearchSource {
   return {
+    onChainMirror: false,
+    evidenceOrigin: "HOST:example.com",
     ref: "S1",
     url: "https://example.com/a",
     title: "A",

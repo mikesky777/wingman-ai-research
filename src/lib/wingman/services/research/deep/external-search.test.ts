@@ -86,12 +86,14 @@ describe("source independence", () => {
     );
   });
 
-  it("marks a third-party account or outlet as independent", () => {
+  it("marks outlets as independent but third-party social accounts as community", () => {
+    // Evidence semantics v1.1: community chatter is never independent corroboration.
     expect(classifyIndependence({ url: "https://x.com/someanalyst/status/3", officialUrls })).toBe(
-      "INDEPENDENT",
+      "COMMUNITY",
     );
     expect(classifyIndependence({ url: "https://news.example/story", officialUrls })).toBe("INDEPENDENT");
   });
+
 
   it("does not guess when there is no usable URL", () => {
     expect(classifyIndependence({ url: null, officialUrls })).toBe("UNKNOWN");

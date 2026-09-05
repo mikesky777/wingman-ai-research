@@ -254,14 +254,17 @@ export type Database = {
       deep_research_reports: {
         Row: {
           chain: string
+          community_source_count: number | null
           conflicting_claim_count: number
           corroborated_claim_count: number
           covered_domains: string[]
           created_at: string
           deep_research_run_id: string
+          distinct_evidence_origins: number | null
           dossier: Json
           dossier_version: string
           evidence_coverage_pct: number | null
+          evidence_semantics_version: string | null
           id: string
           identity_attribution_confidence: string
           independent_domains_covered: string[]
@@ -269,31 +272,39 @@ export type Database = {
           is_calibration: boolean
           mint: string
           narrative_resolved: boolean
+          on_chain_mirror_count: number | null
           one_sentence_narrative: string | null
           primary_source_count: number
           project_affiliated_source_count: number
+          project_attribution_confidence: string | null
           project_claim_count: number
           project_owned_source_count: number
           research_policy_version: string
+          search_failed_attempts: number | null
+          search_health: string | null
           search_version: string | null
           source_count: number
           source_domain_diversity: number
           status: string
           token_id: string | null
+          token_identity_confidence: string | null
           unknown_independence_source_count: number
           unresolved_domains: string[]
           unresolved_gap_count: number
         }
         Insert: {
           chain?: string
+          community_source_count?: number | null
           conflicting_claim_count?: number
           corroborated_claim_count?: number
           covered_domains?: string[]
           created_at?: string
           deep_research_run_id: string
+          distinct_evidence_origins?: number | null
           dossier: Json
           dossier_version: string
           evidence_coverage_pct?: number | null
+          evidence_semantics_version?: string | null
           id?: string
           identity_attribution_confidence?: string
           independent_domains_covered?: string[]
@@ -301,31 +312,39 @@ export type Database = {
           is_calibration?: boolean
           mint: string
           narrative_resolved?: boolean
+          on_chain_mirror_count?: number | null
           one_sentence_narrative?: string | null
           primary_source_count?: number
           project_affiliated_source_count?: number
+          project_attribution_confidence?: string | null
           project_claim_count?: number
           project_owned_source_count?: number
           research_policy_version: string
+          search_failed_attempts?: number | null
+          search_health?: string | null
           search_version?: string | null
           source_count?: number
           source_domain_diversity?: number
           status: string
           token_id?: string | null
+          token_identity_confidence?: string | null
           unknown_independence_source_count?: number
           unresolved_domains?: string[]
           unresolved_gap_count?: number
         }
         Update: {
           chain?: string
+          community_source_count?: number | null
           conflicting_claim_count?: number
           corroborated_claim_count?: number
           covered_domains?: string[]
           created_at?: string
           deep_research_run_id?: string
+          distinct_evidence_origins?: number | null
           dossier?: Json
           dossier_version?: string
           evidence_coverage_pct?: number | null
+          evidence_semantics_version?: string | null
           id?: string
           identity_attribution_confidence?: string
           independent_domains_covered?: string[]
@@ -333,17 +352,22 @@ export type Database = {
           is_calibration?: boolean
           mint?: string
           narrative_resolved?: boolean
+          on_chain_mirror_count?: number | null
           one_sentence_narrative?: string | null
           primary_source_count?: number
           project_affiliated_source_count?: number
+          project_attribution_confidence?: string | null
           project_claim_count?: number
           project_owned_source_count?: number
           research_policy_version?: string
+          search_failed_attempts?: number | null
+          search_health?: string | null
           search_version?: string | null
           source_count?: number
           source_domain_diversity?: number
           status?: string
           token_id?: string | null
+          token_identity_confidence?: string | null
           unknown_independence_source_count?: number
           unresolved_domains?: string[]
           unresolved_gap_count?: number
@@ -501,11 +525,13 @@ export type Database = {
           content_fetched: boolean
           created_at: string
           deep_research_run_id: string
+          evidence_origin: string | null
           excerpt: string | null
           fetched_at: string
           id: string
           independence: string
           mint_verified: boolean
+          on_chain_mirror: boolean | null
           published_at: string | null
           query: string | null
           relevance: string | null
@@ -522,11 +548,13 @@ export type Database = {
           content_fetched?: boolean
           created_at?: string
           deep_research_run_id: string
+          evidence_origin?: string | null
           excerpt?: string | null
           fetched_at: string
           id?: string
           independence?: string
           mint_verified?: boolean
+          on_chain_mirror?: boolean | null
           published_at?: string | null
           query?: string | null
           relevance?: string | null
@@ -543,11 +571,13 @@ export type Database = {
           content_fetched?: boolean
           created_at?: string
           deep_research_run_id?: string
+          evidence_origin?: string | null
           excerpt?: string | null
           fetched_at?: string
           id?: string
           independence?: string
           mint_verified?: boolean
+          on_chain_mirror?: boolean | null
           published_at?: string | null
           query?: string | null
           relevance?: string | null

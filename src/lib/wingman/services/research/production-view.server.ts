@@ -311,7 +311,7 @@ export async function loadProductionArtifacts(): Promise<ProductionArtifacts> {
       .from("deep_research_reports")
       .select("mint, created_at, status, one_sentence_narrative")
       .eq("is_calibration", false)
-      .eq("status", "completed")
+      .in("status", ["completed", "search_limited"])
       .order("created_at", { ascending: false }),
     supabaseAdmin
       .from("thesis_reports")
