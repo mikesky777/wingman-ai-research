@@ -33,9 +33,20 @@ export const THESIS_COMPONENTS_V1 = [
 
 /** ACTIVE policy. Thesis answers fundamentals only — never timing. */
 export const THESIS_POLICY_VERSION = "thesis_synthesis/v2";
-export const THESIS_RUBRIC_VERSION = "thesis_rubric/v2";
-/** v2 removes chart/entry context; v1.1 catalyst-vs-market-signal rules stay. */
-export const THESIS_PROMPT_VERSION = "thesis_synthesis_prompt/v2";
+/** FROZEN v2 scoring semantics — historical reports keep this exact string. */
+export const THESIS_RUBRIC_VERSION_V2 = "thesis_rubric/v2";
+export const THESIS_PROMPT_VERSION_V2 = "thesis_synthesis_prompt/v2";
+/**
+ * v2.2 — scoring SEMANTICS patch only. Same seven components, same weights,
+ * same 100-point total, same gates. It adds explicit band anchors so the full
+ * numeric range is reachable, separates narrative strength from catalyst
+ * strength inside the 20-point component, keeps MISSING evidence out of the
+ * score, treats UNKNOWN dev/holders/participation neutrally, and requires a
+ * persisted per-component reason.
+ */
+export const THESIS_RUBRIC_VERSION = "thesis_rubric/v2.2";
+export const THESIS_PROMPT_VERSION = "thesis_synthesis_prompt/v2.2";
+
 export const NO_VERIFIED_CATALYST = "No verified catalyst found";
 /**
  * Input policy. Realized post-cutoff performance (outcomes) is stripped from
