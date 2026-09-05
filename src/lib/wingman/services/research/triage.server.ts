@@ -736,13 +736,18 @@ export interface PersistedTriageDecision {
 }
 
 /** Newest persisted triage run plus its decisions. Read-only. */
-export async function loadLatestTriage(): Promise<{
+export async function loadLatestTriage(
+  mode: "PRODUCTION" | "CALIBRATION" = "PRODUCTION",
+): Promise<{
   run: TriageRunSummary;
   decisions: PersistedTriageDecision[];
 } | null> {
+  // Mode is authoritative: a later calibration run must never be shown as the
+  // production current state, and vice versa.
   const { data, error } = await supabaseAdmin
     .from("ai_triage_runs")
     .select("*")
+    .eq("is_calibration", mode === "CALIBRATION")
     .order("started_at", { ascending: false })
     .limit(1)
     .maybeSingle();
