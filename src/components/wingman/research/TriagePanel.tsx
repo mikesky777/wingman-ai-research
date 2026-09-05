@@ -33,6 +33,12 @@ export function TriagePanel() {
   const startRun = useServerFn(runTriage);
   const generatePackets = useServerFn(generateResearchPacketsForRun);
   const [lastCode, setLastCode] = useState<string | null>(null);
+  // Production is the default view. A later calibration run must never replace
+  // the production current state.
+  const [viewMode, setViewMode] = useState<"PRODUCTION" | "CALIBRATION">("PRODUCTION");
+  const [decisionFilter, setDecisionFilter] = useState<"ALL" | "DEEP_RESEARCH" | "WATCH" | "SKIP">(
+    "ALL",
+  );
 
   const packetMutation = useMutation({
     mutationFn: () => generatePackets({ data: {} }),
@@ -41,7 +47,7 @@ export function TriagePanel() {
       toast.success(
         `Research packets generated — ${result.persistedCount} stored, ${eligible} currently eligible`,
       );
-      void queryClient.invalidateQueries({ queryKey: ["ai-triage", "latest"] });
+      void queryClient.invalidateQueries({ queryKey: ["ai-triage"] });
     },
     onError: (error: unknown) => {
       toast.error("Research packet generation failed", {
@@ -52,8 +58,8 @@ export function TriagePanel() {
 
 
   const { data, isLoading } = useQuery({
-    queryKey: ["ai-triage", "latest"],
-    queryFn: () => fetchLatest(),
+    queryKey: ["ai-triage", viewMode],
+    queryFn: () => fetchLatest({ data: { mode: viewMode } }),
   });
 
   const mutation = useMutation({
@@ -74,7 +80,8 @@ export function TriagePanel() {
           description: result.error ?? undefined,
         });
       }
-      void queryClient.invalidateQueries({ queryKey: ["ai-triage", "latest"] });
+      void queryClient.invalidateQueries({ queryKey: ["ai-triage"] });
+      void queryClient.invalidateQueries({ queryKey: ["research", "production-funnel"] });
     },
     onError: (error: unknown) => {
       toast.error("Triage failed", {
@@ -137,13 +144,29 @@ export function TriagePanel() {
         ) : null}
       </div>
 
+      <div className="mt-3 flex flex-wrap items-center gap-1.5">
+        {(["PRODUCTION", "CALIBRATION"] as const).map((m) => (
+          <Button
+            key={m}
+            size="sm"
+            variant={viewMode === m ? "default" : "outline"}
+            onClick={() => setViewMode(m)}
+          >
+            {m === "PRODUCTION" ? "Production" : "Calibration"}
+          </Button>
+        ))}
+        <span className="ml-2 text-[11px] text-muted-foreground">
+          Counts and decisions are never mixed between modes.
+        </span>
+      </div>
+
       {isLoading ? (
         <p className="mt-4 text-xs text-muted-foreground">Loading last triage…</p>
       ) : !run_ ? (
         <div className="mt-4">
           <EmptyState
             icon={<Brain className="size-4" />}
-            title="No triage run yet"
+            title={viewMode === "PRODUCTION" ? "No production triage run yet" : "No calibration run yet"}
             description="Run triage against the newest healthy scan, or start a calibration dry run against a historical packet cohort."
           />
         </div>
@@ -174,6 +197,21 @@ export function TriagePanel() {
             </p>
           ) : null}
 
+          <div className="flex flex-wrap gap-1.5">
+            {(["ALL", "DEEP_RESEARCH", "WATCH", "SKIP"] as const).map((f) => (
+              <Button
+                key={f}
+                size="sm"
+                variant={decisionFilter === f ? "default" : "outline"}
+                onClick={() => setDecisionFilter(f)}
+              >
+                {f === "ALL" ? "All" : f === "DEEP_RESEARCH" ? "Deep research" : f === "WATCH" ? "Watch" : "Skip"}
+                {" "}
+                ({f === "ALL" ? decisions.length : decisions.filter((d) => d.decision === f).length})
+              </Button>
+            ))}
+          </div>
+
           {decisions.length === 0 ? (
             <p className="text-xs text-muted-foreground">No decisions recorded for this run.</p>
           ) : (
@@ -193,7 +231,9 @@ export function TriagePanel() {
                   </tr>
                 </thead>
                 <tbody>
-                  {decisions.map((d) => (
+                  {decisions
+                    .filter((d) => decisionFilter === "ALL" || d.decision === decisionFilter)
+                    .map((d) => (
                     <tr key={d.mint} className="border-b border-border/60 align-top">
                       <td className="tabular py-2 pr-3">{d.triageRank ?? "—"}</td>
                       <td className="tabular py-2 pr-3 text-muted-foreground">
