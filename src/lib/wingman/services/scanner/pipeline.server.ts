@@ -202,17 +202,29 @@ export async function generatePacketsForRunSafely(
   try {
     const { generateResearchPackets } = await import("../research/packet.server");
     const result = await generateResearchPackets({ scanRunId, persist: true });
+    const persisted = result.persistedCount ?? result.packets.length;
+    await recordResearchPacketResult(scanRunId, {
+      status: persisted > 0 ? "READY" : "NOT_STARTED",
+      count: persisted,
+      error: null,
+    }).catch(() => undefined);
     return {
       attempted: true,
       generated: result.packets.length,
-      persisted: result.persistedCount ?? result.packets.length,
+      persisted,
       eligibleNow: result.packets.filter((p) => p.packet.eligibility.researchEligibleNow).length,
       error: null,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error("generateResearchPackets failed", message);
+    await recordResearchPacketResult(scanRunId, {
+      status: "FAILED",
+      count: 0,
+      error: message,
+    }).catch(() => undefined);
     return { attempted: true, generated: 0, persisted: 0, eligibleNow: 0, error: message };
+
   }
 }
 
