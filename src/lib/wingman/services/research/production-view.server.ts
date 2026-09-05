@@ -266,14 +266,27 @@ export async function loadProductionArtifacts(): Promise<ProductionArtifacts> {
     ...new Set([...deepRows, ...thesisRows].map((r) => r["mint"] as string)),
   ];
 
-  const { data: tokenRows } = await supabaseAdmin
-    .from("tokens")
-    .select("id, contract_address, symbol, name, dex_pair_address");
+  // Scoped lookups: the Data API caps a response at 1000 rows, so never read
+  // the whole tokens table here.
   const byId = new Map<string, Row>();
   const byMint = new Map<string, Row>();
-  for (const t of ((tokenRows as Row[]) ?? [])) {
+  const indexToken = (t: Row) => {
     byId.set(t["id"] as string, t);
     byMint.set(t["contract_address"] as string, t);
+  };
+  if (tokenIds.length) {
+    const { data } = await supabaseAdmin
+      .from("tokens")
+      .select("id, contract_address, symbol, name, dex_pair_address")
+      .in("id", tokenIds);
+    for (const t of ((data as Row[]) ?? [])) indexToken(t);
+  }
+  if (mints.length) {
+    const { data } = await supabaseAdmin
+      .from("tokens")
+      .select("id, contract_address, symbol, name, dex_pair_address")
+      .in("contract_address", mints);
+    for (const t of ((data as Row[]) ?? [])) indexToken(t);
   }
 
   const identity = (row: Row | undefined, mint: string): ProductionArtifactToken => ({
