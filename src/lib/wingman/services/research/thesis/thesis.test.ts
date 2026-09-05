@@ -17,11 +17,15 @@ const richEvidence: EvidenceConfidenceInput = {
   unresolvedDomainCount: 0,
   totalDomainCount: 6,
   independentSourceCount: 5,
+  distinctIndependentEvidenceOrigins: 5,
+  distinctEvidenceOrigins: 6,
   sourceCount: 8,
+  rawSourceCount: 8,
   sourceDomainDiversity: 5,
   conflictingClaimCount: 0,
   corroboratedClaimCount: 6,
-  identityAttributionConfidence: "CONFIRMED",
+  tokenIdentityConfidence: "CONFIRMED",
+  projectAttributionConfidence: "CONFIRMED",
   narrativeResolved: true,
   packetEvidenceGapCount: 0,
   marketStale: false,
@@ -125,6 +129,7 @@ describe("evidence confidence", () => {
       ...richEvidence,
       unresolvedDomainCount: 3,
       independentSourceCount: 0,
+      distinctIndependentEvidenceOrigins: 0,
       packetEvidenceGapCount: 4,
     });
     expect(thin.score).toBeLessThan(60);
@@ -137,6 +142,7 @@ describe("evidence confidence", () => {
     const projectOnly = computeEvidenceConfidence({
       ...richEvidence,
       independentSourceCount: 0,
+      distinctIndependentEvidenceOrigins: 0,
       sourceCount: 4,
       sourceDomainDiversity: 2,
     });
@@ -148,8 +154,10 @@ describe("evidence confidence", () => {
     const unavailable = computeEvidenceConfidence({
       ...richEvidence,
       searchUnavailable: true,
+      searchHealth: "SEARCH_UNAVAILABLE",
       sourceCount: 0,
       independentSourceCount: 0,
+      distinctIndependentEvidenceOrigins: 0,
       unresolvedDomainCount: 6,
     });
     expect(unavailable.deductions.some((d) => d.code === "SEARCH_UNAVAILABLE")).toBe(true);
