@@ -1,54 +1,57 @@
-# Research rollover: audit result and hardening
+# Scanner → Research Handoff: Audit Result and Fix
 
-## What the live data shows
+## What the data actually shows
 
-There is **no newer scan than `ddd7102e…`**. It is the most recent scan of any kind in the database:
+I checked the live records before proposing anything.
 
-```text
-ddd7102e…  completed  17:06 UTC  362 discovered  healthy  44 packets   <- newest
-7549dac5…  completed  00:19 UTC  355 discovered  healthy  40 packets
-cbb36eec…  failed     00:02 UTC  provider unavailable
-```
+- The newest scan on record is still `ddd7102e…`, started 17:05 UTC and completed 17:06 UTC today, 362 discovered, healthy, current scanner policy, 44 research packets.
+- The newest scanner candidate row was written at **17:06:38 UTC** and carries scan id `ddd7102e…`. Nothing was written after that.
+- There is **no scan record at all** after 17:06 — not a completed one, not a failed one.
+- The new triage run `3714f533…` ran at **21:04 UTC** against scan `ddd7102e…` — the same cohort. That was provenance-correct (it matched the genuinely active scan), but it was a second triage over the same 44 packets.
+- The request log for the last hour shows only read requests from the app. No scan request reached the backend.
 
-Nothing was written by any scan after 17:06 UTC today (newest candidate row is 17:06:38). The later
-data timestamps you may see come from market-price refreshes, not from a scan.
+### Answering the four possibilities
 
-So Research is anchored correctly: it is showing the newest healthy completed production scan under
-the current scanner policy. The selection rule already ignores packets, triage and every downstream
-artifact — it only requires completed + healthy + non-empty + current policy, newest first, and the
-existing regression tests already cover cases A–E of your list.
+- A (new rows under a new scan id): **No.**
+- B (new rows attached to old scan): **No** — nothing was written at all after 17:06.
+- C (the page only re-displayed the existing results): **Yes, this is what happened.**
+- D (new scan id whose run record was lost): **No** — the run record is written first, before any discovery work, so a lost run record is not possible here.
 
-**Root cause of what you observed: the newer scan never produced a scan record.** Either it was not
-started, or it aborted before the run row was inserted. Wingman cannot roll over to a scan that does
-not exist, and it must not invent one.
+## Root cause
 
-## What I propose to build
+The Run Scan action never started a scan. The backend received no scan request, so no new scan, no candidates, no rollover. Research stayed on `ddd7102e…` because that genuinely still is the newest healthy scan — the rollover logic is correct and is not the failure.
 
-Nothing about the selection rule changes. The gap is that Research gives you no way to tell
-"this is the newest scan" apart from "a newer scan silently failed to record".
+Two things made this invisible and let it look like a rollover bug:
 
-1. **Scan freshness on the funnel.** The SCANNER stage shows the scan's age ("completed 4h ago") and
-   flags it as STALE past a configurable age, so an anchored-but-old cohort is visibly old rather
-   than silently current.
-2. **Last scan attempt line.** Under the funnel, show the most recent scan attempt of any status —
-   including failed/provider-unavailable runs that are ineligible — with its reason. If a scan
-   attempt failed at 20:00, you see that instead of guessing.
-3. **Missing-run detection.** If the scanner starts a run and never completes it, the funnel shows
-   that in-flight/abandoned run explicitly instead of hiding it.
-4. **Complete the regression suite.** Add the two cases not yet covered: packets mid-generation still
-   keep the new scan active (case B), and repeated resolution after refresh is stable and never
-   drifts to an older scan (case F).
+1. The Scanner page shows results from the most recent stored scan with no visible "these results are from the scan that ran at 17:06" marker, so old results look like fresh results.
+2. A scan attempt that never reaches the backend leaves no trace anywhere — no attempt record, no error surfaced after the page is reloaded. There is no way to tell "no scan ran" from "a scan ran and found the same thing".
+
+## The fix
+
+### 1. Make the scan attempt itself durable and visible
+Record every Run Scan attempt the moment the button is pressed, including attempts that fail before a scan starts (provider blocked, another scan already running, request error). Show the outcome on the Scanner page so a failed or never-started attempt is stated plainly instead of silently leaving old results on screen.
+
+### 2. Stamp displayed scanner results with their scan
+Show, above the results, which scan the displayed BASE / REACCEL / Survivor rows belong to and when it ran, plus a clear "results are from a previous scan" note when the last attempt did not produce a newer one.
+
+### 3. Surface scan freshness in Research
+Show the active cohort's scan id and completion time in Research, and a warning strip when a newer scan attempt exists but failed — the failed attempt never becomes the active cohort.
+
+### 4. Confirm and lock in the rollover rules with tests
+The rollover, packet auto-generation and triage provenance rules already behave as specified. I will add regression tests covering the full lifecycle so this stays true: new scan becomes active immediately without needing packets; downstream stages read NOT_STARTED; packets auto-generate for the new scan only; triage refuses any packet from another scan; the old cohort stays untouched and visible in History; a reload does not fall back to the old scan.
+
+### 5. Repeat-triage guard
+Add a confirmation when a triage run already exists for the active cohort, so a second paid triage over the same packets is a deliberate choice, not an accident.
+
+Not changing: scanner scoring, selection policy, thresholds, thesis rules, gates, or any stored record from the previous cohort.
 
 ## Technical notes
 
-- `selectActiveResearchScan` (`ai-scan-source.ts`) and `loadActiveResearchCohort`
-  (`cohort.server.ts`) are already packet-independent and provenance-exact; they stay as they are.
-- Triage already hard-checks packet scan provenance before spending credits; unchanged.
-- New work is read-only presentation plus a widened scan-attempt read in `production-view.server.ts`
-  / the funnel server function; no writes, no migration.
-- Historical cohorts stay immutable and continue to appear in History.
+- `startScanRun` inserts the `scan_runs` row before any provider work, so any scan that begins is durable; the missing row proves no scan began.
+- `selectActiveResearchScan` already picks the newest healthy, completed, non-calibration run under the current policy epoch without requiring packets; `loadActiveResearchCohort` scopes triage, deep research, thesis and entry by exact scan provenance.
+- New: a `scan_attempts` record (or an equivalent non-run attempt log) written from the scan server function entry point, before `loadActiveStrategy`, so pre-run failures are recorded; surfaced through the existing scan status server function.
+- Verification: targeted lifecycle tests, full test suite, typecheck and build.
 
-## What you need to do
+## After the fix
 
-Run the Scanner again from the Scanner page. As soon as a healthy scan records, Research switches to
-it immediately and generates fresh packets for that exact scan.
+To actually roll over you press Run Scan again; you will then see either a new scan id with fresh counts flowing into Research, or an explicit failure reason for why no scan started.
