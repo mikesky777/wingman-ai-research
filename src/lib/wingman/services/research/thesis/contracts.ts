@@ -11,7 +11,9 @@
  */
 
 export const THESIS_POLICY_VERSION = "thesis_synthesis/v1";
-export const THESIS_PROMPT_VERSION = "thesis_synthesis_prompt/v1";
+/** v1.1 separates a real external catalyst from a pure market signal. */
+export const THESIS_PROMPT_VERSION = "thesis_synthesis_prompt/v1.1";
+export const NO_VERIFIED_CATALYST = "No verified catalyst found";
 /**
  * Input policy. Realized post-cutoff performance (outcomes) is stripped from
  * everything the synthesizer sees, exactly as in triage.
