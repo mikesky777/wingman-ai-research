@@ -185,21 +185,34 @@ export function scoreEntry(args: {
   }
 
   // ---- Volume / order flow 0–2 ---------------------------------------
+  // v1.1: order-flow quality is judged on its OWN merits. Volume disappearing
+  // is a flow failure whether or not price has already fallen — flat price on
+  // dead volume is stagnation, not controlled consolidation. Low volume alone
+  // still never forces BROKEN; it only lowers this component and confirmations.
   let volumeFlow = 1;
   if (f.volumeTrendRatio === null) {
     volumeFlow = 0.75;
     gaps.push("VOLUME_TREND_UNAVAILABLE");
+  } else if (f.volumeTrendRatio <= 0.1) {
+    volumeFlow = 0.1;
+    notes.push("Trading activity has all but disappeared");
+    breaks.push("Order flow staying near zero");
+  } else if (f.volumeTrendRatio < 0.35) {
+    volumeFlow = 0.25;
+    notes.push("Order flow decaying sharply versus the earlier window");
+    breaks.push("Continued volume decay");
+  } else if (f.volumeTrendRatio < 0.6) {
+    volumeFlow = 0.75;
   } else if (f.volumeTrendRatio >= 1.2 && f.drawdownFromHighPct >= -25) {
     volumeFlow = 1.5;
     notes.push("Participation renewing without a price blowoff");
-  } else if (f.volumeTrendRatio < 0.35 && f.drawdownFromHighPct <= -20) {
-    volumeFlow = 0.25;
-    notes.push("Volume dying alongside price");
-    breaks.push("Continued volume decay with price making new lows");
-  } else if (f.volumeTrendRatio < 0.6) {
-    volumeFlow = 0.75;
   }
-  if (f.consolidationVolumeRatio !== null && f.consolidationVolumeRatio >= 0.35 && f.consolidationBars >= 3) {
+  if (
+    highRes &&
+    f.consolidationVolumeRatio !== null &&
+    f.consolidationVolumeRatio >= 0.35 &&
+    f.consolidationBars >= 3
+  ) {
     volumeFlow += 0.25;
     notes.push("Participation sustained through the consolidation");
   }
