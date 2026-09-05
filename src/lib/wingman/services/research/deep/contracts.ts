@@ -517,9 +517,28 @@ export function validateModelOutput(
 }
 
 /**
- * Deterministic provenance: separates what the PROJECT says about itself from
- * what independent sources observed. A project-owned source can never make a
- * claim "independently corroborated".
+ * Why a domain did not settle. Absence of evidence is never conflated with a
+ * tooling failure, and a partially covered domain is labelled as such.
+ */
+export function deriveUnresolvedReason(input: {
+  status: DomainSummary["status"];
+  searchHealth: SearchHealthStatus;
+  researched: boolean;
+  hasAnyClaim: boolean;
+}): UnresolvedReason | null {
+  if (input.status === "COVERED") return null;
+  if (input.status === "PARTIAL") return "PARTIAL_EVIDENCE";
+  if (!input.researched) return "NOT_RESEARCHED";
+  if (input.searchHealth === "SEARCH_UNAVAILABLE") return "SEARCH_UNAVAILABLE";
+  if (input.searchHealth === "DEGRADED" && !input.hasAnyClaim) return "SEARCH_UNAVAILABLE";
+  return "NO_EVIDENCE_FOUND";
+}
+
+/**
+ * Deterministic provenance: separates what the PROJECT says about itself, what
+ * the COMMUNITY reports, and what independent sources observed. A project-owned
+ * source can never make a claim "independently corroborated"; a credible
+ * primary source verifying its own announcement is PRIMARY_SOURCE_VERIFIED.
  */
 export function deriveClaimProvenance(
   status: ClaimStatus,
@@ -531,13 +550,22 @@ export function deriveClaimProvenance(
     .map((ref) => byRef.get(ref))
     .filter((s): s is ResearchSource => Boolean(s));
   const hasIndependent = supporting.some((s) => s.independence === "INDEPENDENT");
-  const hasProject = supporting.some(
+  const hasCommunity = supporting.some((s) => s.independence === "COMMUNITY");
+  const projectSources = supporting.filter(
     (s) => s.independence === "PROJECT_OWNED" || s.independence === "PROJECT_AFFILIATED",
   );
   if (hasIndependent) {
     return status === "VERIFIED" ? "INDEPENDENTLY_CORROBORATED" : "EXTERNAL_OBSERVATION";
   }
-  if (hasProject) return status === "INFERRED" ? "INFERENCE" : "PROJECT_CLAIM";
+  if (projectSources.length > 0) {
+    if (status === "INFERRED") return "INFERENCE";
+    // A primary project source is authoritative for its own statement only.
+    if (status === "VERIFIED" && projectSources.some((s) => s.reliabilityClass === "PRIMARY")) {
+      return "PRIMARY_SOURCE_VERIFIED";
+    }
+    return "PROJECT_CLAIM";
+  }
+  if (hasCommunity) return status === "INFERRED" ? "INFERENCE" : "COMMUNITY_REPORTED";
   return "INFERENCE";
 }
 
@@ -564,23 +592,91 @@ export function computeCoverage(
         c.supportingSourceRefs.some((ref) => byRef.get(ref)?.independence === "INDEPENDENT"),
     ),
   );
+  const projectOwned = countBy("PROJECT_OWNED");
+  const projectAffiliated = countBy("PROJECT_AFFILIATED");
   return {
     coveredDomains: [...covered],
     unresolvedDomains: [...unresolved],
     coveragePct: Math.round((covered.length / RESEARCH_DOMAINS.length) * 100),
     sourceCount: sources.length,
+    rawSourceCount: sources.length,
     primarySourceCount: sources.filter((s) => s.reliabilityClass === "PRIMARY").length,
     independentSourceCount: countBy("INDEPENDENT"),
-    projectOwnedSourceCount: countBy("PROJECT_OWNED"),
-    projectAffiliatedSourceCount: countBy("PROJECT_AFFILIATED"),
+    communitySourceCount: countBy("COMMUNITY"),
+    projectOwnedSourceCount: projectOwned,
+    projectAffiliatedSourceCount: projectAffiliated,
+    projectSourceCount: projectOwned + projectAffiliated,
     unknownIndependenceSourceCount: countBy("UNKNOWN"),
+    onChainMirrorCount: sources.filter((s) => s.onChainMirror || isOnChainMirror(s.url)).length,
+    distinctEvidenceOrigins: countDistinctEvidenceOrigins(sources.map((s) => s.url)),
     independentDomainsCovered: [...independentDomains],
     corroboratedClaimCount: claims.filter((c) => c.provenance === "INDEPENDENTLY_CORROBORATED")
       .length,
     projectClaimCount: claims.filter((c) => c.provenance === "PROJECT_CLAIM").length,
+    communityClaimCount: claims.filter((c) => c.provenance === "COMMUNITY_REPORTED").length,
+    primarySourceVerifiedClaimCount: claims.filter(
+      (c) => c.provenance === "PRIMARY_SOURCE_VERIFIED",
+    ).length,
     sourceDomainDiversity: hosts.size,
     conflictingClaimCount: claims.filter((c) => c.status === "CONFLICTING").length,
   };
+}
+
+/** Fills the evidence-origin fields of a source from its URL. */
+export function withEvidenceOrigin(
+  source: Omit<ResearchSource, "onChainMirror" | "evidenceOrigin">,
+): ResearchSource {
+  return {
+    ...source,
+    onChainMirror: isOnChainMirror(source.url),
+    evidenceOrigin: evidenceOriginOf(source.url),
+  };
+}
+
+export const UNKNOWN_SEARCH_HEALTH: DossierSearchHealth = {
+  status: "READY",
+  provider: null,
+  attempts: 0,
+  successfulAttempts: 0,
+  failedAttempts: 0,
+  lastError: null,
+};
+
+/**
+ * Project/creator attribution confidence, derived SEPARATELY from token
+ * identity. Confirming the mint never confirms who is behind the project, and
+ * a failed search can never leave attribution CONFIRMED.
+ */
+export function deriveProjectAttributionConfidence(input: {
+  sources: ResearchSource[];
+  claims: ResearchClaim[];
+  searchHealth: SearchHealthStatus;
+}): AttributionConfidence {
+  const byRef = new Map(input.sources.map((s) => [s.ref, s]));
+  const attributionClaims = input.claims.filter(
+    (c) => c.domain === "TEAM_CREATOR" && c.status !== "UNAVAILABLE",
+  );
+  if (attributionClaims.length === 0) return "UNRESOLVED";
+
+  const supporting = attributionClaims
+    .flatMap((c) => c.supportingSourceRefs)
+    .map((ref) => byRef.get(ref))
+    .filter((s): s is ResearchSource => Boolean(s));
+  const independentVerified = supporting.some(
+    (s) => s.independence === "INDEPENDENT" && s.mintVerified && s.contentFetched,
+  );
+  const primaryVerified = supporting.some(
+    (s) => s.reliabilityClass === "PRIMARY" && s.contentFetched,
+  );
+
+  if (input.searchHealth === "SEARCH_UNAVAILABLE") {
+    // Nothing outside the project could be reached: never CONFIRMED.
+    return primaryVerified ? "PROBABLE" : "WEAK";
+  }
+  if (independentVerified && primaryVerified) return "CONFIRMED";
+  if (independentVerified) return "STRONG";
+  if (primaryVerified) return "PROBABLE";
+  return "WEAK";
 }
 
 export function assembleDossier(input: {
@@ -590,15 +686,18 @@ export function assembleDossier(input: {
   name: string | null;
   generatedAt: string;
   identityAttributionConfidence: AttributionConfidence;
+  searchHealth?: DossierSearchHealth;
   sources: ResearchSource[];
   validated: ValidatedModelOutput;
 }): ResearchDossier {
   const coverage = computeCoverage(input.validated.claims, input.sources);
+  const searchHealth = input.searchHealth ?? UNKNOWN_SEARCH_HEALTH;
   return {
     dossierVersion: DEEP_RESEARCH_DOSSIER_VERSION,
     policyVersion: DEEP_RESEARCH_POLICY_VERSION,
     promptVersion: DEEP_RESEARCH_PROMPT_VERSION,
     searchVersion: DEEP_RESEARCH_SEARCH_VERSION,
+    evidenceSemanticsVersion: DEEP_RESEARCH_EVIDENCE_SEMANTICS_VERSION,
     mint: input.mint,
     chain: input.chain,
     symbol: input.symbol,
@@ -607,6 +706,13 @@ export function assembleDossier(input: {
     oneSentenceNarrative: input.validated.oneSentenceNarrative,
     narrativeResolved: input.validated.narrativeResolved,
     identityAttributionConfidence: input.identityAttributionConfidence,
+    tokenIdentityConfidence: input.identityAttributionConfidence,
+    projectAttributionConfidence: deriveProjectAttributionConfidence({
+      sources: input.sources,
+      claims: input.validated.claims,
+      searchHealth: searchHealth.status,
+    }),
+    searchHealth,
     domains: input.validated.domains,
     claims: input.validated.claims,
     sources: input.sources,
@@ -616,6 +722,7 @@ export function assembleDossier(input: {
     coverage,
   };
 }
+
 
 /** Empty, explicitly source-grounded dossier for a candidate with no usable sources. */
 export function emptyDossier(input: {
