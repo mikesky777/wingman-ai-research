@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Section } from "@/components/wingman/Section";
 import { EmptyState } from "@/components/wingman/EmptyState";
+import { TokenIdentity } from "@/components/wingman/TokenIdentity";
 import { getLatestTriage, runTriage } from "@/lib/wingman/triage.functions";
 import { generateResearchPacketsForRun } from "@/lib/wingman/research.functions";
 import { relativeTime } from "@/lib/wingman/format";
@@ -25,10 +26,6 @@ const decisionTone: Record<string, string> = {
   SKIP: "border-border bg-surface text-muted-foreground",
   BLOCKED_BEFORE_SHORTLIST: "border-negative/40 bg-negative/10 text-negative",
 };
-
-function short(mint: string): string {
-  return mint.length > 12 ? `${mint.slice(0, 5)}…${mint.slice(-4)}` : mint;
-}
 
 export function TriagePanel() {
   const queryClient = useQueryClient();
@@ -187,7 +184,7 @@ export function TriagePanel() {
                     <th className="py-2 pr-3 font-medium">AI</th>
                     <th className="py-2 pr-3 font-medium">Quant</th>
                     <th className="py-2 pr-3 font-medium">Δ</th>
-                    <th className="py-2 pr-3 font-medium">Token</th>
+                    <th className="min-w-56 py-2 pr-3 font-medium">Token</th>
                     <th className="py-2 pr-3 font-medium">Setup</th>
                     <th className="py-2 pr-3 font-medium">Structure</th>
                     <th className="py-2 pr-3 font-medium">Participation</th>
