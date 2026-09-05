@@ -12,14 +12,44 @@ import type {
 } from "./services/research/triage.server";
 
 export const runTriage = createServerFn({ method: "POST" })
-  .inputValidator((input?: { mode?: "PRODUCTION" | "CALIBRATION"; scanRunId?: string | null }) => ({
-    mode: input?.mode === "CALIBRATION" ? ("CALIBRATION" as const) : ("PRODUCTION" as const),
-    scanRunId: input?.scanRunId ?? null,
-  }))
+  .inputValidator(
+    (input?: {
+      mode?: "PRODUCTION" | "CALIBRATION";
+      scanRunId?: string | null;
+      allowRerun?: boolean;
+    }) => ({
+      mode: input?.mode === "CALIBRATION" ? ("CALIBRATION" as const) : ("PRODUCTION" as const),
+      scanRunId: input?.scanRunId ?? null,
+      allowRerun: input?.allowRerun === true,
+    }),
+  )
   .handler(async ({ data }): Promise<TriageRunResult> => {
     const { runAiTriage } = await import("./services/research/triage.server");
-    return runAiTriage({ mode: data.mode, scanRunId: data.scanRunId });
+    return runAiTriage({ mode: data.mode, scanRunId: data.scanRunId, allowRerun: data.allowRerun });
   });
+
+/**
+ * Whether the ordinary production Run triage action may spend on the active
+ * cohort, or whether only an explicitly confirmed rerun is allowed.
+ */
+export const getTriageAvailability = createServerFn({ method: "GET" }).handler(async () => {
+  const { loadActiveResearchCohort, loadCohortTriageRunId } = await import(
+    "./services/research/cohort.server"
+  );
+  const { triageRunAvailability } = await import("./services/research/triage-rerun");
+  const cohort = await loadActiveResearchCohort();
+  if (!cohort.scan) {
+    return { scanId: null, availability: "RUN" as const, existingRunId: null, existingStatus: null };
+  }
+  const existing = await loadCohortTriageRunId(cohort.scan.id);
+  const decision = triageRunAvailability(existing);
+  return {
+    scanId: cohort.scan.id,
+    availability: decision.kind,
+    existingRunId: decision.existing?.id ?? null,
+    existingStatus: decision.existing?.status ?? null,
+  };
+});
 
 /**
  * Calibration-only audit: repeated identical calibration runs plus one

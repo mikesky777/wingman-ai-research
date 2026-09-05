@@ -58,6 +58,42 @@ export interface ProductionFunnel {
   entryEvaluatedCount: number;
   entryActionableCount: number;
   sizingCount: number;
+  /**
+   * Newest production scan ATTEMPT of any status. Freshness/provenance only:
+   * a failed or running attempt never becomes the active research cohort.
+   */
+  latestScanAttempt: LatestScanAttempt | null;
+}
+
+export interface LatestScanAttempt {
+  runId: string;
+  status: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  discoveryHealth: string | null;
+  errorMessage: string | null;
+}
+
+/** Newest non-calibration scan attempt, whatever its status. */
+async function loadLatestScanAttempt(): Promise<LatestScanAttempt | null> {
+  const { data, error } = await supabaseAdmin
+    .from("scan_runs")
+    .select("id, status, started_at, completed_at, discovery_health, error_message")
+    .eq("calibration_mode", false)
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) return null;
+  const r = data as Row;
+  return {
+    runId: r["id"] as string,
+    status: (r["status"] as string) ?? "unknown",
+    startedAt: (r["started_at"] as string) ?? null,
+    completedAt: (r["completed_at"] as string) ?? null,
+    discoveryHealth: (r["discovery_health"] as string) ?? null,
+    errorMessage: (r["error_message"] as string) ?? null,
+  };
 }
 
 function emptyFunnel(cohort: ActiveResearchCohort | null): ProductionFunnel {
@@ -91,11 +127,20 @@ function emptyFunnel(cohort: ActiveResearchCohort | null): ProductionFunnel {
     entryEvaluatedCount: 0,
     entryActionableCount: 0,
     sizingCount: 0,
+    latestScanAttempt: null,
   };
 }
 
 /** Loads the current production funnel for the ACTIVE cohort. Read-only. */
 export async function loadProductionFunnel(): Promise<ProductionFunnel> {
+  const [funnel, latestScanAttempt] = await Promise.all([
+    loadProductionFunnelCore(),
+    loadLatestScanAttempt(),
+  ]);
+  return { ...funnel, latestScanAttempt };
+}
+
+async function loadProductionFunnelCore(): Promise<ProductionFunnel> {
   const cohort = await loadActiveResearchCohort();
   if (!cohort.scan) return emptyFunnel(cohort);
   if (!cohort.triageRunId) return emptyFunnel(cohort);
@@ -233,6 +278,7 @@ export async function loadProductionFunnel(): Promise<ProductionFunnel> {
     entryEvaluatedCount,
     entryActionableCount,
     sizingCount,
+    latestScanAttempt: null,
   };
 }
 

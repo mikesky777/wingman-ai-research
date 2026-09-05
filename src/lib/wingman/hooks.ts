@@ -69,6 +69,16 @@ export function useLatestFunnel() {
   });
 }
 
+/** Newest scan attempt of any status — provenance/freshness display only. */
+export function useLatestScanAttempt() {
+  return useQuery({
+    queryKey: ["wingman", "latest-scan-attempt"] as const,
+    queryFn: () => ScannerService.latestAttempt(),
+    refetchInterval: 60_000,
+  });
+}
+
+
 export function useRankedCandidates(runId: string | undefined) {
   return useQuery({
     queryKey: wingmanKeys.rankedCandidates(runId ?? "none"),

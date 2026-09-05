@@ -14,6 +14,8 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { recordAiStageMilestone } from "../history/milestones.server";
 import { SELECTION_POLICY_VERSION } from "../history/policy-epochs";
 import { type AiScanSourceResult } from "./ai-scan-source";
+import { loadCohortTriageRunId } from "./cohort.server";
+import { shouldBlockProductionRerun } from "./triage-rerun";
 import { assessResearchEligibility } from "./packet";
 import {
   chunkIds,
@@ -71,7 +73,13 @@ export type TriageRunStatus =
 export interface TriageRunResult {
   mode: TriageMode;
   status: TriageRunStatus;
-  code: "OK" | "NO_ELIGIBLE_CURRENT_SCAN" | "PROVIDER_FAILED" | "VALIDATION_FAILED" | "NO_CANDIDATES";
+  code:
+    | "OK"
+    | "NO_ELIGIBLE_CURRENT_SCAN"
+    | "PROVIDER_FAILED"
+    | "VALIDATION_FAILED"
+    | "NO_CANDIDATES"
+    | "ALREADY_TRIAGED";
   triageRunId: string | null;
   sourceScanId: string | null;
   scannerPolicyVersion: string | null;
@@ -172,7 +180,14 @@ export interface RunAiTriageOptions {
    * label, counterfactual source labels). Rejected for production input.
    */
   ablation?: TriageInputAblation | null;
+  /**
+   * Production only: explicitly confirmed repeat over an already-triaged
+   * cohort. Without it, a cohort that already has a completed production
+   * triage is refused before any credits are spent.
+   */
+  allowRerun?: boolean;
 }
+
 
 /**
  * Execute one triage pass. Never throws for an expected operational outcome —
@@ -258,7 +273,21 @@ export async function runAiTriage(options: RunAiTriageOptions = {}): Promise<Tri
       };
     }
     sourceScanId = eligibility.runId;
+
+    // 1b. Repeat-spend guard. Provenance-correct repeats are still repeats:
+    // the ordinary action never re-spends on an already-triaged cohort.
+    const existing = await loadCohortTriageRunId(sourceScanId!);
+    if (shouldBlockProductionRerun(existing, options.allowRerun === true)) {
+      return {
+        ...base,
+        sourceScanId,
+        status: "failed",
+        code: "ALREADY_TRIAGED",
+        error: `This cohort was already triaged (run ${existing!.id.slice(0, 8)}). Use the explicit rerun action to spend again on the same packets.`,
+      };
+    }
   }
+
 
   // 2. Packet universe for that exact scan, deduplicated by exact mint.
   const packets = await loadPacketsForRun(sourceScanId!);

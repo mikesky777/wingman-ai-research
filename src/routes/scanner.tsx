@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { PIPELINE_STAGES } from "@/lib/wingman/config";
 import {
   useLatestFunnel,
+  useLatestScanAttempt,
   useRunDiagnostics,
   useWorkbenchCandidates,
 } from "@/lib/wingman/hooks";
@@ -22,12 +23,17 @@ import {
   DiscoveryProviderPanel,
   type DiscoveryProviderStatus,
 } from "@/components/wingman/scanner/DiscoveryProviderPanel";
+import { ScanProvenanceBar } from "@/components/wingman/scanner/ScanProvenanceBar";
 import {
+  SCAN_ACK_TIMEOUT_MS,
+  isScanControlBlocked,
   scanStatusMessage,
   scanUiState,
   shouldRefreshCandidates,
+  showsPreviousScanResults,
   type ScanAttempt,
 } from "@/lib/wingman/services/scanner/run-lifecycle";
+
 import { getStrategySettings } from "@/lib/wingman/strategy.functions";
 import { formatNumber, formatUsd } from "@/lib/wingman/format";
 import {
@@ -309,24 +315,64 @@ function ScannerPage() {
   // The attempt result is kept separately from persisted state: a resolved
   // POST is never treated as completion on its own.
   const [attempt, setAttempt] = useState<ScanAttempt | null>(null);
+  const [pendingStartedAt, setPendingStartedAt] = useState<number | null>(null);
+  const [nowMs, setNowMs] = useState<number>(() => Date.now());
   const readRunStatus = useServerFn(getScanRunStatus);
   const watchedRunId = attempt?.runId ?? attempt?.activeRunId ?? null;
+  const { data: latestAttemptRow } = useLatestScanAttempt();
 
   const mutation = useMutation({
-    mutationFn: () => scan({ data: {} }),
+    // Bounded request: without a timeout a lost request leaves the UI pending
+    // forever, which is exactly how a click silently becomes a no-op.
+    mutationFn: () =>
+      new Promise<Awaited<ReturnType<typeof scan>>>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error("SCAN_NO_ACK")), SCAN_ACK_TIMEOUT_MS);
+        Promise.resolve(scan({ data: {} })).then(
+          (result) => {
+            clearTimeout(timer);
+            resolve(result);
+          },
+          (error: unknown) => {
+            clearTimeout(timer);
+            reject(error instanceof Error ? error : new Error(String(error)));
+          },
+        );
+      }),
+    onMutate: () => {
+      setPendingStartedAt(Date.now());
+      setAttempt(null);
+    },
+    onSettled: () => setPendingStartedAt(null),
     onSuccess: (result) => {
       setAttempt({
         code: result.code,
         runId: result.runId,
         activeRunId: result.activeRunId,
         message: result.ok
-          ? `Scan complete — ${result.summary?.tokensDiscovered ?? 0} tokens discovered, ${result.summary?.enriched ?? 0} enriched.`
+          ? `Scan completed — ${result.summary?.tokensDiscovered ?? 0} tokens discovered, ${result.summary?.enriched ?? 0} enriched.`
           : (result.message ?? "Scan failed."),
       });
     },
-    onError: (error: Error) =>
-      setAttempt({ code: "FAILED", runId: null, activeRunId: null, message: error.message }),
+    onError: (error: Error) => {
+      const noAck = error.message === "SCAN_NO_ACK";
+      setAttempt({
+        code: noAck ? "NO_ACK" : "FAILED",
+        runId: null,
+        activeRunId: null,
+        message: noAck
+          ? "Scan request did not start — the backend never acknowledged it. Nothing was scanned; press Run scan again."
+          : `Request failed before scan start: ${error.message}`,
+      });
+    },
   });
+
+  // Ticks only while a request is in flight, so the UI can stop claiming a
+  // scan is running once acknowledgement is overdue.
+  useEffect(() => {
+    if (pendingStartedAt === null) return;
+    const id = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [pendingStartedAt]);
 
   // Poll the real run row while a watched run is still open.
   const { data: runStatus } = useQuery({
@@ -361,11 +407,26 @@ function ScannerPage() {
     pending: mutation.isPending,
     attempt,
     watchedRunStatus: runStatus?.status ?? null,
+    pendingTimedOut:
+      pendingStartedAt !== null && nowMs - pendingStartedAt >= SCAN_ACK_TIMEOUT_MS,
   });
   const message =
     runState === "FAILED" && runStatus?.errorMessage
       ? runStatus.errorMessage
       : scanStatusMessage(runState, attempt);
+  const controlBlocked = isScanControlBlocked(runState);
+  const showingPrevious = showsPreviousScanResults(
+    runState,
+    attempt,
+    funnel?.runId ?? null,
+    watchedRunId,
+  );
+  const newerAttemptFailed = Boolean(
+    latestAttemptRow &&
+      funnel &&
+      latestAttemptRow.runId !== funnel.runId &&
+      (latestAttemptRow.status === "failed" || latestAttemptRow.status === "abandoned"),
+  );
 
   // Candidate data refreshes only after a watched run is persisted COMPLETED.
   const completedRunKey = shouldRefreshCandidates(runState) ? watchedRunId : null;
@@ -384,14 +445,11 @@ function ScannerPage() {
             {funnel?.scannerVersion ?? "scanner/v1"}
             {funnel?.calibrationMode ? " · calibration" : ""}
           </span>
-          <Button
-            size="sm"
-            onClick={() => mutation.mutate()}
-            disabled={mutation.isPending || runState === "RUNNING" || runState === "ALREADY_RUNNING"}
-          >
-            {mutation.isPending || runState === "RUNNING" || runState === "ALREADY_RUNNING" ? (
+          <Button size="sm" onClick={() => mutation.mutate()} disabled={controlBlocked}>
+            {controlBlocked ? (
               <>
-                <Loader2 className="size-3.5 animate-spin" /> Scanning
+                <Loader2 className="size-3.5 animate-spin" />{" "}
+                {runState === "STARTING" ? "Starting" : "Scanning"}
               </>
             ) : (
               "Run scan"
@@ -402,7 +460,13 @@ function ScannerPage() {
     >
       <div className="space-y-6">
         {message ? (
-          <p className="rounded-md border border-border bg-surface/60 px-3 py-2 text-xs text-muted-foreground">
+          <p
+            className={`rounded-md border px-3 py-2 text-xs ${
+              runState === "FAILED" || runState === "UNCONFIRMED"
+                ? "border-negative/40 bg-negative/10 text-negative"
+                : "border-border bg-surface/60 text-muted-foreground"
+            }`}
+          >
             {message}
           </p>
         ) : null}
@@ -411,12 +475,19 @@ function ScannerPage() {
           <DiscoveryProviderPanel status={providerStatus} />
         ) : null}
 
+        <ScanProvenanceBar
+          funnel={funnel ?? null}
+          latestAttempt={latestAttemptRow ?? null}
+          showingPrevious={showingPrevious}
+          newerAttemptFailed={newerAttemptFailed}
+        />
+
         <div className="panel flex flex-wrap items-center gap-x-2 gap-y-1 px-4 py-3 font-mono text-xs">
           <span
             className={
               runState === "COMPLETED"
                 ? "text-positive"
-                : runState === "FAILED"
+                : runState === "FAILED" || runState === "UNCONFIRMED"
                   ? "text-negative"
                   : "text-foreground"
             }
@@ -440,6 +511,7 @@ function ScannerPage() {
             {diagnostics?.scannerVersion ?? funnel?.scannerVersion ?? "scanner/v1"}
           </span>
         </div>
+
 
         <details className="panel group">
           <summary className="flex cursor-pointer list-none items-center justify-between px-5 py-3.5 [&::-webkit-details-marker]:hidden">

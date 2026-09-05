@@ -91,7 +91,27 @@ export function ProductionFunnelPanel() {
       description="Active cohort only: scan → research packets → AI triage → deep research → thesis → entry. Every count belongs to this scan; anything from an earlier scan lives in History. A thesis call is a thesis that passed every opportunity gate."
       actions={<Badge variant="outline">PRODUCTION</Badge>}
     >
+      {data.latestScanAttempt && data.latestScanAttempt.runId !== data.scan.id ? (
+        <p
+          className={`mb-3 rounded-md border px-3 py-2 text-xs ${
+            data.latestScanAttempt.status === "failed" ||
+            data.latestScanAttempt.status === "abandoned"
+              ? "border-negative/40 bg-negative/10 text-negative"
+              : "border-border bg-surface/60 text-muted-foreground"
+          }`}
+        >
+          Newer scan attempt {data.latestScanAttempt.runId.slice(0, 8)} is{" "}
+          {data.latestScanAttempt.status}
+          {data.latestScanAttempt.startedAt
+            ? ` (started ${relativeTime(data.latestScanAttempt.startedAt)})`
+            : ""}
+          . Research stays on the last healthy scan — a failed or running attempt never becomes the
+          active cohort.
+        </p>
+      ) : null}
+
       <div className="flex flex-wrap gap-2">
+
         <Stage
           label="SCANNER"
           status={data.scan.completedAt ? "COMPLETED" : "PENDING"}
@@ -166,10 +186,13 @@ export function ProductionFunnelPanel() {
         />
       </div>
       <p className="mt-3 text-[11px] text-muted-foreground">
-        Scan {data.scan.id?.slice(0, 8) ?? "—"} · triage {t ? t.id.slice(0, 8) : "—"} ·{" "}
+        Scan {data.scan.id?.slice(0, 8) ?? "—"}
+        {data.scan.completedAt ? ` · completed ${relativeTime(data.scan.completedAt)}` : ""} ·{" "}
+        {data.scan.policyVersion ?? "—"} · triage {t ? t.id.slice(0, 8) : "—"} ·{" "}
         {data.cohortShortlistCount} shortlisted in this cohort ·{" "}
         {t?.triagePolicyVersion ?? "—"}
       </p>
+
     </Section>
   );
 }
