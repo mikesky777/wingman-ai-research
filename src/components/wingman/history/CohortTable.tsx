@@ -147,11 +147,6 @@ export function CohortTable({
                   <td className="tabular text-right text-sm text-primary">{pct(t.peakPct)}</td>
                 ) : null}
                 {showSeries ? (
-                  <td className={cn("tabular text-right text-sm", tone(t.maxAdversePct))}>
-                    {pct(t.maxAdversePct)}
-                  </td>
-                ) : null}
-                {showSeries ? (
                   <td className="tabular text-right text-sm text-destructive">
                     {pct(t.drawdownPct)}
                   </td>
