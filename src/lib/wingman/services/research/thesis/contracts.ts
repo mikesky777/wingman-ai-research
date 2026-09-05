@@ -418,6 +418,24 @@ export function validateThesisOutput(
     return text;
   };
 
+  // Catalyst semantics: market behaviour is a WHY NOW signal, never a catalyst.
+  let strongestCatalyst = asString(obj["strongestCatalyst"]);
+  let whyNowMarketSignal = asString(obj["whyNowMarketSignal"]);
+  const kindRaw = asString(obj["catalystKind"])?.toUpperCase() as CatalystKind | undefined;
+  let catalystKind: CatalystKind =
+    kindRaw && CATALYST_KINDS.includes(kindRaw) ? kindRaw : strongestCatalyst ? "PLAUSIBLE" : "NONE";
+  if (strongestCatalyst && isMarketSignalOnly(strongestCatalyst)) {
+    issues.push({
+      code: "CATALYST_WAS_MARKET_SIGNAL",
+      detail: strongestCatalyst.slice(0, 160),
+    });
+    whyNowMarketSignal = whyNowMarketSignal ?? strongestCatalyst;
+    strongestCatalyst = null;
+    catalystKind = "NONE";
+  }
+  if (!strongestCatalyst) catalystKind = "NONE";
+  const catalysts = asStringArray(obj["catalysts"]).filter((c) => !isMarketSignalOnly(c));
+
   const criticalRaw = obj["criticalUnresolvedIssues"];
   const criticalUnresolvedIssues = Number.isFinite(Number(criticalRaw))
     ? Math.max(0, Math.min(10, Math.round(Number(criticalRaw))))
