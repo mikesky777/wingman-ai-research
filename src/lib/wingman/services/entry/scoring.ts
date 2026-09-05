@@ -253,14 +253,14 @@ export function scoreEntry(args: {
   }
 
   const hasNearbyInvalidation =
-    (f.higherLow || f.consolidationBars >= 3) && f.distanceFromBasePct <= 80;
+    highRes && (f.higherLow || f.consolidationBars >= 3) && f.distanceFromBasePct <= 80;
   if (hasNearbyInvalidation) {
     riskDefinition += 0.6;
     notes.push("Nearby structural level gives a coherent invalidation");
   } else {
     improve.push("A defined higher low that bounds entry risk");
   }
-  if (f.realizedVolatilityPct >= 12) {
+  if (highRes && f.realizedVolatilityPct >= 12) {
     riskDefinition -= 0.35;
     notes.push("Highly discontinuous price action widens practical risk");
   }
