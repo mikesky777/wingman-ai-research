@@ -1188,6 +1188,20 @@ export async function loadThesisReports(
     researchPacketId: (r["research_packet_id"] as string) ?? null,
     triageRunId: (r["triage_run_id"] as string) ?? null,
     sources: sourcesByReport.get((r["deep_research_report_id"] as string) ?? "") ?? [],
+    evidenceSemanticsVersion: (r["evidence_semantics_version"] as string) ?? null,
+    positiveEvidence: (r["positive_evidence"] as EvidenceSemantics["positive"]) ?? [],
+    negativeEvidence: (r["negative_evidence"] as EvidenceSemantics["negative"]) ?? [],
+    missingEvidence: (r["missing_evidence"] as EvidenceSemantics["missing"]) ?? [],
+    ambiguousEvidence: (r["ambiguous_evidence"] as EvidenceSemantics["ambiguous"]) ?? [],
+    catalystClassification: (r["catalyst_classification"] as string) ?? null,
+    catalystVerificationBasis: (r["catalyst_verification_basis"] as string) ?? null,
+    narrativeMaturity: (r["narrative_maturity"] as string) ?? null,
+    narrativeMaturityReasons:
+      ((r["narrative_maturity_reasons"] as { reasons?: string[] } | null)?.reasons) ?? [],
+    narrativeSupportCodes:
+      ((r["narrative_maturity_reasons"] as { supportCodes?: string[] } | null)?.supportCodes) ?? [],
+    sourceMix: (r["source_mix"] as EvidenceSemantics["sourceMix"]) ?? null,
+    gateDiagnostics: (r["gate_diagnostics"] as GateDiagnostics) ?? null,
   }));
 }
 
