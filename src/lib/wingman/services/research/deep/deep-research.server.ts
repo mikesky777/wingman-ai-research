@@ -28,7 +28,10 @@ import {
   emptyDossier,
   shouldStopSearch,
   validateModelOutput,
+  withEvidenceOrigin,
   type AttributionConfidence,
+  type DossierSearchHealth,
+  type SearchHealthStatus,
   type ResearchBudget,
   type ResearchDossier,
   type ResearchSource,
@@ -77,6 +80,8 @@ export type DeepResearchRunCode =
 export type CandidateStatus =
   | "completed"
   | "insufficient_evidence"
+  /** Search failed mid-research: partial evidence kept, never "completed". */
+  | "search_limited"
   | "search_unavailable"
   | "blocked"
   | "failed";
@@ -989,6 +994,14 @@ async function insertReport(input: {
       one_sentence_narrative: dossier.oneSentenceNarrative,
       narrative_resolved: dossier.narrativeResolved,
       identity_attribution_confidence: dossier.identityAttributionConfidence,
+      token_identity_confidence: dossier.tokenIdentityConfidence,
+      project_attribution_confidence: dossier.projectAttributionConfidence,
+      evidence_semantics_version: dossier.evidenceSemanticsVersion,
+      search_health: dossier.searchHealth.status,
+      search_failed_attempts: dossier.searchHealth.failedAttempts,
+      community_source_count: dossier.coverage.communitySourceCount,
+      on_chain_mirror_count: dossier.coverage.onChainMirrorCount,
+      distinct_evidence_origins: dossier.coverage.distinctEvidenceOrigins,
       evidence_coverage_pct: dossier.coverage.coveragePct,
       covered_domains: dossier.coverage.coveredDomains,
       unresolved_domains: dossier.coverage.unresolvedDomains,
@@ -1030,6 +1043,8 @@ async function insertSources(
       source_type: s.sourceType,
       reliability_class: s.reliabilityClass,
       independence: s.independence,
+      on_chain_mirror: s.onChainMirror,
+      evidence_origin: s.evidenceOrigin,
       content_fetched: s.contentFetched,
       published_at: s.publishedAt,
       fetched_at: s.fetchedAt,
@@ -1079,6 +1094,15 @@ export interface DeepResearchReportSummary {
   oneSentenceNarrative: string | null;
   narrativeResolved: boolean;
   identityAttributionConfidence: string;
+  /** Null on legacy artifacts written before deep_research_evidence/v1.1. */
+  evidenceSemanticsVersion: string | null;
+  tokenIdentityConfidence: string | null;
+  projectAttributionConfidence: string | null;
+  searchHealth: string | null;
+  searchFailedAttempts: number | null;
+  communitySourceCount: number | null;
+  onChainMirrorCount: number | null;
+  distinctEvidenceOrigins: number | null;
   coveragePct: number | null;
   sourceCount: number;
   primarySourceCount: number;
@@ -1114,6 +1138,14 @@ export async function loadDeepResearchReports(limit = 12): Promise<DeepResearchR
       oneSentenceNarrative: (r["one_sentence_narrative"] as string) ?? null,
       narrativeResolved: Boolean(r["narrative_resolved"]),
       identityAttributionConfidence: (r["identity_attribution_confidence"] as string) ?? "UNRESOLVED",
+      evidenceSemanticsVersion: dossier?.evidenceSemanticsVersion ?? null,
+      tokenIdentityConfidence: dossier?.tokenIdentityConfidence ?? null,
+      projectAttributionConfidence: dossier?.projectAttributionConfidence ?? null,
+      searchHealth: dossier?.searchHealth?.status ?? null,
+      searchFailedAttempts: dossier?.searchHealth?.failedAttempts ?? null,
+      communitySourceCount: dossier?.coverage?.communitySourceCount ?? null,
+      onChainMirrorCount: dossier?.coverage?.onChainMirrorCount ?? null,
+      distinctEvidenceOrigins: dossier?.coverage?.distinctEvidenceOrigins ?? null,
       coveragePct: (r["evidence_coverage_pct"] as number) ?? null,
       sourceCount: (r["source_count"] as number) ?? 0,
       primarySourceCount: (r["primary_source_count"] as number) ?? 0,
