@@ -271,7 +271,21 @@ export async function runAiTriage(options: RunAiTriageOptions = {}): Promise<Tri
       };
     }
     sourceScanId = eligibility.runId;
+
+    // 1b. Repeat-spend guard. Provenance-correct repeats are still repeats:
+    // the ordinary action never re-spends on an already-triaged cohort.
+    const existing = await loadCohortTriageRunId(sourceScanId);
+    if (shouldBlockProductionRerun(existing, options.allowRerun === true)) {
+      return {
+        ...base,
+        sourceScanId,
+        status: "failed",
+        code: "ALREADY_TRIAGED",
+        error: `This cohort was already triaged (run ${existing!.id.slice(0, 8)}). Use the explicit rerun action to spend again on the same packets.`,
+      };
+    }
   }
+
 
   // 2. Packet universe for that exact scan, deduplicated by exact mint.
   const packets = await loadPacketsForRun(sourceScanId!);
