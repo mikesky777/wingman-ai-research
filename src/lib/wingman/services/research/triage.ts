@@ -648,3 +648,29 @@ export function analyzeCalibration(rows: ComparedDecision[]): CalibrationAnalysi
     warnings,
   };
 }
+
+/** Token identity resolved from a persisted Research Packet. Pure + null-safe. */
+export interface PacketTokenIdentity {
+  symbol: string | null;
+  name: string | null;
+  pairAddress: string | null;
+  /** The packet's own mint — the authoritative identity, never symbol-based. */
+  packetMint: string | null;
+}
+
+/**
+ * Reads identity from a persisted Research Packet payload. Used only to label
+ * triage decisions in the UI; never alters decisions, ranks or packets.
+ */
+export function extractPacketIdentity(packet: unknown): PacketTokenIdentity {
+  const identity = (packet as Record<string, unknown> | null)?.["identity"] as
+    | Record<string, unknown>
+    | undefined;
+  const pairFact = identity?.["pairAddress"] as { value?: unknown } | undefined;
+  return {
+    symbol: typeof identity?.["symbol"] === "string" ? (identity["symbol"] as string) : null,
+    name: typeof identity?.["name"] === "string" ? (identity["name"] as string) : null,
+    pairAddress: typeof pairFact?.value === "string" ? pairFact.value : null,
+    packetMint: typeof identity?.["mint"] === "string" ? (identity["mint"] as string) : null,
+  };
+}

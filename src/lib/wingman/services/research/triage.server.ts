@@ -34,6 +34,7 @@ import {
   validateTriageOutput,
   withQuantRanks,
   type CalibrationAnalysis,
+  extractPacketIdentity,
   type ComparedDecision,
   type TriageCandidateInput,
   type TriageInputAblation,
@@ -711,6 +712,10 @@ export interface TriageRunSummary {
 
 export interface PersistedTriageDecision {
   mint: string;
+  /** Token identity from the exact persisted Research Packet the triage read. */
+  symbol: string | null;
+  name: string | null;
+  pairAddress: string | null;
   candidateSource: string | null;
   setup: string | null;
   decision: string;
@@ -771,8 +776,54 @@ export async function loadLatestTriage(): Promise<{
       .order("triage_rank", { ascending: true, nullsFirst: false })
       .range(from, to),
   );
+  // Resolve token identity from the exact persisted Research Packet each
+  // decision referenced. Read-only: never changes decisions or packets.
+  const packetIds = [
+    ...new Set(
+      rows
+        .map((d) => (d["research_packet_id"] as string) ?? null)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  const identityByPacketId = new Map<
+    string,
+    { symbol: string | null; name: string | null; pairAddress: string | null; packetMint: string | null }
+  >();
+  if (packetIds.length) {
+    for (const chunk of chunkIds(packetIds)) {
+      const { data: packets, error: packetError } = await supabaseAdmin
+        .from("research_packets")
+        .select("id, packet")
+        .in("id", chunk);
+      if (packetError) throw new Error(packetError.message);
+      for (const p of packets ?? []) {
+        const idn = extractPacketIdentity(p["packet"]);
+        // Only trust identity when the packet's own mint matches the decision's.
+        identityByPacketId.set(p["id"] as string, {
+          symbol: idn.symbol,
+          name: idn.name,
+          pairAddress: idn.pairAddress,
+          packetMint: idn.packetMint,
+        });
+      }
+    }
+  }
+
   const decisions: PersistedTriageDecision[] = rows.map((d) => ({
     mint: d["mint"] as string,
+    ...(() => {
+      const mint = d["mint"] as string;
+      const pid = (d["research_packet_id"] as string) ?? null;
+      const idn = pid ? identityByPacketId.get(pid) : undefined;
+      // Same-ticker safety: identity is only shown when the packet's own mint
+      // matches this decision's exact mint.
+      const trusted = idn && (!idn.packetMint || idn.packetMint === mint) ? idn : undefined;
+      return {
+        symbol: trusted?.symbol ?? null,
+        name: trusted?.name ?? null,
+        pairAddress: trusted?.pairAddress ?? null,
+      };
+    })(),
     candidateSource: (d["candidate_source"] as string) ?? null,
     setup: (d["setup"] as string) ?? null,
     decision: d["decision"] as string,
