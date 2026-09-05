@@ -383,9 +383,24 @@ function ThesisDetail({ report }: { report: Report }) {
             {report.evidenceDeductions.map((d) => (
               <li key={d.code}>
                 {d.detail} <span className="text-[10px]">(−{d.points} evidence confidence)</span>
+                {d.unresolvedReasons?.length ? (
+                  <span className="ml-1 text-[10px] text-muted-foreground">
+                    [{[...new Set(d.unresolvedReasons)].join(", ")}]
+                  </span>
+                ) : null}
               </li>
             ))}
           </ul>
+          {report.evidenceConfidenceArtifact ? (
+            <p className="mt-2 text-[10px] text-muted-foreground">
+              {report.evidenceConfidenceVersion ?? report.evidenceConfidenceArtifact.version} ·
+              search {report.evidenceConfidenceArtifact.searchHealth} · raw{" "}
+              <span className="tabular">{report.evidenceConfidenceArtifact.rawScore}</span> before
+              0–100 floor · {report.evidenceConfidenceArtifact.diagnostics.effectiveIndependentSources}{" "}
+              distinct independent origin(s) ·{" "}
+              {report.evidenceConfidenceArtifact.diagnostics.onChainMirrorCount} on-chain mirror(s)
+            </p>
+          ) : null}
         </div>
       ) : null}
 
