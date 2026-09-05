@@ -43,6 +43,24 @@ export const THESIS_MAX_SCORE = THESIS_COMPONENTS.reduce((sum, c) => sum + c.wei
 export const BEAR_SEVERITIES = ["LOW", "MODERATE", "HIGH", "CRITICAL"] as const;
 export type BearSeverity = (typeof BEAR_SEVERITIES)[number];
 
+/**
+ * A catalyst is an identifiable EXTERNAL trigger (event, launch, listing,
+ * announcement, cultural/media moment). Price/volume/participation
+ * acceleration is a MARKET SIGNAL and is never a catalyst.
+ */
+export const CATALYST_KINDS = ["VERIFIED", "PLAUSIBLE", "NONE"] as const;
+export type CatalystKind = (typeof CATALYST_KINDS)[number];
+
+/** Market-behaviour language that must never be stored as an external catalyst. */
+export const MARKET_SIGNAL_PATTERN =
+  /\b(volume|price action|price momentum|momentum|reaccelerat\w*|re-accelerat\w*|acceleration|buy pressure|renewed (?:interest|participation)|participation|wallet activity|buyer count|scanner persistence|liquidity (?:rising|increase)|market cap (?:rising|climbing)|pump\w*|rallied|rally)\b/i;
+
+/** True when the text describes market behaviour rather than an external trigger. */
+export function isMarketSignalOnly(text: string | null): boolean {
+  if (!text) return false;
+  return MARKET_SIGNAL_PATTERN.test(text);
+}
+
 export const THESIS_VERDICTS = [
   "STRONG_THESIS",
   "PROMISING",
