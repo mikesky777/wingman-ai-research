@@ -769,6 +769,34 @@ export function validateThesisOutput(
   }
   const thesisScore = THESIS_COMPONENTS.reduce((sum, c) => sum + (components[c.key] ?? 0), 0);
 
+  // v2.2: a short, structured reason per component. The band is derived from
+  // the anchors here so it can never disagree with the persisted score.
+  const rawReasons = (obj["componentReasons"] && typeof obj["componentReasons"] === "object"
+    ? obj["componentReasons"]
+    : {}) as Record<string, unknown>;
+  const componentReasons: ThesisComponentReasons = {};
+  for (const c of THESIS_COMPONENTS) {
+    const entry = rawReasons[c.key];
+    const record = (entry && typeof entry === "object" ? entry : {}) as Record<string, unknown>;
+    const text = asString(record["reason"]) ?? asString(entry);
+    const codeRaw = asString(record["reasonCode"])?.toUpperCase() as
+      | ThesisComponentReasonCode
+      | undefined;
+    if (!text) issues.push({ code: "COMPONENT_REASON_MISSING", detail: c.key });
+    if (codeRaw && !THESIS_COMPONENT_REASON_CODES.includes(codeRaw)) {
+      issues.push({ code: "COMPONENT_REASON_CODE_INVALID", detail: `${c.key}=${codeRaw}` });
+    }
+    const score = components[c.key] ?? 0;
+    componentReasons[c.key] = {
+      score,
+      band: bandForScore(c.key, score),
+      reasonCode:
+        codeRaw && THESIS_COMPONENT_REASON_CODES.includes(codeRaw) ? codeRaw : "MIXED_EVIDENCE",
+      reason: text ?? "No reason provided by the model.",
+    };
+  }
+
+
   const sections = {} as ThesisSections;
   const rawSections = (obj["sections"] && typeof obj["sections"] === "object"
     ? obj["sections"]
