@@ -37,12 +37,28 @@ export const runTriageAudit = createServerFn({ method: "POST" })
     return runTriageCalibrationAudit(data);
   });
 
-export const getLatestTriage = createServerFn({ method: "GET" }).handler(
-  async (): Promise<{ run: TriageRunSummary; decisions: PersistedTriageDecision[] } | null> => {
-    const { loadLatestTriage } = await import("./services/research/triage.server");
-    return loadLatestTriage();
-  },
-);
+/**
+ * Latest triage run for one mode. Production and calibration are separate
+ * views: a later calibration run can never replace the production display.
+ */
+export const getLatestTriage = createServerFn({ method: "GET" })
+  .inputValidator((input?: { mode?: "PRODUCTION" | "CALIBRATION" }) => ({
+    mode: input?.mode === "CALIBRATION" ? ("CALIBRATION" as const) : ("PRODUCTION" as const),
+  }))
+  .handler(
+    async ({
+      data,
+    }): Promise<{ run: TriageRunSummary; decisions: PersistedTriageDecision[] } | null> => {
+      const { loadLatestTriage } = await import("./services/research/triage.server");
+      return loadLatestTriage(data.mode);
+    },
+  );
+
+/** Current production funnel: scan → packets → triage → shortlist → thesis. */
+export const getProductionFunnel = createServerFn({ method: "GET" }).handler(async () => {
+  const { loadProductionFunnel } = await import("./services/research/production-view.server");
+  return loadProductionFunnel();
+});
 
 export const runTriageAblation = createServerFn({ method: "POST" })
   .inputValidator(
