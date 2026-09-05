@@ -875,9 +875,11 @@ async function insertReport(args: {
   provider: ThesisProvider;
   qualified: boolean;
   thesisCallMilestoneId: string | null;
+  gateDiagnostics: GateDiagnostics;
 }): Promise<string> {
   const { candidate: s } = args;
   const c = s.components;
+  const sem = s.semantics;
   const { data, error } = await supabaseAdmin
     .from("thesis_reports")
     .insert({
