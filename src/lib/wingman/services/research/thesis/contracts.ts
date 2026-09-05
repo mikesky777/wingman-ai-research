@@ -271,29 +271,53 @@ const ATTRIBUTION_PENALTY: Record<string, number> = {
 export function computeEvidenceConfidence(
   input: EvidenceConfidenceInput,
 ): EvidenceConfidenceBreakdown {
-  const deductions: { code: string; points: number; detail: string }[] = [];
-  const add = (code: string, points: number, detail: string) => {
-    if (points > 0) deductions.push({ code, points: Math.round(points), detail });
+  const deductions: EvidenceConfidenceDeduction[] = [];
+  const add = (
+    code: string,
+    points: number,
+    detail: string,
+    extra?: Omit<EvidenceConfidenceDeduction, "code" | "points" | "detail">,
+  ) => {
+    if (points > 0) deductions.push({ code, points: Math.round(points), detail, ...extra });
   };
+
+  const searchHealth: EvidenceSearchHealth =
+    input.searchHealth ?? (input.searchUnavailable ? "SEARCH_UNAVAILABLE" : "READY");
+  const unresolvedReasons = input.unresolvedReasons ?? [];
 
   add(
     "UNRESOLVED_DOMAINS",
     Math.min(48, input.unresolvedDomainCount * 8),
     `${input.unresolvedDomainCount}/${input.totalDomainCount} research domains unresolved`,
+    // Same 8 points per domain as v1: only the CAUSE is now visible, so future
+    // calibration can tell "nothing exists" apart from "we could not look".
+    { unresolvedReasons, searchHealth },
   );
 
-  const independent = input.independentSourceCount;
+  // v1.1: mirrors of the same chain state must not read as corroboration.
+  // When distinct independent origins are known they cap the counted sources.
+  const distinctIndependentOrigins =
+    input.distinctIndependentEvidenceOrigins ?? input.independentSourceCount;
+  const independent = Math.max(
+    0,
+    Math.min(input.independentSourceCount, distinctIndependentOrigins),
+  );
   const independencePenalty = independent >= 3 ? 0 : independent === 2 ? 8 : independent === 1 ? 15 : 25;
   add(
     "INDEPENDENT_SOURCES",
     independencePenalty,
-    `${independent} independent (non project-owned) source(s)`,
+    `${independent} distinct independent evidence origin(s)` +
+      (input.onChainMirrorCount
+        ? ` (${input.onChainMirrorCount} on-chain mirror source(s) excluded)`
+        : ""),
+    { searchHealth },
   );
 
   add(
     "ATTRIBUTION",
-    ATTRIBUTION_PENALTY[input.identityAttributionConfidence] ?? 25,
-    `exact-mint attribution ${input.identityAttributionConfidence}`,
+    ATTRIBUTION_PENALTY[input.projectAttributionConfidence] ?? 25,
+    `project/creator attribution ${input.projectAttributionConfidence}`,
+    { searchHealth },
   );
 
   const diversityPenalty = input.sourceDomainDiversity >= 3 ? 0 : input.sourceDomainDiversity === 2 ? 4 : 8;
