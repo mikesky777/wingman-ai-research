@@ -643,6 +643,20 @@ async function researchCandidate(input: {
   const externalSearchUnavailable = searchTelemetry.attempts > 0 && !searchTelemetry.everSucceeded;
   const searchFailures = searchTelemetry.failedAttempts;
   const lastSearchError = searchTelemetry.lastError;
+  // Search health travels ON the report, not only in run diagnostics.
+  const searchHealthStatus: SearchHealthStatus = externalSearchUnavailable
+    ? "SEARCH_UNAVAILABLE"
+    : searchTelemetry.failedAttempts > 0
+      ? "DEGRADED"
+      : "READY";
+  const searchHealth: DossierSearchHealth = {
+    status: searchHealthStatus,
+    provider: search.name,
+    attempts: searchTelemetry.attempts,
+    successfulAttempts: searchTelemetry.successfulAttempts,
+    failedAttempts: searchTelemetry.failedAttempts,
+    lastError: lastSearchError,
+  };
   if (!stopReason) {
     stopReason =
       sources.length === 0
@@ -671,6 +685,7 @@ async function researchCandidate(input: {
       symbol: identity.symbol,
       name: identity.name,
       generatedAt,
+      searchHealth,
     });
   } else {
     const response = await provider.complete({
@@ -688,7 +703,10 @@ async function researchCandidate(input: {
     modelPasses = 1;
     providerDiagnostics = response.diagnostics;
     const parsed = parseJson(response.text);
-    const validated = validateModelOutput(parsed, sources);
+    const validated = validateModelOutput(parsed, sources, {
+      searchHealth: searchHealthStatus,
+      researched: true,
+    });
     validationIssues = validated.issues;
     dossier = assembleDossier({
       mint: candidate.mint,
@@ -697,6 +715,7 @@ async function researchCandidate(input: {
       name: identity.name,
       generatedAt,
       identityAttributionConfidence: identityAttribution,
+      searchHealth,
       sources,
       validated,
     });
@@ -705,11 +724,16 @@ async function researchCandidate(input: {
   const noEvidence = dossier.claims.length === 0 || dossier.coverage.coveragePct === 0;
   // Absence of evidence only counts as a finding when the outside world was
   // actually reachable. Otherwise the honest answer is "we could not look".
+  // A dossier built while search was unavailable is settled as SEARCH_LIMITED:
+  // its partial evidence is preserved, but it never looks fully completed.
   const status: CandidateStatus = noEvidence
     ? externalSearchUnavailable
       ? "search_unavailable"
       : "insufficient_evidence"
-    : "completed";
+    : externalSearchUnavailable
+      ? "search_limited"
+      : "completed";
+
   const durationMs = Date.now() - startedAt;
 
   const reportId = await insertReport({ runId, candidate, dossier, isCalibration, status });
