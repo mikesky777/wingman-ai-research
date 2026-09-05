@@ -446,6 +446,38 @@ export const ScannerService = {
     };
   },
 
+  /**
+   * Most recent scan attempt of ANY status, including failed and running.
+   * Diagnostic/provenance only: this never selects a research cohort.
+   */
+  async latestAttempt(): Promise<ScanAttemptRow | null> {
+    const { data, error } = await supabase
+      .from("scan_runs")
+      .select(
+        "id, status, started_at, completed_at, tokens_discovered, tokens_scanned, calibration_mode, scanner_version, discovery_health, selection_policy_version, policy_epoch, error_message",
+      )
+      .order("started_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return null;
+    const r = data as unknown as Record<string, unknown>;
+    return {
+      runId: r["id"] as string,
+      status: (r["status"] as string) ?? "unknown",
+      startedAt: (r["started_at"] as string) ?? null,
+      completedAt: (r["completed_at"] as string) ?? null,
+      discovered: (r["tokens_discovered"] as number) ?? (r["tokens_scanned"] as number) ?? 0,
+      calibrationMode: Boolean(r["calibration_mode"]),
+      scannerVersion: (r["scanner_version"] as string) ?? null,
+      discoveryHealth: (r["discovery_health"] as string) ?? null,
+      selectionPolicyVersion: (r["selection_policy_version"] as string) ?? null,
+      policyEpoch: (r["policy_epoch"] as string) ?? null,
+      errorMessage: (r["error_message"] as string) ?? null,
+    };
+  },
+
+
   /** Ranked scanner v1 candidates for a run, highest research priority first. */
   async rankedCandidates(scanRunId: string, limit = 100): Promise<ScanCandidateV1[]> {
     const { data, error } = await supabase
