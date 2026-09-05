@@ -143,27 +143,114 @@ export const THESIS_SECTION_KEYS = [
 export type ThesisSectionKey = (typeof THESIS_SECTION_KEYS)[number];
 export type ThesisSections = Record<ThesisSectionKey, string | null>;
 
+/**
+ * evidence_confidence/v1.1 — semantic correctness patch.
+ *
+ * Prospective only: `evidence_confidence/v1` artifacts are immutable and are
+ * never recomputed. v1.1 changes WHICH inputs feed two existing terms and adds
+ * machine-readable diagnostics. It introduces no new deduction weights, no
+ * bonuses, and no threshold changes.
+ */
+export const EVIDENCE_CONFIDENCE_VERSION_V1 = "evidence_confidence/v1";
+export const EVIDENCE_CONFIDENCE_VERSION = "evidence_confidence/v1.1";
+
+export type EvidenceSearchHealth = "READY" | "DEGRADED" | "SEARCH_UNAVAILABLE";
+export type EvidenceUnresolvedReason =
+  | "NO_EVIDENCE_FOUND"
+  | "SEARCH_UNAVAILABLE"
+  | "PARTIAL_EVIDENCE"
+  | "NOT_RESEARCHED"
+  | "UNKNOWN";
+
 export interface EvidenceConfidenceInput {
   /** Deep Research domains that stayed unresolved. */
   unresolvedDomainCount: number;
   totalDomainCount: number;
+  /** Reason codes for the unresolved domains, in domain order. */
+  unresolvedReasons?: EvidenceUnresolvedReason[];
   independentSourceCount: number;
+  /**
+   * Distinct, genuinely independent evidence origins. Mirrors of the same
+   * chain state, project sources and community posts are excluded. When
+   * provided it caps the independence term so five explorers cannot read as
+   * five corroborations.
+   */
+  distinctIndependentEvidenceOrigins?: number;
+  /** Total distinct evidence origins — DIAGNOSTIC_ONLY. */
+  distinctEvidenceOrigins?: number;
   sourceCount: number;
+  /** Total retained sources incl. mirrors/community — DIAGNOSTIC_ONLY. */
+  rawSourceCount?: number;
+  /** DIAGNOSTIC_ONLY. Never independent corroboration. */
+  communitySourceCount?: number;
+  /** DIAGNOSTIC_ONLY. Primary/project sources. */
+  projectSourceCount?: number;
+  /** DIAGNOSTIC_ONLY. Sources reflecting the same chain state. */
+  onChainMirrorCount?: number;
   sourceDomainDiversity: number;
   conflictingClaimCount: number;
-  corroboratedClaimCount: number;
-  identityAttributionConfidence: string;
+  /**
+   * DIAGNOSTIC_ONLY — never scored. Kept on the artifact so calibration can
+   * later test whether corroboration deserves confidence weight.
+   */
+  corroboratedClaimCount?: number;
+  /** Confidence that sources refer to THIS exact mint. DIAGNOSTIC_ONLY. */
+  tokenIdentityConfidence?: string;
+  /**
+   * Confidence that a creator/team/project claim is correctly attributed.
+   * This — NOT mint identity — drives the ATTRIBUTION deduction.
+   */
+  projectAttributionConfidence: string;
   narrativeResolved: boolean;
   /** Machine-readable gaps carried by the Research Packet. */
   packetEvidenceGapCount: number;
   marketStale: boolean;
   /** True when external search could not be performed at all. */
   searchUnavailable: boolean;
+  /** Search infrastructure health carried from the dossier. */
+  searchHealth?: EvidenceSearchHealth;
+}
+
+export interface EvidenceConfidenceDeduction {
+  code: string;
+  points: number;
+  detail: string;
+  /** Present where the deduction is caused by unresolved evidence. */
+  unresolvedReasons?: EvidenceUnresolvedReason[];
+  searchHealth?: EvidenceSearchHealth;
 }
 
 export interface EvidenceConfidenceBreakdown {
+  version: string;
   score: number;
-  deductions: { code: string; points: number; detail: string }[];
+  /** 100 − total deductions, BEFORE the 0–100 floor/cap is applied. */
+  rawScore: number;
+  totalDeductions: number;
+  floored: boolean;
+  searchHealth: EvidenceSearchHealth;
+  unresolvedReasons: EvidenceUnresolvedReason[];
+  deductions: EvidenceConfidenceDeduction[];
+  /** Never scored in v1.1 — preserved for the Calibration Observatory. */
+  diagnostics: {
+    rawSourceCount: number;
+    sourceCount: number;
+    independentSourceCount: number;
+    distinctIndependentEvidenceOrigins: number;
+    distinctEvidenceOrigins: number;
+    effectiveIndependentSources: number;
+    projectSourceCount: number;
+    communitySourceCount: number;
+    onChainMirrorCount: number;
+    corroboratedClaimCount: number;
+    conflictingClaimCount: number;
+    tokenIdentityConfidence: string | null;
+    projectAttributionConfidence: string;
+    unresolvedDomainCount: number;
+    totalDomainCount: number;
+    packetEvidenceGapCount: number;
+    marketStale: boolean;
+    searchUnavailable: boolean;
+  };
 }
 
 const ATTRIBUTION_PENALTY: Record<string, number> = {
