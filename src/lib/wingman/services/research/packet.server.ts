@@ -9,6 +9,13 @@
  * recurrence, scanner evidence or outcomes.
  */
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { SELECTION_POLICY_VERSION } from "../history/policy-epochs";
+import {
+  selectAiScanSource,
+  selectScanForPacketGeneration,
+  type AiScanSourceCandidate,
+  type AiScanSourceResult,
+} from "./ai-scan-source";
 import {
   RESEARCH_UNIVERSE_CONFIG,
   buildResearchPacket,
