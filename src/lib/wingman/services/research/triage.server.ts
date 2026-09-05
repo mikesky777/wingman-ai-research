@@ -13,9 +13,15 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { recordAiStageMilestone } from "../history/milestones.server";
 import { SELECTION_POLICY_VERSION } from "../history/policy-epochs";
-import { selectAiScanSource, type AiScanSourceCandidate, type AiScanSourceResult } from "./ai-scan-source";
+import { type AiScanSourceResult } from "./ai-scan-source";
 import { assessResearchEligibility } from "./packet";
-import { chunkIds, fetchAllPages, loadCurrentMarkets, loadRunCandidates } from "./packet.server";
+import {
+  chunkIds,
+  fetchAllPages,
+  loadCurrentMarkets,
+  loadRunCandidates,
+  selectEligibleProductionScan,
+} from "./packet.server";
 import {
   createLovableTriageProvider,
   parseModelJson,
@@ -230,7 +236,7 @@ export async function runAiTriage(options: RunAiTriageOptions = {}): Promise<Tri
       return { ...base, status: "failed", code: "NO_CANDIDATES", error: "No historical research packets to calibrate against." };
     }
   } else {
-    eligibility = selectAiScanSource(await loadScanSourceCandidates(), SELECTION_POLICY_VERSION);
+    eligibility = await selectEligibleProductionScan();
     if (!eligibility.ok) {
       const runId = await persistRun({
         sourceScanId: null,
