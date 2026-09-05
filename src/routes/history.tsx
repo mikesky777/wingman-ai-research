@@ -270,7 +270,9 @@ function StageView({ stage }: { stage: FunnelStage }) {
         </Button>
       </div>
 
-      <CohortSummaryCards summary={summary} />
+      {/* With no stage entries there is nothing to average: show the empty
+          state below instead of KPI cards full of dashes. */}
+      {cohort.length > 0 ? <CohortSummaryCards summary={summary} /> : null}
 
       <Section
         title={`${terms.title} cohort`}
