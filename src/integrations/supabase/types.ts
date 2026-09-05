@@ -853,6 +853,110 @@ export type Database = {
           },
         ]
       }
+      live_call_events: {
+        Row: {
+          created_at: string
+          entry_evaluated_at: string | null
+          entry_evaluation_id: string | null
+          entry_state: string | null
+          episode_number: number | null
+          event_type: string
+          id: string
+          liquidity_at_event: number | null
+          market_cap_at_event: number | null
+          market_observed_at: string | null
+          mint: string
+          monitoring_status: string | null
+          occurred_at: string
+          policy_version: string
+          price_history_source: string | null
+          price_usd_at_event: number | null
+          reason: string | null
+          reason_code: string | null
+          thesis_call_milestone_id: string
+          thesis_report_id: string | null
+          timing_resolution: string | null
+          token_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          entry_evaluated_at?: string | null
+          entry_evaluation_id?: string | null
+          entry_state?: string | null
+          episode_number?: number | null
+          event_type: string
+          id?: string
+          liquidity_at_event?: number | null
+          market_cap_at_event?: number | null
+          market_observed_at?: string | null
+          mint: string
+          monitoring_status?: string | null
+          occurred_at?: string
+          policy_version?: string
+          price_history_source?: string | null
+          price_usd_at_event?: number | null
+          reason?: string | null
+          reason_code?: string | null
+          thesis_call_milestone_id: string
+          thesis_report_id?: string | null
+          timing_resolution?: string | null
+          token_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          entry_evaluated_at?: string | null
+          entry_evaluation_id?: string | null
+          entry_state?: string | null
+          episode_number?: number | null
+          event_type?: string
+          id?: string
+          liquidity_at_event?: number | null
+          market_cap_at_event?: number | null
+          market_observed_at?: string | null
+          mint?: string
+          monitoring_status?: string | null
+          occurred_at?: string
+          policy_version?: string
+          price_history_source?: string | null
+          price_usd_at_event?: number | null
+          reason?: string | null
+          reason_code?: string | null
+          thesis_call_milestone_id?: string
+          thesis_report_id?: string | null
+          timing_resolution?: string | null
+          token_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "live_call_events_entry_evaluation_id_fkey"
+            columns: ["entry_evaluation_id"]
+            isOneToOne: false
+            referencedRelation: "entry_state_evaluations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "live_call_events_thesis_call_milestone_id_fkey"
+            columns: ["thesis_call_milestone_id"]
+            isOneToOne: false
+            referencedRelation: "token_stage_milestones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "live_call_events_thesis_report_id_fkey"
+            columns: ["thesis_report_id"]
+            isOneToOne: false
+            referencedRelation: "thesis_reports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "live_call_events_token_id_fkey"
+            columns: ["token_id"]
+            isOneToOne: false
+            referencedRelation: "tokens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       opportunities: {
         Row: {
           created_at: string
@@ -1883,6 +1987,69 @@ export type Database = {
           },
           {
             foreignKeyName: "structural_evaluations_token_id_fkey"
+            columns: ["token_id"]
+            isOneToOne: false
+            referencedRelation: "tokens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      thesis_call_monitoring: {
+        Row: {
+          created_at: string
+          id: string
+          last_reconciled_at: string | null
+          mint: string
+          policy_version: string
+          requires_fresh_entry_after: string | null
+          status: string
+          status_changed_at: string
+          status_reason: string | null
+          status_reason_code: string | null
+          thesis_call_milestone_id: string
+          token_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_reconciled_at?: string | null
+          mint: string
+          policy_version?: string
+          requires_fresh_entry_after?: string | null
+          status?: string
+          status_changed_at?: string
+          status_reason?: string | null
+          status_reason_code?: string | null
+          thesis_call_milestone_id: string
+          token_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_reconciled_at?: string | null
+          mint?: string
+          policy_version?: string
+          requires_fresh_entry_after?: string | null
+          status?: string
+          status_changed_at?: string
+          status_reason?: string | null
+          status_reason_code?: string | null
+          thesis_call_milestone_id?: string
+          token_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "thesis_call_monitoring_thesis_call_milestone_id_fkey"
+            columns: ["thesis_call_milestone_id"]
+            isOneToOne: true
+            referencedRelation: "token_stage_milestones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "thesis_call_monitoring_token_id_fkey"
             columns: ["token_id"]
             isOneToOne: false
             referencedRelation: "tokens"
