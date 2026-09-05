@@ -55,7 +55,7 @@ export function LiveLifecycleLedger() {
                   symbol={call.symbol}
                   name={call.name}
                   mint={call.mint}
-                  pairAddress={call.pairAddress ?? null}
+                  pairAddress={null}
                 />
                 <div className="flex flex-col items-end gap-1 text-right">
                   <div className="flex items-center gap-1.5">
