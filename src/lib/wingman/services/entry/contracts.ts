@@ -203,6 +203,93 @@ export function assessEntryEligibility(input: EntryEligibilityInput): EntryEligi
   return { actionable: reasons.length === 0, evidenceUsable, reasons };
 }
 
+/**
+ * v1.1 composite collapse override.
+ *
+ * A single coarse constructive feature (a "higher low" read off two sparse
+ * observations) must never outrank catastrophic damage confirmed across
+ * several INDEPENDENT dimensions. Only dimensions with actual evidence count —
+ * a missing input is never damage, so missing data still routes to UNKNOWN.
+ */
+export interface EntryDamageInput {
+  drawdownFromHighPct: number | null;
+  riseFromLowPct: number | null;
+  volumeTrendRatio: number | null;
+  liquidityUsd: number | null;
+  reclaimHolding: boolean;
+  /** Candle-grade reclaim/higher-low evidence is ignored at COARSE resolution. */
+  resolution: TimingResolution;
+}
+
+export interface EntryDamageResult {
+  collapsed: boolean;
+  dimensions: string[];
+  reasons: string[];
+}
+
+export const ENTRY_DAMAGE = {
+  deepDrawdownPct: -80,
+  severeDrawdownPct: -60,
+  collapsedVolumeRatio: 0.1,
+  weakVolumeRatio: 0.25,
+  veryLowLiquidityUsd: 5_000,
+  lowLiquidityUsd: 15_000,
+  meaningfulRecoveryPct: 30,
+} as const;
+
+export function assessEntryDamage(input: EntryDamageInput): EntryDamageResult {
+  const dimensions: string[] = [];
+  const reasons: string[] = [];
+
+  const dd = input.drawdownFromHighPct;
+  if (dd !== null && dd <= ENTRY_DAMAGE.deepDrawdownPct) {
+    dimensions.push("DEEP_DRAWDOWN_FROM_WINDOW_HIGH");
+    reasons.push(`DRAWDOWN_${dd.toFixed(1)}PCT`);
+  } else if (dd !== null && dd <= ENTRY_DAMAGE.severeDrawdownPct) {
+    dimensions.push("SEVERE_DRAWDOWN_FROM_WINDOW_HIGH");
+    reasons.push(`DRAWDOWN_${dd.toFixed(1)}PCT`);
+  }
+
+  const vr = input.volumeTrendRatio;
+  if (vr !== null && vr <= ENTRY_DAMAGE.collapsedVolumeRatio) {
+    dimensions.push("COLLAPSED_RELATIVE_VOLUME");
+    reasons.push(`VOLUME_TREND_${vr.toFixed(2)}X`);
+  } else if (vr !== null && vr <= ENTRY_DAMAGE.weakVolumeRatio) {
+    dimensions.push("SEVERELY_REDUCED_RELATIVE_VOLUME");
+    reasons.push(`VOLUME_TREND_${vr.toFixed(2)}X`);
+  }
+
+  const liq = input.liquidityUsd;
+  if (liq !== null && liq < ENTRY_DAMAGE.veryLowLiquidityUsd) {
+    dimensions.push("VERY_LOW_LIQUIDITY");
+    reasons.push(`LIQUIDITY_${Math.round(liq)}USD`);
+  } else if (liq !== null && liq < ENTRY_DAMAGE.lowLiquidityUsd) {
+    dimensions.push("LOW_LIQUIDITY");
+    reasons.push(`LIQUIDITY_${Math.round(liq)}USD`);
+  }
+
+  // Lack of meaningful recovery only counts when there IS a measured drawdown.
+  const reclaimUsable = supportsCandleGradeClaims(input.resolution) && input.reclaimHolding;
+  if (
+    dd !== null &&
+    dd <= ENTRY_DAMAGE.severeDrawdownPct &&
+    input.riseFromLowPct !== null &&
+    input.riseFromLowPct < ENTRY_DAMAGE.meaningfulRecoveryPct &&
+    !reclaimUsable
+  ) {
+    dimensions.push("NO_MEANINGFUL_RECOVERY");
+    reasons.push(`RISE_FROM_LOW_${input.riseFromLowPct.toFixed(1)}PCT`);
+  }
+
+  // Composite rule: catastrophic damage requires at least one severe dimension
+  // plus corroboration from a second independent dimension.
+  const severe = dimensions.some((d) =>
+    ["DEEP_DRAWDOWN_FROM_WINDOW_HIGH", "COLLAPSED_RELATIVE_VOLUME", "VERY_LOW_LIQUIDITY"].includes(d),
+  );
+  const collapsed = severe && dimensions.length >= 2;
+  return { collapsed, dimensions, reasons };
+}
+
 export interface EntryMappingInput {
   components: EntryComponentScores;
   total: number;
