@@ -230,10 +230,13 @@ function ThesisPerformanceRow({ row }: { row: ThesisArtifact }) {
 export function ThesisSynthesizedArtifacts() {
   const { data, isLoading } = useArtifacts();
   const [sort, setSort] = useState<ThesisArtifactSort>("RECENT");
+  const [population, setPopulation] = useState<ThesisPopulation>("THESIS_EVENTS");
   const rows: ThesisArtifact[] = data?.thesis ?? [];
   const sorted = sortThesisArtifacts(rows, sort);
-  const summary = summarizeThesisArtifacts(rows);
-  const unmeasured = rows.length - summary.artifactsWithBaseline;
+  const counts = thesisPopulationCounts(rows);
+  const measuredPopulation = selectThesisPopulation(rows, population);
+  const summary = summarizeThesisArtifacts(measuredPopulation);
+  const unmeasured = measuredPopulation.length - summary.artifactsWithBaseline;
 
   return (
     <Section
