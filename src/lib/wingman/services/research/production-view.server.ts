@@ -33,6 +33,8 @@ export interface ProductionFunnel {
   aiShortlistMilestoneCount: number;
   thesisReportCount: number;
   thesisCallMilestoneCount: number;
+  entryEvaluatedCount: number;
+  entryActionableCount: number;
 }
 
 /** Loads the current production funnel. Read-only. */
@@ -131,6 +133,21 @@ export async function loadProductionFunnel(): Promise<ProductionFunnel> {
     .select("id", { count: "exact", head: true })
     .eq("is_calibration", false);
 
+  const { data: entryRows } = await supabaseAdmin
+    .from("entry_state_evaluations")
+    .select("mint, state, evaluated_at")
+    .eq("is_calibration", false)
+    .order("evaluated_at", { ascending: false })
+    .limit(500);
+  const latestEntryByMint = new Map<string, string>();
+  for (const row of ((entryRows as Row[]) ?? [])) {
+    const mint = row["mint"] as string;
+    if (!latestEntryByMint.has(mint)) latestEntryByMint.set(mint, (row["state"] as string) ?? "UNKNOWN");
+  }
+  const entryActionableCount = [...latestEntryByMint.values()].filter(
+    (state) => state === "BUY_ZONE" || state === "ACCEPTABLE",
+  ).length;
+
   return {
     scan,
     triage: triage.run,
@@ -139,6 +156,8 @@ export async function loadProductionFunnel(): Promise<ProductionFunnel> {
     aiShortlistMilestoneCount: milestoneCount ?? 0,
     thesisCallMilestoneCount: thesisCallCount ?? 0,
     thesisReportCount: thesisReports ?? 0,
+    entryEvaluatedCount: latestEntryByMint.size,
+    entryActionableCount,
   };
 }
 
