@@ -44,6 +44,7 @@ const REGIME_LABEL = {
 function Dashboard() {
   const { data: latestScan, isLoading: scanLoading } = useLatestScan();
   const { data: opportunities = [], isLoading: oppsLoading } = useOpportunities();
+  const { data: liveCalls, isLoading: liveCallsLoading } = useLiveCalls();
   const summary = latestScan?.summary;
   const [scanning, setScanning] = useState(false);
   const [lastScanAt, setLastScanAt] = useState<string | null>(null);
@@ -110,6 +111,8 @@ function Dashboard() {
             detail="Cleared the shortlist threshold"
           />
         </div>
+
+        <LiveCallsSection calls={liveCalls?.calls} loading={liveCallsLoading} />
 
         <Section
           title="Top Opportunities"
