@@ -32,3 +32,11 @@ export const refreshHistoryLiveMarkets = createServerFn({ method: "POST" })
 export const syncStageMilestones = createServerFn({ method: "POST" }).handler(
   async (): Promise<MilestoneBackfillResult> => backfillStageMilestones(),
 );
+
+/** Production funnel artifacts for History (read-only, calibration excluded). */
+export const getProductionArtifacts = createServerFn({ method: "GET" }).handler(async () => {
+  const { loadProductionArtifacts } = await import(
+    "./services/research/production-view.server"
+  );
+  return loadProductionArtifacts();
+});
