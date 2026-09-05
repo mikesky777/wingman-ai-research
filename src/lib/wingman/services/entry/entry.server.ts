@@ -501,6 +501,17 @@ export async function runEntryStateBatch(
   const distribution: Record<string, number> = {};
   for (const r of results) distribution[r.state] = (distribution[r.state] ?? 0) + 1;
 
+  // Fresh production timing can flip Live state. Reconcile transitions only —
+  // never rewrite a call or a past lifecycle event. Non-fatal.
+  if (!isCalibration && !asOf) {
+    try {
+      const { reconcileLiveLifecycle } = await import("../live/lifecycle.server");
+      await reconcileLiveLifecycle();
+    } catch {
+      /* lifecycle reconciliation is advisory; entry results stand on their own */
+    }
+  }
+
   return {
     mode,
     isCalibration,
