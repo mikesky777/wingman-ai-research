@@ -1,18 +1,13 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { FlaskConical } from "lucide-react";
+import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/wingman/AppShell";
 import { Section } from "@/components/wingman/Section";
-import { EmptyState } from "@/components/wingman/EmptyState";
-import { Button } from "@/components/ui/button";
 import { InspectToken } from "@/components/wingman/InspectToken";
 import { TriagePanel } from "@/components/wingman/research/TriagePanel";
 import { ProductionFunnelPanel } from "@/components/wingman/research/ProductionFunnelPanel";
 import { ProductionDeepResearchPanel } from "@/components/wingman/research/ProductionDeepResearchPanel";
 import { ThesisPanel } from "@/components/wingman/research/ThesisPanel";
+import { ThesisCallsPanel } from "@/components/wingman/research/ThesisCallsPanel";
 import { EntryPanel } from "@/components/wingman/research/EntryPanel";
-
-import { useOpportunities } from "@/lib/wingman/hooks";
-import { relativeTime } from "@/lib/wingman/format";
 
 
 export const Route = createFileRoute("/research")({
