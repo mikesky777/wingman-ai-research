@@ -30,6 +30,7 @@ import {
   selectOpportunities,
   validateThesisOutput,
   type BearSeverity,
+  type CatalystKind,
   type ComponentScores,
   type EvidenceConfidenceBreakdown,
   type ThesisSections,
@@ -94,6 +95,8 @@ export interface ThesisBatchResult {
 export interface RunThesisSynthesisOptions {
   mode?: ThesisMode;
   limit?: number;
+  /** Production: restrict the cohort to one production triage run's shortlist. */
+  triageRunId?: string;
   /** Calibration only: synthesize a specific set of deep research report ids. */
   reportIds?: string[];
   provider?: ThesisProvider;
@@ -273,6 +276,8 @@ interface SynthesizedCandidate {
     strongestBullCase: string | null;
     strongestBearCase: string | null;
     strongestCatalyst: string | null;
+    catalystKind: CatalystKind;
+    whyNowMarketSignal: string | null;
     strongestConcern: string | null;
     catalysts: string[];
     invalidation: string[];
@@ -297,6 +302,8 @@ function emptyText(): SynthesizedCandidate["text"] {
     strongestBullCase: null,
     strongestBearCase: null,
     strongestCatalyst: null,
+    catalystKind: "NONE",
+    whyNowMarketSignal: null,
     strongestConcern: null,
     catalysts: [],
     invalidation: [],
@@ -323,10 +330,13 @@ export async function runThesisSynthesis(
     isCalibration,
     ...(options.reportIds?.length ? { reportIds: options.reportIds } : {}),
   });
-  if (inputs.length === 0) return emptyBatch(mode, "NO_DEEP_RESEARCH_REPORTS", provider);
+  const cohort = options.triageRunId
+    ? inputs.filter((c) => c.triageRunId === options.triageRunId)
+    : inputs;
+  if (cohort.length === 0) return emptyBatch(mode, "NO_DEEP_RESEARCH_REPORTS", provider);
 
-  const limit = Math.min(Math.max(options.limit ?? 3, 1), 10);
-  const selected = inputs.slice(0, limit);
+  const limit = Math.min(Math.max(options.limit ?? 3, 1), 15);
+  const selected = cohort.slice(0, limit);
 
   // Current eligibility is re-checked against the scan the packets came from.
   const scanIds = [...new Set(selected.map((c) => c.sourceScanId).filter((v): v is string => Boolean(v)))];
@@ -603,6 +613,8 @@ async function synthesizeCandidate(args: {
       strongestBullCase: validated.strongestBullCase,
       strongestBearCase: validated.strongestBearCase,
       strongestCatalyst: validated.strongestCatalyst,
+      catalystKind: validated.catalystKind,
+      whyNowMarketSignal: validated.whyNowMarketSignal,
       strongestConcern: validated.strongestConcern,
       catalysts: validated.catalysts,
       invalidation: validated.invalidation,
@@ -761,6 +773,8 @@ async function insertReport(args: {
       strongest_bull_case: s.text.strongestBullCase,
       strongest_bear_case: s.text.strongestBearCase,
       strongest_catalyst: s.text.strongestCatalyst,
+      catalyst_kind: s.text.catalystKind,
+      why_now_market_signal: s.text.whyNowMarketSignal,
       strongest_concern: s.text.strongestConcern,
       sections: (s.text.sections ?? null) as never,
       catalysts: s.text.catalysts,
@@ -842,6 +856,8 @@ export interface ThesisReportSummary {
   strongestBullCase: string | null;
   strongestBearCase: string | null;
   strongestCatalyst: string | null;
+  catalystKind: string;
+  whyNowMarketSignal: string | null;
   strongestConcern: string | null;
   catalysts: string[];
   invalidation: string[];
@@ -858,6 +874,8 @@ export interface ThesisReportSummary {
   deepResearchReportId: string | null;
   researchPacketId: string | null;
   triageRunId: string | null;
+  pairAddress: string | null;
+  triageRank: number | null;
   sources: { ref: string; url: string | null; title: string | null; independence: string }[];
 }
 
@@ -917,6 +935,10 @@ export async function loadThesisReports(limit = 12): Promise<ThesisReportSummary
     strongestBullCase: (r["strongest_bull_case"] as string) ?? null,
     strongestBearCase: (r["strongest_bear_case"] as string) ?? null,
     strongestCatalyst: (r["strongest_catalyst"] as string) ?? null,
+    catalystKind: (r["catalyst_kind"] as string) ?? "NONE",
+    whyNowMarketSignal: (r["why_now_market_signal"] as string) ?? null,
+    pairAddress: pairByMint.get(r["mint"] as string) ?? null,
+    triageRank: rankByMint.get(r["mint"] as string) ?? null,
     strongestConcern: (r["strongest_concern"] as string) ?? null,
     catalysts: (r["catalysts"] as string[]) ?? [],
     invalidation: (r["invalidation"] as string[]) ?? [],
