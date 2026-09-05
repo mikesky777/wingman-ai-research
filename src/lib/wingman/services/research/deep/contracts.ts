@@ -817,7 +817,7 @@ export function buildUserPrompt(input: {
   ];
   const body = input.sources.map((s) =>
     [
-      `[${s.ref}] type=${s.sourceType} reliability=${s.reliabilityClass} mintVerified=${s.mintVerified}`,
+      `[${s.ref}] type=${s.sourceType} reliability=${s.reliabilityClass} affiliation=${s.independence} onChainMirror=${s.onChainMirror} mintVerified=${s.mintVerified}`,
       `url: ${s.url ?? "n/a"}`,
       `title: ${s.title ?? "n/a"}`,
       `fetchedAt: ${s.fetchedAt}`,
