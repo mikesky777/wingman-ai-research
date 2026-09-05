@@ -401,7 +401,9 @@ export async function runThesisSynthesis(
   if (cohortAll.length === 0) return emptyBatch(mode, "NO_DEEP_RESEARCH_REPORTS", provider);
 
   // Production never re-synthesises a candidate that already has a settled
-  // production thesis report for this cohort. Batches therefore resume safely.
+  // production thesis report for this cohort, and never one that already has a
+  // canonical artifact for the exact Deep Research report. Both checks run
+  // BEFORE any model spend; the DB unique index is the race-safe backstop.
   let cohort = cohortAll;
   if (!isCalibration && activeTriageRunId) {
     const { loadCohortThesisReports, isSettledThesisStatus } = await import("../cohort.server");
@@ -409,7 +411,26 @@ export async function runThesisSynthesis(
     const settled = new Set(
       existing.filter((r) => isSettledThesisStatus(r.status)).map((r) => r.mint),
     );
-    cohort = cohortAll.filter((c) => !settled.has(c.mint));
+    const claimedKeys = await loadClaimedProductionKeys(
+      cohortAll
+        .map((c) =>
+          productionIdempotencyKey({
+            triageRunId: c.triageRunId ?? null,
+            mint: c.mint,
+            deepResearchReportId: c.reportId ?? null,
+          }),
+        )
+        .filter((k): k is string => Boolean(k)),
+    );
+    cohort = cohortAll.filter((c) => {
+      if (settled.has(c.mint)) return false;
+      const key = productionIdempotencyKey({
+        triageRunId: c.triageRunId ?? null,
+        mint: c.mint,
+        deepResearchReportId: c.reportId ?? null,
+      });
+      return !(key && claimedKeys.has(key));
+    });
     if (cohort.length === 0) return emptyBatch(mode, "NO_ELIGIBLE_CANDIDATES", provider);
   }
 
