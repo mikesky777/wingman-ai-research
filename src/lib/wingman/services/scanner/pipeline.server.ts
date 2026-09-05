@@ -85,6 +85,7 @@ import {
   resolveTokenIds,
   startScanRun,
   recordDiscoveryHealth,
+  recordResearchPacketResult,
 } from "./persistence.server";
 import { refreshOutcomes } from "../outcomes/outcome-persistence.server";
 import { recordScanMilestones } from "../history/milestones.server";
