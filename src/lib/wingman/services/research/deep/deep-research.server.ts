@@ -54,6 +54,10 @@ import {
   createLovableDeepResearchProvider,
   type DeepResearchProvider,
 } from "./provider.server";
+import {
+  classifyResearchFailure,
+  type ResearchFailureType,
+} from "./failure";
 
 type Row = Record<string, unknown>;
 
@@ -109,6 +113,10 @@ export interface DeepResearchCandidateResult {
   validationIssues: { code: string; detail: string }[];
   search: SearchTelemetry | null;
   error: string | null;
+  /** Structured execution-failure code (e.g. FAILED_AI_CREDIT_LIMIT). */
+  failureCode: string | null;
+  failureType: ResearchFailureType | null;
+  retryable: boolean;
 }
 
 export interface DeepResearchBatchResult {
@@ -132,6 +140,8 @@ export interface DeepResearchBatchResult {
   blocked: number;
   failed: number;
   milestonesCreated: 0;
+  /** Retry batch: shortlist ranks skipped because they already have an outcome. */
+  skippedWithOutcome: number;
   candidates: DeepResearchCandidateResult[];
 }
 
@@ -143,6 +153,12 @@ export interface RunDeepResearchOptions {
   offset?: number;
   /** Research a specific triage run instead of the newest. */
   triageRunId?: string;
+  /**
+   * Production only: re-attempt ONLY shortlist members whose last attempt was a
+   * retryable execution failure (AI credits, rate limit, transient provider).
+   * Completed / insufficient / blocked outcomes are never rerun.
+   */
+  retryFailedOnly?: boolean;
 
   budget?: Partial<ResearchBudget>;
   provider?: DeepResearchProvider;
@@ -256,6 +272,7 @@ export async function runDeepResearch(
     return emptyBatch(mode, "NO_ELIGIBLE_TRIAGE_RUN", null, null, provider);
   }
 
+  let skippedWithOutcome = 0;
   let shortlist = await loadShortlist(triageRun);
   if (shortlist.length === 0) {
     return emptyBatch(mode, "NO_DEEP_RESEARCH_CANDIDATES", triageRun.id, triageRun.sourceScanId, provider);
@@ -266,6 +283,13 @@ export async function runDeepResearch(
   // deliberate top-N batches (e.g. the top 3 of a fresh shortlist).
   if (isCalibration) {
     const limit = Math.min(5, Math.max(3, options.limit ?? 3));
+    shortlist = shortlist.slice(0, limit);
+  } else if (options.retryFailedOnly) {
+    const retryable = await loadRetryableMints(triageRun.id);
+    const before = shortlist.length;
+    shortlist = shortlist.filter((c) => retryable.has(c.mint));
+    skippedWithOutcome = before - shortlist.length;
+    const limit = typeof options.limit === "number" && options.limit > 0 ? options.limit : shortlist.length;
     shortlist = shortlist.slice(0, limit);
   } else {
     const offset = typeof options.offset === "number" && options.offset > 0 ? options.offset : 0;
@@ -354,11 +378,9 @@ export async function runDeepResearch(
     } catch (error) {
       // Failure isolation: one bad candidate never aborts the batch. A run row
       // opened before the failure must not be left dangling as "running".
-      await failDanglingRun(
-        triageRun.id,
-        candidate.mint,
-        error instanceof Error ? error.message.slice(0, 400) : "Unknown error",
-      );
+      const message = error instanceof Error ? error.message.slice(0, 400) : "Unknown error";
+      const failure = classifyResearchFailure(message);
+      await failDanglingRun(triageRun.id, candidate.mint, message, failure);
       results.push({
 
         mint: candidate.mint,
@@ -380,7 +402,10 @@ export async function runDeepResearch(
         blockedReasons: [],
         validationIssues: [],
         search: null,
-        error: error instanceof Error ? error.message.slice(0, 400) : "Unknown error",
+        error: message,
+        failureCode: failure.code,
+        failureType: failure.type,
+        retryable: failure.retryable,
       });
     }
   }
@@ -406,6 +431,7 @@ export async function runDeepResearch(
     blocked: results.filter((r) => r.status === "blocked").length,
     failed: results.filter((r) => r.status === "failed").length,
     milestonesCreated: 0,
+    skippedWithOutcome,
     candidates: results,
   };
 }
@@ -700,6 +726,9 @@ async function researchCandidate(input: {
     validationIssues,
     search: searchTelemetry,
     error: null,
+    failureCode: null,
+    failureType: null,
+    retryable: false,
   };
 }
 
@@ -749,6 +778,9 @@ function blockedResult(
     validationIssues: [],
     search: null,
     error: null,
+    failureCode: null,
+    failureType: null,
+    retryable: false,
   };
 }
 
@@ -780,6 +812,7 @@ function emptyBatch(
     blocked: 0,
     failed: 0,
     milestonesCreated: 0,
+    skippedWithOutcome: 0,
     candidates: [],
   };
 }
@@ -1094,6 +1127,7 @@ async function failDanglingRun(
   triageRunId: string,
   mint: string,
   message: string,
+  failure: { type: ResearchFailureType; code: string; retryable: boolean },
 ): Promise<void> {
   const { error } = await supabaseAdmin
     .from("deep_research_runs")
@@ -1101,9 +1135,62 @@ async function failDanglingRun(
       status: "failed",
       error: message,
       completed_at: new Date().toISOString(),
+      diagnostics: {
+        failureType: failure.type,
+        failureCode: failure.code,
+        retryable: failure.retryable,
+      } as never,
     })
     .eq("triage_run_id", triageRunId)
     .eq("mint", mint)
     .eq("status", "running");
   if (error) console.error("failDanglingRun", error.message);
+}
+
+
+/**
+ * Mints of THIS production triage run whose most recent attempt was a retryable
+ * execution failure. A mint with any persisted report (completed, partial,
+ * insufficient evidence or search unavailable) or a blocked attempt is never
+ * returned, so finished work is never rerun or overwritten.
+ */
+async function loadRetryableMints(triageRunId: string): Promise<Set<string>> {
+  const { data, error } = await supabaseAdmin
+    .from("deep_research_runs")
+    .select("id, mint, status, error, started_at")
+    .eq("triage_run_id", triageRunId)
+    .eq("is_calibration", false)
+    .order("started_at", { ascending: true });
+  if (error) throw new Error(error.message);
+
+  const rows = (data as Row[]) ?? [];
+  const runIds = rows.map((r) => r["id"] as string);
+  const withReport = new Set<string>();
+  if (runIds.length) {
+    const { data: reports } = await supabaseAdmin
+      .from("deep_research_reports")
+      .select("deep_research_run_id")
+      .in("deep_research_run_id", runIds);
+    for (const r of (reports as Row[]) ?? []) {
+      withReport.add(r["deep_research_run_id"] as string);
+    }
+  }
+
+  const latest = new Map<string, Row>();
+  const settled = new Set<string>();
+  for (const row of rows) {
+    const mint = row["mint"] as string;
+    latest.set(mint, row);
+    if (withReport.has(row["id"] as string)) settled.add(mint);
+    const status = row["status"] as string;
+    if (status === "blocked" || status === "running") settled.add(mint);
+  }
+
+  const retryable = new Set<string>();
+  for (const [mint, row] of latest) {
+    if (settled.has(mint)) continue;
+    if ((row["status"] as string) !== "failed") continue;
+    if (classifyResearchFailure(row["error"] as string | null).retryable) retryable.add(mint);
+  }
+  return retryable;
 }
