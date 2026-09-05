@@ -14,6 +14,11 @@ import {
   type StageRow,
 } from "./milestones";
 import type { PolicyEpoch } from "./policy-epochs";
+import { deriveStageOutcome } from "./stage-outcomes";
+import type {
+  CandidateAppearance,
+  SnapshotObservation,
+} from "../outcomes/outcomes";
 
 type Row = Record<string, unknown>;
 
