@@ -12,6 +12,7 @@
  * Calibration runs are dry runs: flagged, history-free, THESIS_CALL-free.
  */
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { assertThesisInputProvenance } from "../cohort";
 import { recordAiStageMilestone } from "../../history/milestones.server";
 import { assessResearchEligibility } from "../packet";
 import { loadCurrentMarkets, loadRunCandidates, type LoadedCandidate } from "../packet.server";
@@ -53,6 +54,7 @@ export type ThesisRunCode =
   | "OK"
   | "NO_DEEP_RESEARCH_REPORTS"
   | "NO_ELIGIBLE_CANDIDATES"
+  | "THESIS_INPUT_PROVENANCE_MISMATCH"
   | "MISSING_API_KEY";
 
 export interface ThesisCandidateResult {
@@ -126,19 +128,37 @@ interface ThesisInputCandidate {
 }
 
 /**
- * Newest deep research report per mint, with its run provenance.
- * Production only consumes reports produced by a real production run.
+ * Deep research reports that may enter a synthesis, with run provenance.
+ *
+ * Production is COHORT-SCOPED: only reports whose deep-research run belongs to
+ * the exact active triage run are loaded. There is no global-newest fallback,
+ * so a previous cohort's dossier can never reach the model.
  */
 async function loadThesisInputs(options: {
   isCalibration: boolean;
   reportIds?: string[];
+  triageRunId?: string | null;
 }): Promise<ThesisInputCandidate[]> {
+  let cohortRunIds: string[] | null = null;
+  if (!options.isCalibration && !options.reportIds?.length) {
+    if (!options.triageRunId) return [];
+    const { data: cohortRuns, error: cohortError } = await supabaseAdmin
+      .from("deep_research_runs")
+      .select("id")
+      .eq("triage_run_id", options.triageRunId)
+      .eq("is_calibration", false);
+    if (cohortError) throw new Error(cohortError.message);
+    cohortRunIds = ((cohortRuns as Row[]) ?? []).map((r) => r["id"] as string);
+    if (cohortRunIds.length === 0) return [];
+  }
+
   let query = supabaseAdmin
     .from("deep_research_reports")
     .select("*")
     .order("created_at", { ascending: false })
     .limit(60);
   if (options.reportIds?.length) query = query.in("id", options.reportIds);
+  else if (cohortRunIds) query = query.in("deep_research_run_id", cohortRunIds).eq("is_calibration", false);
   else if (!options.isCalibration) query = query.eq("is_calibration", false);
 
   const { data, error } = await query;
@@ -334,17 +354,50 @@ export async function runThesisSynthesis(
     provider = createLovableThesisProvider({ apiKey });
   }
 
+  // Production always resolves the ACTIVE cohort itself. A caller-supplied
+  // triage run may only narrow to the active one, never to a historical one.
+  let activeScanId: string | null = null;
+  let activeTriageRunId: string | null = options.triageRunId ?? null;
+  if (!isCalibration) {
+    const { loadActiveResearchCohort } = await import("../cohort.server");
+    const active = await loadActiveResearchCohort();
+    if (!active.scan || !active.triageRunId) {
+      return emptyBatch(mode, "NO_DEEP_RESEARCH_REPORTS", provider);
+    }
+    if (activeTriageRunId && activeTriageRunId !== active.triageRunId) {
+      return emptyBatch(mode, "THESIS_INPUT_PROVENANCE_MISMATCH", provider);
+    }
+    activeScanId = active.scan.id;
+    activeTriageRunId = active.triageRunId;
+  }
+
   const inputs = await loadThesisInputs({
     isCalibration,
     ...(options.reportIds?.length ? { reportIds: options.reportIds } : {}),
+    ...(activeTriageRunId ? { triageRunId: activeTriageRunId } : {}),
   });
-  const cohort = options.triageRunId
-    ? inputs.filter((c) => c.triageRunId === options.triageRunId)
+  const cohort = activeTriageRunId
+    ? inputs.filter((c) => c.triageRunId === activeTriageRunId)
     : inputs;
   if (cohort.length === 0) return emptyBatch(mode, "NO_DEEP_RESEARCH_REPORTS", provider);
 
   const limit = Math.min(Math.max(options.limit ?? 3, 1), 15);
   const selected = cohort.slice(0, limit);
+
+  // HARD provenance gate, before any model spend: every input must resolve to
+  // the exact active scan AND the exact active triage run.
+  if (!isCalibration) {
+    const assertion = assertThesisInputProvenance(
+      selected.map((c) => ({
+        reportId: c.reportId,
+        mint: c.mint,
+        triageRunId: c.triageRunId,
+        sourceScanId: c.sourceScanId,
+      })),
+      { scanId: activeScanId, triageRunId: activeTriageRunId },
+    );
+    if (!assertion.ok) return emptyBatch(mode, "THESIS_INPUT_PROVENANCE_MISMATCH", provider);
+  }
 
   // Current eligibility is re-checked against the scan the packets came from.
   const scanIds = [...new Set(selected.map((c) => c.sourceScanId).filter((v): v is string => Boolean(v)))];
@@ -903,15 +956,11 @@ export async function loadThesisReports(
   const isCalibration = mode === "calibration";
   let rows: Row[] = [];
   if (!isCalibration) {
-    // Newest production synthesis run, complete cohort.
-    const { data: runRow } = await supabaseAdmin
-      .from("thesis_synthesis_runs")
-      .select("id")
-      .eq("is_calibration", false)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    const runId = runRow ? ((runRow as Row)["id"] as string) : null;
+    // ACTIVE cohort synthesis run only — never the globally newest run, which
+    // may belong to a previous scan.
+    const { loadActiveResearchCohort } = await import("../cohort.server");
+    const active = await loadActiveResearchCohort();
+    const runId = active.thesisSynthesisRunId;
     if (!runId) return [];
     const { data, error } = await supabaseAdmin
       .from("thesis_reports")

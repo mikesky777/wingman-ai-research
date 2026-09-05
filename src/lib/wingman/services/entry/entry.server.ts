@@ -103,13 +103,23 @@ async function loadThesisInputs(options: {
   mints?: string[];
   limit: number;
 }): Promise<ThesisInput[]> {
+  // Production timing only ever evaluates the ACTIVE cohort's thesis reports.
+  let cohortRunId: string | null = null;
+  if (!options.isCalibration) {
+    const { loadActiveResearchCohort } = await import("../research/cohort.server");
+    const active = await loadActiveResearchCohort();
+    if (!active.thesisSynthesisRunId) return [];
+    cohortRunId = active.thesisSynthesisRunId;
+  }
+
   let query = supabaseAdmin
     .from("thesis_reports")
     .select("*")
     .order("created_at", { ascending: false })
     .limit(80);
+  if (cohortRunId) query = query.eq("thesis_synthesis_run_id", cohortRunId).eq("is_calibration", false);
   if (options.mints?.length) query = query.in("mint", options.mints);
-  else if (!options.isCalibration) query = query.eq("is_calibration", false);
+  else if (!cohortRunId && !options.isCalibration) query = query.eq("is_calibration", false);
 
   const { data, error } = await query;
   if (error) throw new Error(error.message);
@@ -809,10 +819,25 @@ export async function loadEntryEvaluations(
   limit = 20,
   mode: "production" | "calibration" = "production",
 ): Promise<EntryEvaluationSummary[]> {
-  const { data, error } = await supabaseAdmin
+  // Production entry state belongs to the ACTIVE cohort's thesis reports only.
+  let cohortReportIds: string[] | null = null;
+  if (mode === "production") {
+    const { loadActiveResearchCohort, loadCohortThesisReportIds } = await import(
+      "../research/cohort.server"
+    );
+    const active = await loadActiveResearchCohort();
+    if (!active.thesisSynthesisRunId) return [];
+    const { reportIds } = await loadCohortThesisReportIds(active.thesisSynthesisRunId);
+    if (reportIds.length === 0) return [];
+    cohortReportIds = reportIds;
+  }
+
+  let query = supabaseAdmin
     .from("entry_state_evaluations")
     .select("*")
-    .eq("is_calibration", mode === "calibration")
+    .eq("is_calibration", mode === "calibration");
+  if (cohortReportIds) query = query.in("thesis_report_id", cohortReportIds);
+  const { data, error } = await query
     .order("evaluated_at", { ascending: false })
     .limit(200);
   if (error) throw new Error(error.message);

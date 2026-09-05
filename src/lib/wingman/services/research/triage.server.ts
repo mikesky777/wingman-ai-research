@@ -13,9 +13,15 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { recordAiStageMilestone } from "../history/milestones.server";
 import { SELECTION_POLICY_VERSION } from "../history/policy-epochs";
-import { selectAiScanSource, type AiScanSourceCandidate, type AiScanSourceResult } from "./ai-scan-source";
+import { type AiScanSourceResult } from "./ai-scan-source";
 import { assessResearchEligibility } from "./packet";
-import { chunkIds, fetchAllPages, loadCurrentMarkets, loadRunCandidates } from "./packet.server";
+import {
+  chunkIds,
+  fetchAllPages,
+  loadCurrentMarkets,
+  loadRunCandidates,
+  selectEligibleProductionScan,
+} from "./packet.server";
 import {
   createLovableTriageProvider,
   parseModelJson,
@@ -97,44 +103,6 @@ export interface TriageRunResult {
   error: string | null;
 }
 
-/** Runs with their packet counts, for the scan-source invariant. */
-async function loadScanSourceCandidates(limit = 25): Promise<AiScanSourceCandidate[]> {
-  const { data, error } = await supabaseAdmin
-    .from("scan_runs")
-    .select(
-      "id, status, started_at, completed_at, tokens_discovered, discovery_health, selection_policy_version, policy_epoch",
-    )
-    .order("started_at", { ascending: false })
-    .limit(limit);
-  if (error) throw new Error(error.message);
-  const runs = (data ?? []) as Row[];
-  const counts = await packetCountsByRun(runs.map((r) => r["id"] as string));
-  return runs.map((r) => ({
-    id: r["id"] as string,
-    status: (r["status"] as string) ?? "unknown",
-    startedAt: (r["started_at"] as string) ?? null,
-    completedAt: (r["completed_at"] as string) ?? null,
-    tokensDiscovered: (r["tokens_discovered"] as number) ?? 0,
-    discoveryHealth: (r["discovery_health"] as string) ?? null,
-    selectionPolicyVersion: (r["selection_policy_version"] as string) ?? null,
-    policyEpoch: (r["policy_epoch"] as string) ?? null,
-    researchPacketCount: counts.get(r["id"] as string) ?? 0,
-  }));
-}
-
-async function packetCountsByRun(runIds: string[]): Promise<Map<string, number>> {
-  const out = new Map<string, number>();
-  for (const ids of chunkIds(runIds)) {
-    const rows = await fetchAllPages((from, to) =>
-      supabaseAdmin.from("research_packets").select("scan_run_id").in("scan_run_id", ids).range(from, to),
-    );
-    for (const r of rows) {
-      const id = r["scan_run_id"] as string;
-      out.set(id, (out.get(id) ?? 0) + 1);
-    }
-  }
-  return out;
-}
 
 interface LoadedPacketRow {
   packetId: string;
@@ -268,7 +236,7 @@ export async function runAiTriage(options: RunAiTriageOptions = {}): Promise<Tri
       return { ...base, status: "failed", code: "NO_CANDIDATES", error: "No historical research packets to calibrate against." };
     }
   } else {
-    eligibility = selectAiScanSource(await loadScanSourceCandidates(), SELECTION_POLICY_VERSION);
+    eligibility = await selectEligibleProductionScan();
     if (!eligibility.ok) {
       const runId = await persistRun({
         sourceScanId: null,
@@ -738,16 +706,29 @@ export interface PersistedTriageDecision {
 /** Newest persisted triage run plus its decisions. Read-only. */
 export async function loadLatestTriage(
   mode: "PRODUCTION" | "CALIBRATION" = "PRODUCTION",
+  options: { sourceScanId?: string | null; requireScan?: boolean } = {},
 ): Promise<{
   run: TriageRunSummary;
   decisions: PersistedTriageDecision[];
 } | null> {
   // Mode is authoritative: a later calibration run must never be shown as the
   // production current state, and vice versa.
-  const { data, error } = await supabaseAdmin
+  //
+  // PRODUCTION is additionally cohort-scoped: it is the triage of the ACTIVE
+  // eligible scan, never the globally newest triage of an older cohort.
+  let scanId = options.sourceScanId ?? null;
+  if (mode === "PRODUCTION" && !scanId && options.requireScan !== false) {
+    const { loadActiveResearchCohort } = await import("./cohort.server");
+    const cohort = await loadActiveResearchCohort();
+    if (!cohort.scan) return null;
+    scanId = cohort.scan.id;
+  }
+  let query = supabaseAdmin
     .from("ai_triage_runs")
     .select("*")
-    .eq("is_calibration", mode === "CALIBRATION")
+    .eq("is_calibration", mode === "CALIBRATION");
+  if (scanId) query = query.eq("source_scan_id", scanId);
+  const { data, error } = await query
     .order("started_at", { ascending: false })
     .limit(1)
     .maybeSingle();

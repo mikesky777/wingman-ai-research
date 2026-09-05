@@ -9,6 +9,13 @@
  * recurrence, scanner evidence or outcomes.
  */
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { SELECTION_POLICY_VERSION } from "../history/policy-epochs";
+import {
+  selectAiScanSource,
+  selectScanForPacketGeneration,
+  type AiScanSourceCandidate,
+  type AiScanSourceResult,
+} from "./ai-scan-source";
 import {
   RESEARCH_UNIVERSE_CONFIG,
   buildResearchPacket,
@@ -319,33 +326,82 @@ export interface ResearchPacketRunResult {
   maxCompactBytes: number;
 }
 
-/** The newest completed run, when no run id is supplied. */
-export async function latestCompletedRun(): Promise<{ id: string; completedAt: string | null } | null> {
+/** Packet counts per scan run — the packet half of ai_scan_source/v1. */
+export async function packetCountsByRun(runIds: string[]): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  for (const ids of chunkIds(runIds)) {
+    const rows = await fetchAllPages((from, to) =>
+      supabaseAdmin
+        .from("research_packets")
+        .select("scan_run_id")
+        .in("scan_run_id", ids)
+        .range(from, to),
+    );
+    for (const r of rows) {
+      const id = r["scan_run_id"] as string;
+      out.set(id, (out.get(id) ?? 0) + 1);
+    }
+  }
+  return out;
+}
+
+/** Recent scan runs with their packet counts, for the scan-source invariant. */
+export async function loadScanSourceCandidates(limit = 25): Promise<AiScanSourceCandidate[]> {
   const { data, error } = await supabaseAdmin
     .from("scan_runs")
-    .select("id, completed_at")
-    .eq("status", "completed")
-    .order("completed_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .select(
+      "id, status, started_at, completed_at, tokens_discovered, discovery_health, selection_policy_version, policy_epoch",
+    )
+    .order("started_at", { ascending: false })
+    .limit(limit);
   if (error) throw new Error(error.message);
-  if (!data) return null;
-  const row = data as Row;
-  return { id: row["id"] as string, completedAt: str(row, "completed_at") };
+  const runs = (data ?? []) as Row[];
+  const counts = await packetCountsByRun(runs.map((r) => r["id"] as string));
+  return runs.map((r) => ({
+    id: r["id"] as string,
+    status: (r["status"] as string) ?? "unknown",
+    startedAt: (r["started_at"] as string) ?? null,
+    completedAt: (r["completed_at"] as string) ?? null,
+    tokensDiscovered: (r["tokens_discovered"] as number) ?? 0,
+    discoveryHealth: (r["discovery_health"] as string) ?? null,
+    selectionPolicyVersion: (r["selection_policy_version"] as string) ?? null,
+    policyEpoch: (r["policy_epoch"] as string) ?? null,
+    researchPacketCount: counts.get(r["id"] as string) ?? 0,
+  }));
 }
 
 /**
- * Assemble packets for one completed scan. Pure read + append-only write.
+ * THE canonical "current eligible production scan" for Research.
+ * ai_scan_source/v1 semantics: completed + healthy discovery + production
+ * policy + non-empty universe + exact research packets.
+ */
+export async function selectEligibleProductionScan(): Promise<AiScanSourceResult> {
+  return selectAiScanSource(await loadScanSourceCandidates(), SELECTION_POLICY_VERSION);
+}
+
+/**
+ * Assemble packets for one eligible scan. Pure read + append-only write.
+ *
+ * With no explicit id this uses the SAME eligibility definition as Research
+ * (minus the circular packet requirement) — never a generic newest-completed
+ * run.
  */
 export async function generateResearchPackets(options: {
   scanRunId?: string | null;
   config?: ResearchUniverseConfig;
   persist?: boolean;
 } = {}): Promise<ResearchPacketRunResult> {
-  const run = options.scanRunId
-    ? { id: options.scanRunId, completedAt: null as string | null }
-    : await latestCompletedRun();
-  if (!run) throw new Error("No completed scan run to build research packets from.");
+  let run: { id: string; completedAt: string | null } | null = options.scanRunId
+    ? { id: options.scanRunId, completedAt: null }
+    : null;
+  if (!run) {
+    const eligible = selectScanForPacketGeneration(
+      await loadScanSourceCandidates(),
+      SELECTION_POLICY_VERSION,
+    );
+    run = eligible.ok && eligible.runId ? { id: eligible.runId, completedAt: eligible.completedAt } : null;
+  }
+  if (!run) throw new Error("NO_ELIGIBLE_CURRENT_SCAN: no healthy current-policy scan to build research packets from.");
 
   let completedAt = run.completedAt;
   if (completedAt === null) {

@@ -99,3 +99,21 @@ export function selectAiScanSource(
     rejections,
   };
 }
+
+/**
+ * Same definition, minus the packet requirement.
+ *
+ * Packet GENERATION is what creates packets, so requiring packets there would
+ * be circular. Every other invariant (completed, healthy, non-empty, current
+ * policy) is identical, so one definition of "current eligible production
+ * scan" is shared instead of a second, subtly different selector.
+ */
+export function selectScanForPacketGeneration(
+  runs: AiScanSourceCandidate[],
+  expectedPolicyVersion: string = SELECTION_POLICY_VERSION,
+): AiScanSourceResult {
+  return selectAiScanSource(
+    runs.map((r) => ({ ...r, researchPacketCount: Math.max(r.researchPacketCount, 1) })),
+    expectedPolicyVersion,
+  );
+}
