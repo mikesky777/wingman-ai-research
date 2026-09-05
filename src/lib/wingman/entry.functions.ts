@@ -45,9 +45,11 @@ export const refreshEntryState = createServerFn({ method: "POST" })
     return runEntryStateBatch({ mode: data.mode, limit: 1, mints: [data.mint] });
   });
 
-export const getEntryEvaluations = createServerFn({ method: "GET" }).handler(
-  async (): Promise<EntryEvaluationSummary[]> => {
+export const getEntryEvaluations = createServerFn({ method: "GET" })
+  .inputValidator((input?: { mode?: "PRODUCTION" | "CALIBRATION" }) => ({
+    mode: input?.mode === "CALIBRATION" ? ("calibration" as const) : ("production" as const),
+  }))
+  .handler(async ({ data }): Promise<EntryEvaluationSummary[]> => {
     const { loadEntryEvaluations } = await import("./services/entry/entry.server");
-    return loadEntryEvaluations(20);
-  },
-);
+    return loadEntryEvaluations(20, data.mode);
+  });

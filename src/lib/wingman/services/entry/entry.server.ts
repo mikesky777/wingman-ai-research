@@ -770,10 +770,14 @@ export interface EntryEvaluationSummary {
 }
 
 /** Latest evaluation per mint, plus that mint's recent transition history. */
-export async function loadEntryEvaluations(limit = 20): Promise<EntryEvaluationSummary[]> {
+export async function loadEntryEvaluations(
+  limit = 20,
+  mode: "production" | "calibration" = "production",
+): Promise<EntryEvaluationSummary[]> {
   const { data, error } = await supabaseAdmin
     .from("entry_state_evaluations")
     .select("*")
+    .eq("is_calibration", mode === "calibration")
     .order("evaluated_at", { ascending: false })
     .limit(200);
   if (error) throw new Error(error.message);
