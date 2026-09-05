@@ -879,6 +879,48 @@ async function finishRun(runId: string, batch: ThesisBatchResult): Promise<void>
   if (error) throw new Error(error.message);
 }
 
+/**
+ * Append-only `thesis_baseline/v1` capture.
+ *
+ * Freezes the exact market state the thesis was reasoned on, keyed to the
+ * thesis report itself. Written once per report, never updated, and never
+ * derived from a later observation. Failure here never fails a synthesis.
+ */
+async function captureThesisBaseline(args: {
+  reportId: string;
+  runId: string;
+  candidate: SynthesizedCandidate;
+  isCalibration: boolean;
+  observation: { observedAt: string | null; volume24h: number | null; source: string | null } | null;
+}): Promise<void> {
+  const { candidate: s, observation } = args;
+  if (s.market.marketCap === null && s.market.priceUsd === null) return;
+  try {
+    await supabaseAdmin.from("thesis_synthesis_baselines").insert({
+      thesis_report_id: args.reportId,
+      thesis_synthesis_run_id: args.runId,
+      token_id: s.input.tokenId,
+      mint: s.input.mint,
+      chain: s.input.chain,
+      synthesized_at: new Date().toISOString(),
+      observed_at: observation?.observedAt ?? null,
+      market_cap: s.market.marketCap,
+      price_usd: s.market.priceUsd,
+      liquidity_usd: s.market.liquidityUsd,
+      volume_24h: observation?.volume24h ?? null,
+      market_source: observation?.source ?? null,
+      triage_run_id: s.input.triageRunId ?? null,
+      deep_research_run_id: s.input.deepResearchRunId ?? null,
+      research_packet_id: s.input.researchPacketId ?? null,
+      baseline_version: "thesis_baseline/v1",
+      baseline_origin: "CAPTURED_AT_SYNTHESIS",
+      is_calibration: args.isCalibration,
+    });
+  } catch {
+    // Baseline capture is observational only.
+  }
+}
+
 async function insertReport(args: {
   runId: string;
   candidate: SynthesizedCandidate;
