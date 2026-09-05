@@ -165,7 +165,10 @@ export function EntryPanel({ calibration = false }: { calibration?: boolean } = 
                     ENTRY: {row.state}
                   </Badge>
                   <span className="tabular text-xs text-muted-foreground">
-                    {row.entryScore === null ? "—" : `${row.entryScore.toFixed(1)}/10`}
+                    {/* UNKNOWN means timing cannot be judged — never show a score. */}
+                    {row.state === "UNKNOWN" || row.entryScore === null
+                      ? "Entry score: —"
+                      : `${row.entryScore.toFixed(1)}/10`}
                   </span>
                   <Badge
                     variant="outline"
