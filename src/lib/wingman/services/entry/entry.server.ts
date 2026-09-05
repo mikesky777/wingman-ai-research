@@ -98,6 +98,35 @@ function num(v: unknown): number | null {
   return typeof v === "number" && Number.isFinite(v) ? v : null;
 }
 
+/**
+ * Mints with a production THESIS_CALL that is currently ACTIVE-monitored.
+ * A missing monitoring row defaults to ACTIVE (new calls begin ACTIVE); there
+ * is no automatic age cutoff.
+ */
+async function loadActivelyMonitoredCallMints(): Promise<string[]> {
+  const { data: callRows, error } = await supabaseAdmin
+    .from("token_stage_milestones")
+    .select("contract_address")
+    .eq("stage", "THESIS_CALL");
+  if (error) throw new Error(error.message);
+  const mints = [
+    ...new Set(((callRows as Row[]) ?? []).map((r) => r["contract_address"] as string).filter(Boolean)),
+  ];
+  if (mints.length === 0) return [];
+
+  const { data: monitoringRows, error: monitoringError } = await supabaseAdmin
+    .from("thesis_call_monitoring")
+    .select("mint, status")
+    .in("mint", mints);
+  if (monitoringError) throw new Error(monitoringError.message);
+  const blocked = new Set(
+    ((monitoringRows as Row[]) ?? [])
+      .filter((r) => (r["status"] as string) !== "ACTIVE")
+      .map((r) => r["mint"] as string),
+  );
+  return mints.filter((m) => !blocked.has(m));
+}
+
 async function loadThesisInputs(options: {
   isCalibration: boolean;
   mints?: string[];
