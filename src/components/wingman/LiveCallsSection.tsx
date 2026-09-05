@@ -16,6 +16,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { formatNumber, formatTime } from "@/lib/wingman/format";
+import { ENTRY_STATES } from "@/lib/wingman/config";
+import type { EntryState } from "@/lib/wingman/types";
 import type { LiveCall } from "@/lib/wingman/services/live-calls.server";
 
 const money = (v: number | null) => (v == null ? "—" : `$${formatNumber(v)}`);
@@ -26,7 +28,7 @@ function OperationalBadge({ call }: { call: LiveCall }) {
     op.status === "OPERATIONAL"
       ? "border-positive/40 text-positive"
       : op.status === "BLOCKED"
-        ? "border-danger/40 text-danger"
+        ? "border-destructive/40 text-destructive"
         : "border-border text-muted-foreground";
   const Icon = op.status === "OPERATIONAL" ? ShieldCheck : ShieldAlert;
   return (
@@ -49,8 +51,13 @@ function Fact({ label, value }: { label: string; value: string }) {
   );
 }
 
+function entryStateOrNull(state: string | null): EntryState | null {
+  return state && state in ENTRY_STATES ? (state as EntryState) : null;
+}
+
 function LiveCallCard({ call }: { call: LiveCall }) {
   const thesis = call.thesis;
+  const entryState = entryStateOrNull(call.current.entryState);
   return (
     <article className="space-y-4 rounded-md border border-border bg-surface/60 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -110,14 +117,17 @@ function LiveCallCard({ call }: { call: LiveCall }) {
             <Fact label="MCap at call" value={money(call.call.marketCapAtCall)} />
             <Fact label="Liquidity at call" value={money(call.call.liquidityAtCall)} />
             <Fact label="Setup" value={call.call.setupAtCall ?? "—"} />
-            <Fact label="Current MCap / Liq" value={`${money(call.current.latestMarketCap)} / ${money(call.current.latestLiquidity)}`} />
+            <Fact
+              label="Current MCap / Liq"
+              value={`${money(call.current.latestMarketCap)} / ${money(call.current.latestLiquidity)}`}
+            />
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[10px] tracking-wide text-muted-foreground uppercase">
               Entry state
             </span>
-            {call.current.entryState ? (
-              <EntryStateBadge state={call.current.entryState} />
+            {entryState ? (
+              <EntryStateBadge state={entryState} />
             ) : (
               <Badge variant="outline" className="text-[10px]">
                 Not evaluated
@@ -167,15 +177,8 @@ export function LiveCallsSection({
   return (
     <div id="live-calls">
       <Section
-        title={
-          <span className="inline-flex items-center gap-2">
-            Live Calls
-            <Badge variant="outline" className="text-[10px]">
-              {loading ? "…" : count}
-            </Badge>
-          </span>
-        }
-        description="Official production calls only — tokens with an immutable THESIS_CALL record. Shortlists and synthesized theses without a call never appear here."
+        title={`Live Calls (${loading ? "…" : count})`}
+        description="Official production calls only — tokens with an immutable THESIS_CALL record. Shortlists and synthesized theses without a call never appear here. History remains the canonical audit trail."
       >
         {loading ? (
           <p className="text-xs text-muted-foreground">Loading live calls…</p>
@@ -183,7 +186,7 @@ export function LiveCallsSection({
           <EmptyState
             icon={<PhoneCall className="size-4" />}
             title="No production thesis currently meets Wingman's opportunity criteria."
-            description="Live Calls appear here the moment a production thesis clears every opportunity gate and a THESIS_CALL is recorded. History remains the canonical audit trail."
+            description="Live Calls appear here the moment a production thesis clears every opportunity gate and a THESIS_CALL is recorded."
           />
         ) : (
           <div className="space-y-4">
