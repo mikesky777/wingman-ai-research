@@ -72,7 +72,7 @@ export async function loadHistoryArtifacts(): Promise<HistoryArtifacts> {
         "id, deep_research_run_id, mint, created_at, status, narrative_resolved, one_sentence_narrative, source_count, independent_source_count, evidence_coverage_pct, research_policy_version, search_version, dossier_version",
       )
       .eq("is_calibration", false)
-      .eq("status", "completed")
+      .in("status", ["completed", "search_limited"])
       .order("created_at", { ascending: false }),
     supabaseAdmin
       .from("thesis_reports")
