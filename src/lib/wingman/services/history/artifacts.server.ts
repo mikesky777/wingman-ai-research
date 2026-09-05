@@ -7,54 +7,14 @@
  * drawdown, and nothing is ever written.
  */
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import type {
+  DeepResearchArtifact,
+  HistoryArtifactIdentity,
+  HistoryArtifacts,
+  ThesisArtifact,
+} from "./artifacts";
 
 type Row = Record<string, unknown>;
-
-export interface HistoryArtifactIdentity {
-  mint: string;
-  symbol: string | null;
-  name: string | null;
-  pairAddress: string | null;
-}
-
-export interface DeepResearchArtifact extends HistoryArtifactIdentity {
-  reportId: string;
-  runId: string;
-  completedAt: string | null;
-  narrativeResolved: boolean;
-  oneSentenceNarrative: string | null;
-  sourceCount: number | null;
-  independentSourceCount: number | null;
-  coveragePct: number | null;
-  researchPolicyVersion: string | null;
-  searchVersion: string | null;
-  dossierVersion: string | null;
-  modelProvider: string | null;
-  modelIdentifier: string | null;
-  promptVersion: string | null;
-}
-
-export interface ThesisArtifact extends HistoryArtifactIdentity {
-  reportId: string;
-  synthesizedAt: string | null;
-  thesisScore: number | null;
-  evidenceConfidence: number | null;
-  verdict: string | null;
-  bearCaseSeverity: string | null;
-  oneSentenceThesis: string | null;
-  strongestBearCase: string | null;
-  qualifiedAsOpportunity: boolean;
-  thesisPolicyVersion: string | null;
-  rubricVersion: string | null;
-  promptVersion: string | null;
-  modelProvider: string | null;
-  modelIdentifier: string | null;
-}
-
-export interface HistoryArtifacts {
-  deepResearch: DeepResearchArtifact[];
-  thesis: ThesisArtifact[];
-}
 
 const num = (row: Row, key: string): number | null => {
   const v = row[key];

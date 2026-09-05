@@ -14,13 +14,11 @@ import { EmptyState } from "@/components/wingman/EmptyState";
 import { TokenIdentity } from "@/components/wingman/TokenIdentity";
 import { getHistoryArtifacts } from "@/lib/wingman/history.functions";
 import { formatDate } from "@/lib/wingman/format";
-import type {
-  DeepResearchArtifact,
-  ThesisArtifact,
-} from "@/lib/wingman/services/history/artifacts.server";
-
-const NO_BASELINE_NOTE =
-  "Historical performance baseline not captured for this artifact version.";
+import {
+  ARTIFACT_NO_BASELINE_NOTE as NO_BASELINE_NOTE,
+  type DeepResearchArtifact,
+  type ThesisArtifact,
+} from "@/lib/wingman/services/history/artifacts";
 
 function useArtifacts() {
   const fetchArtifacts = useServerFn(getHistoryArtifacts);
