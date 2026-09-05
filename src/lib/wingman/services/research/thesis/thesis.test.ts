@@ -236,3 +236,21 @@ describe("hindsight safety", () => {
     expect(buildThesisSystemPrompt()).toMatch(/Never reason about what happened to the price after/);
   });
 });
+
+describe("thesis v2 excludes timing from thesis quality", () => {
+  it("awards zero thesis points for timing/chart keys even if the model returns them", () => {
+    const withTiming = validateThesisOutput(
+      fullOutput({
+        components: {
+          ...Object.fromEntries(THESIS_COMPONENTS.map((c) => [c.key, 0])),
+          memeQuality: 10,
+          chartContext: 10,
+          entryQuality: 10,
+        },
+      }),
+      known,
+    );
+    expect(withTiming.thesisScore).toBe(10);
+    expect(THESIS_COMPONENTS.map((c) => c.key)).not.toContain("chartContext");
+  });
+});
