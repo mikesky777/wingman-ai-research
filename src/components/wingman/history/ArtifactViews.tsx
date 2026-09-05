@@ -12,12 +12,19 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 import { Section, KeyValue } from "@/components/wingman/Section";
 import { EmptyState } from "@/components/wingman/EmptyState";
 import { TokenIdentity } from "@/components/wingman/TokenIdentity";
+import { StatTile } from "@/components/wingman/StatTile";
 import { getHistoryArtifacts } from "@/lib/wingman/history.functions";
-import { formatDate } from "@/lib/wingman/format";
+import { formatDate, formatUsd } from "@/lib/wingman/format";
 import {
   ARTIFACT_NO_BASELINE_NOTE as NO_BASELINE_NOTE,
+  THESIS_NO_BASELINE_NOTE,
+  sortThesisArtifacts,
+  summarizeThesisArtifacts,
+  type ArtifactStat,
   type DeepResearchArtifact,
   type ThesisArtifact,
+  type ThesisArtifactSort,
+  type ThesisPerformanceSummary,
 } from "@/lib/wingman/services/history/artifacts";
 
 function useArtifacts() {
@@ -34,12 +41,14 @@ function ArtifactCard({
   summary,
   details,
   openLabel,
+  performance,
 }: {
   identity: { mint: string; symbol: string | null; name: string | null; pairAddress: string | null };
   headline: React.ReactNode;
   summary: string | null;
   details: { label: string; value: React.ReactNode }[];
   openLabel: string;
+  performance?: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -54,6 +63,7 @@ function ArtifactCard({
         <div className="text-right text-[11px] text-muted-foreground">{headline}</div>
       </div>
       {summary ? <p className="mt-2 text-[11px] text-muted-foreground">{summary}</p> : null}
+      {performance ?? null}
       <button
         onClick={() => setOpen((v) => !v)}
         className="mt-2 flex items-center gap-1 font-mono text-[10px] tracking-wide text-primary"
