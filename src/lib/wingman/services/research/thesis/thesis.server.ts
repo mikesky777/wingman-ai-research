@@ -973,21 +973,26 @@ export async function loadThesisReports(
   const isCalibration = mode === "calibration";
   let rows: Row[] = [];
   if (!isCalibration) {
-    // ACTIVE cohort synthesis run only — never the globally newest run, which
-    // may belong to a previous scan.
-    const { loadActiveResearchCohort } = await import("../cohort.server");
+    // ACTIVE cohort only — the union of every production synthesis batch for
+    // the active triage run, never another scan's cohort.
+    const { loadActiveResearchCohort, loadCohortThesisReports } = await import("../cohort.server");
     const active = await loadActiveResearchCohort();
-    const runId = active.thesisSynthesisRunId;
-    if (!runId) return [];
+    if (!active.triageRunId) return [];
+    const refs = await loadCohortThesisReports(active.triageRunId);
+    if (refs.length === 0) return [];
     const { data, error } = await supabaseAdmin
       .from("thesis_reports")
       .select("*")
-      .eq("thesis_synthesis_run_id", runId)
+      .in(
+        "id",
+        refs.map((r) => r.id),
+      )
       .order("thesis_score", { ascending: false, nullsFirst: false })
-      .limit(50);
+      .limit(60);
     if (error) throw new Error(error.message);
     rows = (data as Row[]) ?? [];
   } else {
+
     const { data, error } = await supabaseAdmin
       .from("thesis_reports")
       .select("*")
