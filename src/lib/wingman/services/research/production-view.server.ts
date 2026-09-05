@@ -148,7 +148,7 @@ export async function loadDeepResearchReportById(
   const r = (data as Row | null) ?? null;
   if (!r) return null;
   const dossier = r["dossier"] as DeepResearchReportSummary["dossier"];
-  const coverage = (dossier?.coverage ?? {}) as Partial<Record<string, number>>;
+  const coverage = dossier?.coverage;
   return {
     id: r["id"] as string,
     runId: r["deep_research_run_id"] as string,
@@ -164,10 +164,10 @@ export async function loadDeepResearchReportById(
     coveragePct: (r["evidence_coverage_pct"] as number) ?? null,
     sourceCount: (r["source_count"] as number) ?? 0,
     primarySourceCount: (r["primary_source_count"] as number) ?? 0,
-    independentSourceCount: coverage["independentSourceCount"] ?? 0,
-    projectOwnedSourceCount: coverage["projectOwnedSourceCount"] ?? 0,
-    projectAffiliatedSourceCount: coverage["projectAffiliatedSourceCount"] ?? 0,
-    corroboratedClaimCount: coverage["corroboratedClaimCount"] ?? 0,
+    independentSourceCount: coverage?.independentSourceCount ?? 0,
+    projectOwnedSourceCount: coverage?.projectOwnedSourceCount ?? 0,
+    projectAffiliatedSourceCount: coverage?.projectAffiliatedSourceCount ?? 0,
+    corroboratedClaimCount: coverage?.corroboratedClaimCount ?? 0,
     searchVersion: dossier?.searchVersion ?? null,
     conflictingClaimCount: (r["conflicting_claim_count"] as number) ?? 0,
     unresolvedGapCount: (r["unresolved_gap_count"] as number) ?? 0,
