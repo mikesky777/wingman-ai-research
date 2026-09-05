@@ -83,6 +83,9 @@ export interface BenchmarkCandidateComparison {
   componentDeltas: { key: string; label: string; baseline: number | null; challenger: number | null; delta: number | null }[];
   catalystDisagreement: boolean;
   wouldQualifyDifferently: boolean;
+  isStabilityCandidate: boolean;
+  passesRun: number;
+  bearSeverityStable: boolean;
 }
 
 export interface ThesisBenchmarkResult {
@@ -100,16 +103,26 @@ export interface ThesisBenchmarkResult {
   opportunitiesCreated: number;
   thesisCallsCreated: number;
   comparisons: BenchmarkCandidateComparison[];
+  plan?: {
+    fullCohortPasses: number;
+    stabilityPasses: number;
+    concurrency: number;
+    synthesisCallsExecuted: number;
+    reusedSamples: number;
+  };
+  stabilityNote?: string;
   summary: {
     meanScoreDelta: number | null;
     meanConfidenceDelta: number | null;
     verdictChanges: number;
     unstableCandidates: number;
+    stabilityCandidatesTested?: number;
     maxScoreSpread: number | null;
     catalystDisagreements: number;
   };
   recommendation: string;
 }
+
 
 function median(values: number[]): number | null {
   if (values.length === 0) return null;
@@ -175,16 +188,40 @@ export async function loadFrozenProductionCohort(): Promise<{
   };
 }
 
+/**
+ * Cost plan: the full cohort is synthesised ONCE by the challenger model, and
+ * repeat (stability) passes are intentionally concentrated on the four
+ * near-threshold / highest-interest candidates only.
+ */
+export const THESIS_BENCHMARK_STABILITY_SYMBOLS = ["STONK", "KEKODYSSEUS", "1", "Shrek"];
+export const THESIS_BENCHMARK_FULL_COHORT_PASSES = 1;
+export const THESIS_BENCHMARK_STABILITY_PASSES = 3;
+export const THESIS_BENCHMARK_MAX_CONCURRENCY = 3;
+
 export interface RunThesisBenchmarkOptions {
-  runCount?: number;
+  fullCohortPasses?: number;
+  stabilityPasses?: number;
+  /** Bounded parallelism for challenger requests (1–3). */
+  concurrency?: number;
   /** Restrict the benchmark to a subset of mints (debugging / partial reruns). */
   mints?: string[];
+  /** Legacy uniform pass count; treated as the stability pass count. */
+  runCount?: number;
 }
 
 export async function runThesisModelBenchmark(
   options: RunThesisBenchmarkOptions = {},
 ): Promise<ThesisBenchmarkResult> {
-  const runCount = Math.min(Math.max(options.runCount ?? THESIS_BENCHMARK_RUN_COUNT, 1), 5);
+  const fullCohortPasses = Math.min(
+    Math.max(options.fullCohortPasses ?? THESIS_BENCHMARK_FULL_COHORT_PASSES, 1),
+    3,
+  );
+  const stabilityPasses = Math.min(
+    Math.max(options.stabilityPasses ?? options.runCount ?? THESIS_BENCHMARK_STABILITY_PASSES, 1),
+    5,
+  );
+  const concurrency = Math.min(Math.max(options.concurrency ?? THESIS_BENCHMARK_MAX_CONCURRENCY, 1), 3);
+
 
   const base: ThesisBenchmarkResult = {
     version: THESIS_BENCHMARK_VERSION,
@@ -249,60 +286,125 @@ export async function runThesisModelBenchmark(
     reasoningEffort: OPENAI_THESIS_REASONING_EFFORT,
   });
 
-  const reportIds = baselines.map((b) => b.deepResearchReportId);
-  const batches: ThesisBatchResult[] = [];
-  for (let i = 0; i < runCount; i += 1) {
-    batches.push(
-      await runThesisSynthesis({
-        mode: "calibration", // never production: no opportunities, no THESIS_CALL, no history
-        limit: Math.min(reportIds.length, 15),
-        reportIds,
-        provider,
-      }),
-    );
+  const stabilityMints = new Set(
+    baselines
+      .filter((b) => THESIS_BENCHMARK_STABILITY_SYMBOLS.includes((b.symbol ?? "").trim()))
+      .map((b) => b.mint),
+  );
+  const targetPasses = (mint: string) =>
+    stabilityMints.has(mint) ? stabilityPasses : fullCohortPasses;
+
+  // Reuse everything the challenger has already produced over this exact evidence.
+  let samplesByMint = await loadChallengerSamples(baselines);
+
+  const tasks: FrozenThesisBaseline[] = [];
+  for (const b of baselines) {
+    const have = samplesByMint.get(b.mint)?.length ?? 0;
+    for (let i = have; i < targetPasses(b.mint); i += 1) tasks.push(b);
   }
+
+  const executed: ThesisBatchResult[] = [];
+  await runWithConcurrency(tasks, concurrency, async (b) => {
+    const batch = await runThesisSynthesis({
+      mode: "calibration", // never production: no opportunities, no THESIS_CALL, no history
+      limit: 1,
+      reportIds: [b.deepResearchReportId],
+      provider,
+    });
+    executed.push(batch);
+  });
+
+  if (tasks.length > 0) samplesByMint = await loadChallengerSamples(baselines);
 
   return buildBenchmarkComparison({
     base,
     access,
     baselines,
-    batches,
+    samplesByMint,
+    stabilityMints,
+    plan: {
+      fullCohortPasses,
+      stabilityPasses,
+      concurrency,
+      synthesisCallsExecuted: tasks.length,
+      reusedSamples: baselines.reduce(
+        (a, b) => a + Math.min(samplesByMint.get(b.mint)?.length ?? 0, targetPasses(b.mint)),
+        0,
+      ) - tasks.length,
+    },
+    executed,
     cohortRunId: cohort.runId,
     cohortModel: cohort.model,
     pairByMint: await loadPairAddresses(baselines.map((b) => b.mint)),
-    narrativeByRunMint: await loadBenchmarkNarratives(
-      batches.map((b) => b.runId ?? "").filter(Boolean),
-    ),
   });
 }
 
-export interface BenchmarkNarrative {
-  catalystKind: string;
-  strongestCatalyst: string | null;
-  strongestBearCase: string | null;
+/** Bounded parallelism — never fires every challenger request at once. */
+async function runWithConcurrency<T>(
+  items: T[],
+  limit: number,
+  worker: (item: T) => Promise<void>,
+): Promise<void> {
+  let cursor = 0;
+  const lanes = Array.from({ length: Math.min(limit, Math.max(items.length, 1)) }, async () => {
+    for (;;) {
+      const index = cursor;
+      cursor += 1;
+      const item = items[index];
+      if (item === undefined) return;
+      await worker(item);
+    }
+  });
+  await Promise.all(lanes);
 }
 
-/** Catalyst / bear text lives on the persisted calibration reports. */
-async function loadBenchmarkNarratives(
-  runIds: string[],
-): Promise<Map<string, BenchmarkNarrative>> {
-  const out = new Map<string, BenchmarkNarrative>();
-  if (runIds.length === 0) return out;
+/**
+ * Persisted challenger samples over the EXACT frozen deep-research evidence,
+ * oldest first, so repeat passes are reused instead of re-purchased.
+ */
+async function loadChallengerSamples(
+  baselines: FrozenThesisBaseline[],
+): Promise<Map<string, BenchmarkRunSample[]>> {
+  const out = new Map<string, BenchmarkRunSample[]>();
+  if (baselines.length === 0) return out;
+
+  const { data: runRows } = await supabaseAdmin
+    .from("thesis_synthesis_runs")
+    .select("id, model_identifier")
+    .eq("is_calibration", true);
+  const challengerRunIds = ((runRows as Row[] | null) ?? [])
+    .filter((r) => ((r["model_identifier"] as string) ?? "").toLowerCase().includes("gpt"))
+    .map((r) => r["id"] as string);
+  if (challengerRunIds.length === 0) return out;
+
+  const reportIds = baselines.map((b) => b.deepResearchReportId);
   const { data } = await supabaseAdmin
     .from("thesis_reports")
-    .select(
-      "thesis_synthesis_run_id, mint, catalyst_kind, strongest_catalyst, strongest_bear_case",
-    )
-    .in("thesis_synthesis_run_id", runIds);
+    .select("*")
+    .in("thesis_synthesis_run_id", challengerRunIds)
+    .in("deep_research_report_id", reportIds)
+    .order("created_at", { ascending: true });
+
   for (const r of ((data as Row[] | null) ?? [])) {
-    out.set(`${r["thesis_synthesis_run_id"] as string}:${r["mint"] as string}`, {
+    const mint = r["mint"] as string;
+    const list = out.get(mint) ?? [];
+    list.push({
+      runId: (r["thesis_synthesis_run_id"] as string) ?? "",
+      thesisScore: (r["thesis_score"] as number) ?? null,
+      evidenceConfidence: (r["evidence_confidence"] as number) ?? null,
+      verdict: (r["verdict"] as string) ?? null,
+      bearSeverity: (r["bear_case_severity"] as string) ?? null,
+      components: (r["component_scores"] as ComponentScores) ?? null,
       catalystKind: (r["catalyst_kind"] as string) ?? "NONE",
       strongestCatalyst: (r["strongest_catalyst"] as string) ?? null,
       strongestBearCase: (r["strongest_bear_case"] as string) ?? null,
+      status: (r["status"] as string) ?? "unknown",
     });
+    out.set(mint, list);
   }
   return out;
 }
+
 
 async function loadPairAddresses(mints: string[]): Promise<Map<string, string | null>> {
   const out = new Map<string, string | null>();
@@ -317,38 +419,33 @@ async function loadPairAddresses(mints: string[]): Promise<Map<string, string | 
   return out;
 }
 
+export interface BenchmarkPlan {
+  fullCohortPasses: number;
+  stabilityPasses: number;
+  concurrency: number;
+  synthesisCallsExecuted: number;
+  reusedSamples: number;
+}
+
 export function buildBenchmarkComparison(args: {
   base: ThesisBenchmarkResult;
   access: { selectedModel: string | null; usedFallback: boolean; attempts: OpenAiModelAccessAttempt[] };
   baselines: FrozenThesisBaseline[];
-  batches: ThesisBatchResult[];
+  samplesByMint: Map<string, BenchmarkRunSample[]>;
+  stabilityMints: Set<string>;
+  plan: BenchmarkPlan;
+  executed: ThesisBatchResult[];
   cohortRunId: string;
   cohortModel: string | null;
   pairByMint: Map<string, string | null>;
-  narrativeByRunMint?: Map<string, BenchmarkNarrative>;
 }): ThesisBenchmarkResult {
-  const { base, access, baselines, batches, cohortRunId, cohortModel, pairByMint } = args;
-  const narratives = args.narrativeByRunMint ?? new Map<string, BenchmarkNarrative>();
+  const { base, access, baselines, cohortRunId, cohortModel, pairByMint, plan, executed } = args;
+  const batches = executed;
 
   const comparisons: BenchmarkCandidateComparison[] = baselines.map((b) => {
-    const samples: BenchmarkRunSample[] = [];
-    for (const batch of batches) {
-      const c = batch.candidates.find((x) => x.mint === b.mint);
-      if (!c) continue;
-      const narrative = narratives.get(`${batch.runId ?? ""}:${b.mint}`) ?? null;
-      samples.push({
-        runId: batch.runId ?? "",
-        thesisScore: c.thesisScore,
-        evidenceConfidence: c.evidenceConfidence,
-        verdict: c.verdict,
-        bearSeverity: c.bearSeverity,
-        components: c.components,
-        catalystKind: narrative?.catalystKind ?? "NONE",
-        strongestCatalyst: narrative?.strongestCatalyst ?? null,
-        strongestBearCase: narrative?.strongestBearCase ?? null,
-        status: c.status,
-      });
-    }
+    const target = args.stabilityMints.has(b.mint) ? plan.stabilityPasses : plan.fullCohortPasses;
+    const samples: BenchmarkRunSample[] = (args.samplesByMint.get(b.mint) ?? []).slice(0, target);
+
 
     const scores = samples.map((s) => s.thesisScore).filter((v): v is number => v !== null);
     const confs = samples.map((s) => s.evidenceConfidence).filter((v): v is number => v !== null);
@@ -406,22 +503,32 @@ export function buildBenchmarkComparison(args: {
         medScore !== null &&
         b.thesisScore !== null &&
         (medScore >= 70) !== (b.thesisScore >= 70),
+      isStabilityCandidate: args.stabilityMints.has(b.mint),
+      passesRun: samples.length,
+      bearSeverityStable: new Set(samples.map((s) => s.bearSeverity ?? "NONE")).size <= 1,
     };
+
   });
 
   const scoreDeltas = comparisons.map((c) => c.scoreDelta).filter((v): v is number => v !== null);
   const confDeltas = comparisons.map((c) => c.confidenceDelta).filter((v): v is number => v !== null);
   const spreads = comparisons.map((c) => c.challengerScoreSpread).filter((v): v is number => v !== null);
   const verdictChanges = comparisons.filter((c) => c.verdictChanged).length;
-  const unstable = comparisons.filter((c) => !c.verdictStable || (c.challengerScoreSpread ?? 0) > 10).length;
+  // Stability is only measurable where repeat passes were purchased.
+  const repeated = comparisons.filter((c) => c.passesRun > 1);
+  const unstable = repeated.filter(
+    (c) => !c.verdictStable || (c.challengerScoreSpread ?? 0) > 10,
+  ).length;
 
   const meanScoreDelta = mean(scoreDeltas);
+
   const recommendation = deriveBenchmarkRecommendation({
     meanScoreDelta,
     unstable,
-    total: comparisons.length,
+    total: repeated.length || comparisons.length,
     qualifyChanges: comparisons.filter((c) => c.wouldQualifyDifferently).length,
   });
+
 
   return {
     ...base,
@@ -437,15 +544,21 @@ export function buildBenchmarkComparison(args: {
     opportunitiesCreated: batches.reduce((a, b) => a + b.opportunities, 0),
     thesisCallsCreated: batches.reduce((a, b) => a + b.thesisCalls, 0),
     comparisons,
+    plan,
+    stabilityNote:
+      "Stability testing is intentionally concentrated on the near-threshold / high-interest subset " +
+      `(${THESIS_BENCHMARK_STABILITY_SYMBOLS.join(", ")}); the rest of the cohort is synthesised once.`,
     summary: {
       meanScoreDelta,
       meanConfidenceDelta: mean(confDeltas),
       verdictChanges,
       unstableCandidates: unstable,
+      stabilityCandidatesTested: repeated.length,
       maxScoreSpread: spreads.length ? Math.max(...spreads) : null,
       catalystDisagreements: comparisons.filter((c) => c.catalystDisagreement).length,
     },
     recommendation,
+
   };
 }
 

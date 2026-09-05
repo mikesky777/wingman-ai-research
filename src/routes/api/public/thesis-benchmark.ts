@@ -15,7 +15,13 @@ export const Route = createFileRoute("/api/public/thesis-benchmark")({
         const denied = await authenticateCronRequest(request);
         if (denied) return denied;
 
-        let body: { runCount?: number; mints?: string[] } = {};
+        let body: {
+          runCount?: number;
+          fullCohortPasses?: number;
+          stabilityPasses?: number;
+          concurrency?: number;
+          mints?: string[];
+        } = {};
         try {
           body = (await request.json()) as typeof body;
         } catch {
@@ -26,7 +32,9 @@ export const Route = createFileRoute("/api/public/thesis-benchmark")({
           "@/lib/wingman/services/research/thesis/benchmark.server"
         );
         const result = await runThesisModelBenchmark({
-          runCount: Math.min(Math.max(body.runCount ?? 3, 1), 5),
+          fullCohortPasses: Math.min(Math.max(body.fullCohortPasses ?? 1, 1), 3),
+          stabilityPasses: Math.min(Math.max(body.stabilityPasses ?? body.runCount ?? 3, 1), 5),
+          concurrency: Math.min(Math.max(body.concurrency ?? 3, 1), 3),
           ...(Array.isArray(body.mints) && body.mints.length ? { mints: body.mints.map(String) } : {}),
         });
         return new Response(JSON.stringify(result), {
