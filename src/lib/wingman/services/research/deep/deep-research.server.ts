@@ -160,6 +160,18 @@ export interface RunDeepResearchOptions {
    * Completed / insufficient / blocked outcomes are never rerun.
    */
   retryFailedOnly?: boolean;
+  /**
+   * Production only: research ONLY shortlist members with no persisted attempt
+   * at all. Completed, partial, blocked, running and failed mints are left
+   * untouched (failures are handled by `retryFailedOnly`).
+   */
+  startNotStartedOnly?: boolean;
+  /**
+   * Production only: refuse to spend model/search budget unless the resolved
+   * triage run and its source scan are EXACTLY the active Research cohort.
+   */
+  requireActiveCohort?: boolean;
+
 
   budget?: Partial<ResearchBudget>;
   provider?: DeepResearchProvider;
