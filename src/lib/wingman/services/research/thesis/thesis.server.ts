@@ -688,6 +688,24 @@ async function synthesizeCandidate(args: {
     criticalUnresolvedIssues: validated.criticalUnresolvedIssues,
   });
 
+  // thesis_evidence/v2.1 — descriptive layer only. It never touches the
+  // rubric, the score, Evidence Confidence, the verdict or the gates.
+  const semantics = buildEvidenceSemantics({
+    raw: rawOutput,
+    knownClaimRefs: claimRefs,
+    sources: (dossier?.sources ?? []).map((s) => ({
+      ref: s.ref,
+      independence: s.independence,
+      sourceType: s.sourceType,
+      reliabilityClass: s.reliabilityClass,
+    })),
+    catalystText: validated.strongestCatalyst,
+    legacyCatalystKind: validated.catalystKind,
+    independentSourceCount: dossier?.coverage?.independentSourceCount ?? 0,
+    searchUnavailable: input.searchUnavailable,
+    knownGaps: [...(packet?.gaps ?? []), ...(dossier?.evidenceGaps ?? [])].slice(0, 12),
+  });
+
   return {
     ...base,
     status: verdict === "INSUFFICIENT_EVIDENCE" ? "insufficient_evidence" : "completed",
