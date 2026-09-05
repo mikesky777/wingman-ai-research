@@ -19,12 +19,16 @@ import { refreshTokenMarket } from "../market-refresh.server";
 import {
   ENTRY_FEATURE_VERSION,
   ENTRY_POLICY_VERSION,
+  assessEntryDamage,
   assessEntryEligibility,
   classifyDivergence,
   mapEntryState,
+  supportsCandleGradeClaims,
   type DivergenceResult,
   type EntryComponentScores,
   type EntryStateV1,
+  type PriceHistorySource,
+  type TimingResolution,
 } from "./contracts";
 import { computeTimingFeatures, type EntryCandle, type TimingFeatures } from "./features";
 import { buildRationale, scoreEntry, type EntryContext } from "./scoring";
