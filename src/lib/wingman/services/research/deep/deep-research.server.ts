@@ -267,9 +267,12 @@ export async function runDeepResearch(
   if (isCalibration) {
     const limit = Math.min(5, Math.max(3, options.limit ?? 3));
     shortlist = shortlist.slice(0, limit);
-  } else if (typeof options.limit === "number" && options.limit > 0) {
-    shortlist = shortlist.slice(0, options.limit);
+  } else {
+    const offset = typeof options.offset === "number" && options.offset > 0 ? options.offset : 0;
+    const limit = typeof options.limit === "number" && options.limit > 0 ? options.limit : shortlist.length;
+    shortlist = shortlist.slice(offset, offset + limit);
   }
+
 
 
   // Freshness / eligibility recheck against the scan the packets came from.
