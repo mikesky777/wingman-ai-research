@@ -178,7 +178,14 @@ export interface RunAiTriageOptions {
    * label, counterfactual source labels). Rejected for production input.
    */
   ablation?: TriageInputAblation | null;
+  /**
+   * Production only: explicitly confirmed repeat over an already-triaged
+   * cohort. Without it, a cohort that already has a completed production
+   * triage is refused before any credits are spent.
+   */
+  allowRerun?: boolean;
 }
+
 
 /**
  * Execute one triage pass. Never throws for an expected operational outcome —
