@@ -376,13 +376,30 @@ export async function runThesisSynthesis(
     ...(options.reportIds?.length ? { reportIds: options.reportIds } : {}),
     ...(activeTriageRunId ? { triageRunId: activeTriageRunId } : {}),
   });
-  const cohort = activeTriageRunId
+  const cohortAll = activeTriageRunId
     ? inputs.filter((c) => c.triageRunId === activeTriageRunId)
     : inputs;
-  if (cohort.length === 0) return emptyBatch(mode, "NO_DEEP_RESEARCH_REPORTS", provider);
+  if (cohortAll.length === 0) return emptyBatch(mode, "NO_DEEP_RESEARCH_REPORTS", provider);
 
-  const limit = Math.min(Math.max(options.limit ?? 3, 1), 15);
+  // Production never re-synthesises a candidate that already has a settled
+  // production thesis report for this cohort. Batches therefore resume safely.
+  let cohort = cohortAll;
+  if (!isCalibration && activeTriageRunId) {
+    const { loadCohortThesisReports, isSettledThesisStatus } = await import("../cohort.server");
+    const existing = await loadCohortThesisReports(activeTriageRunId);
+    const settled = new Set(
+      existing.filter((r) => isSettledThesisStatus(r.status)).map((r) => r.mint),
+    );
+    cohort = cohortAll.filter((c) => !settled.has(c.mint));
+    if (cohort.length === 0) return emptyBatch(mode, "NO_ELIGIBLE_CANDIDATES", provider);
+  }
+
+  // Calibration is a dry run and stays small by default. Production processes
+  // the whole remaining cohort — the 3-candidate default is calibration-only.
+  const defaultLimit = isCalibration ? 3 : cohort.length;
+  const limit = Math.min(Math.max(options.limit ?? defaultLimit, 1), isCalibration ? 15 : 40);
   const selected = cohort.slice(0, limit);
+
 
   // HARD provenance gate, before any model spend: every input must resolve to
   // the exact active scan AND the exact active triage run.
