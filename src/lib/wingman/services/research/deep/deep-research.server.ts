@@ -1085,3 +1085,25 @@ export async function loadExternalSearchStatus(): Promise<ExternalSearchStatus> 
     lastRunOutcomes: telemetry?.outcomes ?? {},
   };
 }
+
+/**
+ * Marks a run row that was opened but never finished (provider crash, gateway
+ * rejection) as failed. Reports, sources, claims and milestones are untouched.
+ */
+async function failDanglingRun(
+  triageRunId: string,
+  mint: string,
+  message: string,
+): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from("deep_research_runs")
+    .update({
+      status: "failed",
+      error: message,
+      completed_at: new Date().toISOString(),
+    })
+    .eq("triage_run_id", triageRunId)
+    .eq("mint", mint)
+    .eq("status", "running");
+  if (error) console.error("failDanglingRun", error.message);
+}
