@@ -154,7 +154,34 @@ const COMMUNITY_HOSTS =
 const ON_CHAIN_MIRROR_HOSTS =
   /(^|\.)(solscan\.io|solana\.fm|solanabeach\.io|explorer\.solana\.com|xray\.helius\.xyz|birdeye\.so|dexscreener\.com|dextools\.io|geckoterminal\.com|defined\.fi|jup\.ag|jupiter\.ag|phantom\.app|gmgn\.ai|rugcheck\.xyz|bubblemaps\.io|holderscan\.com|coingecko\.com|coinmarketcap\.com|pump\.fun)$/;
 
+function hostOf(url: string): string | null {
+  try {
+    return new URL(url).hostname.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return null;
+  }
+}
+
+/** Social handle/path identity, e.g. x.com/foo/status/1 → x.com|foo. */
+function socialIdentity(url: string): string | null {
+  const host = hostOf(url);
+  if (!host) return null;
+  try {
+    const path = new URL(url).pathname.split("/").filter(Boolean);
+    if (/(^|\.)x\.com$|(^|\.)twitter\.com$/.test(host)) {
+      const handle = path[0]?.toLowerCase();
+      if (!handle || handle === "i" || handle === "search") return null;
+      return `x.com|${handle}`;
+    }
+    if (/(^|\.)t\.me$/.test(host)) return path[0] ? `t.me|${path[0].toLowerCase()}` : null;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 /** True when the source only mirrors on-chain state rather than adding evidence. */
+
 export function isOnChainMirror(url: string | null): boolean {
   if (!url) return false;
   const host = hostOf(url);
