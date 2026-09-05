@@ -15,12 +15,15 @@ export const runDeepResearchBatch = createServerFn({ method: "POST" })
   .inputValidator((input?: { mode?: "PRODUCTION" | "CALIBRATION"; limit?: number; offset?: number; triageRunId?: string | null; retryFailed?: boolean; startNotStarted?: boolean; requireActiveCohort?: boolean }) => ({
     mode: input?.mode === "PRODUCTION" ? ("production" as const) : ("calibration" as const),
     // Deliberate rank-ordered batches by persisted AI triage rank (1–12).
-    limit: Math.min(Math.max(input?.limit ?? 3, 1), 12),
+    limit: Math.min(Math.max(input?.limit ?? 3, 1), 40),
     offset: Math.min(Math.max(input?.offset ?? 0, 0), 24),
     triageRunId: input?.triageRunId ?? null,
     // Retry only re-attempts retryable execution failures (AI credits, rate
     // limits, transient providers). Finished reports are never rerun.
     retryFailed: input?.retryFailed === true,
+    // Start-only mode: research shortlist members with no persisted attempt.
+    startNotStarted: input?.startNotStarted === true,
+    requireActiveCohort: input?.requireActiveCohort === true,
   }))
 
   .handler(async ({ data }): Promise<DeepResearchBatchResult> => {
@@ -30,6 +33,8 @@ export const runDeepResearchBatch = createServerFn({ method: "POST" })
       limit: data.limit,
       offset: data.offset,
       retryFailedOnly: data.retryFailed,
+      startNotStartedOnly: data.startNotStarted,
+      requireActiveCohort: data.requireActiveCohort,
       ...(data.triageRunId ? { triageRunId: data.triageRunId } : {}),
     });
   });
