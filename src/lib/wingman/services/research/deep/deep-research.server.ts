@@ -806,7 +806,30 @@ async function insertRun(input: {
   return (data as Row)["id"] as string;
 }
 
+/**
+ * Records the eligibility recheck performed after research finished. Reports,
+ * sources, claims and milestones are never modified.
+ */
+async function recordEligibilityAfter(
+  runId: string,
+  after: { researchEligibleNow: boolean; exclusionReasons: string[] },
+): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from("deep_research_runs")
+    .update({
+      eligibility_after: {
+        ...after,
+        blockedAfterResearch: !after.researchEligibleNow,
+        code: after.researchEligibleNow ? "ELIGIBLE" : "CURRENTLY_BLOCKED_AFTER_RESEARCH",
+        recheckedAt: new Date().toISOString(),
+      } as never,
+    })
+    .eq("id", runId);
+  if (error) throw new Error(error.message);
+}
+
 async function finishRun(
+
   runId: string,
   input: {
     status: string;
