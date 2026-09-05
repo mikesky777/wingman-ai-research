@@ -24,6 +24,9 @@ export interface ActiveResearchCohort {
     discoveredTokenCount: number | null;
     policyVersion: string | null;
     packetCount: number;
+    /** Persisted outcome of automatic/manual packet generation, if recorded. */
+    packetStatus: "READY" | "NOT_STARTED" | "FAILED";
+    packetError: string | null;
   } | null;
   triageRunId: string | null;
   triageStatus: string | null;
@@ -64,6 +67,19 @@ export async function loadCohortThesisRunId(
   return data ? ((data as Row)["id"] as string) : null;
 }
 
+/**
+ * Packet stage for the active scan. Real packets always win: a stale FAILED
+ * marker never hides packets that exist, and a missing marker with zero
+ * packets is honestly NOT_STARTED.
+ */
+export function derivePacketStatus(
+  packetCount: number,
+  recordedStatus: string | null,
+): "READY" | "NOT_STARTED" | "FAILED" {
+  if (packetCount > 0) return "READY";
+  return recordedStatus === "FAILED" ? "FAILED" : "NOT_STARTED";
+}
+
 export async function loadActiveResearchCohort(): Promise<ActiveResearchCohort> {
   const eligibility = await selectActiveProductionScan();
   if (!eligibility.ok || !eligibility.runId) {
@@ -79,7 +95,9 @@ export async function loadActiveResearchCohort(): Promise<ActiveResearchCohort> 
 
   const { data } = await supabaseAdmin
     .from("scan_runs")
-    .select("id, completed_at, tokens_discovered, selection_policy_version")
+    .select(
+      "id, completed_at, tokens_discovered, selection_policy_version, research_packet_status, research_packet_error",
+    )
     .eq("id", eligibility.runId)
     .maybeSingle();
   const r = (data as Row | null) ?? null;
@@ -96,6 +114,11 @@ export async function loadActiveResearchCohort(): Promise<ActiveResearchCohort> 
       discoveredTokenCount: (r?.["tokens_discovered"] as number) ?? null,
       policyVersion: (r?.["selection_policy_version"] as string) ?? null,
       packetCount: eligibility.researchPacketCount,
+      packetStatus: derivePacketStatus(
+        eligibility.researchPacketCount,
+        (r?.["research_packet_status"] as string) ?? null,
+      ),
+      packetError: (r?.["research_packet_error"] as string) ?? null,
     },
     triageRunId: triage?.id ?? null,
     triageStatus: triage?.status ?? null,
