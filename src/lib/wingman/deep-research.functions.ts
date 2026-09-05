@@ -52,3 +52,13 @@ export const getExternalSearchStatus = createServerFn({ method: "GET" }).handler
     return loadExternalSearchStatus();
   },
 );
+
+/** One persisted dossier by id (production or calibration), read-only. */
+export const getDeepResearchReport = createServerFn({ method: "GET" })
+  .inputValidator((input: { id: string }) => ({ id: String(input.id) }))
+  .handler(async ({ data }): Promise<DeepResearchReportSummary | null> => {
+    const { loadDeepResearchReportById } = await import(
+      "./services/research/production-view.server"
+    );
+    return loadDeepResearchReportById(data.id);
+  });
