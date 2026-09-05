@@ -8,7 +8,8 @@
  * this module.
  */
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { selectEligibleProductionScan } from "./packet.server";
+import { selectActiveProductionScan } from "./packet.server";
+
 import type { AiScanSourceResult } from "./ai-scan-source";
 import { RESEARCH_COHORT_VERSION } from "./cohort";
 
