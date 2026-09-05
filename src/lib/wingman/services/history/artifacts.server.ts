@@ -61,7 +61,7 @@ export async function loadHistoryArtifacts(): Promise<HistoryArtifacts> {
     supabaseAdmin
       .from("thesis_reports")
       .select(
-        "id, mint, symbol, name, created_at, thesis_score, evidence_confidence, verdict, bear_case_severity, one_sentence_thesis, strongest_bear_case, qualified_as_opportunity, thesis_policy_version, rubric_version, prompt_version, model_provider, model_identifier",
+        "id, token_id, mint, symbol, name, created_at, thesis_score, evidence_confidence, verdict, bear_case_severity, one_sentence_thesis, strongest_bear_case, qualified_as_opportunity, thesis_policy_version, rubric_version, prompt_version, model_provider, model_identifier, market_cap_at_synthesis, price_at_synthesis, liquidity_at_synthesis, source_scan_id, triage_run_id, deep_research_run_id",
       )
       .eq("is_calibration", false)
       .order("created_at", { ascending: false }),
