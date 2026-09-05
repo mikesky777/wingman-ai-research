@@ -325,7 +325,26 @@ export async function runDeepResearch(
         isCalibration,
         eligibility,
       });
+      // Eligibility is rechecked AFTER research against fresh market state.
+      // A token that collapses mid-research keeps its report and its
+      // AI_SHORTLIST milestone, but is flagged so nothing downstream (e.g.
+      // Thesis Synthesis) may advance it.
+      if (scanCandidate && result.deepResearchRunId) {
+        const freshMarkets = await loadCurrentMarkets([scanCandidate.tokenId]);
+        const after = assessResearchEligibility({
+          candidate: scanCandidate,
+          currentPriceChange1h: freshMarkets.get(scanCandidate.tokenId)?.priceChange1h ?? null,
+        });
+        await recordEligibilityAfter(result.deepResearchRunId, after);
+        if (!after.researchEligibleNow) {
+          result.blockedReasons = [
+            "CURRENTLY_BLOCKED_AFTER_RESEARCH",
+            ...after.exclusionReasons,
+          ];
+        }
+      }
       results.push(result);
+
     } catch (error) {
       // Failure isolation: one bad candidate never aborts the batch.
       results.push({
