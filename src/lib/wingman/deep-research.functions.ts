@@ -12,7 +12,7 @@ import type {
 } from "./services/research/deep/deep-research.server";
 
 export const runDeepResearchBatch = createServerFn({ method: "POST" })
-  .inputValidator((input?: { mode?: "PRODUCTION" | "CALIBRATION"; limit?: number; offset?: number; triageRunId?: string | null; retryFailed?: boolean }) => ({
+  .inputValidator((input?: { mode?: "PRODUCTION" | "CALIBRATION"; limit?: number; offset?: number; triageRunId?: string | null; retryFailed?: boolean; startNotStarted?: boolean; requireActiveCohort?: boolean }) => ({
     mode: input?.mode === "PRODUCTION" ? ("production" as const) : ("calibration" as const),
     // Deliberate rank-ordered batches by persisted AI triage rank (1–12).
     limit: Math.min(Math.max(input?.limit ?? 3, 1), 12),
