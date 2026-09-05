@@ -160,10 +160,14 @@ export async function loadProductionFunnel(): Promise<ProductionFunnel> {
   let entryActionableCount = 0;
   let sizingCount = 0;
 
-  if (cohort.thesisSynthesisRunId) {
-    const { reportIds, callMilestoneIds } = await loadCohortThesisReportIds(
-      cohort.thesisSynthesisRunId,
-    );
+  if (triage.run.id) {
+    // Cohort-wide: the union of every production synthesis batch for this
+    // triage run, so partial batches never hide earlier thesis reports.
+    const refs = await loadCohortThesisReports(triage.run.id);
+    const reportIds = refs.map((r) => r.id);
+    const callMilestoneIds = refs
+      .map((r) => r.thesisCallMilestoneId)
+      .filter((v): v is string => Boolean(v));
     thesisReportCount = reportIds.length;
     thesisCallCount = callMilestoneIds.length;
 
