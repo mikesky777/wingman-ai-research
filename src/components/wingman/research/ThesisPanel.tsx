@@ -14,7 +14,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Section } from "@/components/wingman/Section";
 import { EmptyState } from "@/components/wingman/EmptyState";
-import { getThesisReports, runThesisSynthesisBatch } from "@/lib/wingman/thesis.functions";
+import {
+  getThesisProgress,
+  getThesisReports,
+  runThesisSynthesisBatch,
+} from "@/lib/wingman/thesis.functions";
+
 import { TokenIdentity } from "@/components/wingman/TokenIdentity";
 import { componentsForRubric } from "@/lib/wingman/services/research/thesis/contracts";
 import { relativeTime, formatUsd } from "@/lib/wingman/format";
