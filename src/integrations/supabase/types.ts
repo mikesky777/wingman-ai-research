@@ -1706,6 +1706,118 @@ export type Database = {
         }
         Relationships: []
       }
+      sizing_recommendations: {
+        Row: {
+          calculated_at: string
+          conviction_band: string
+          conviction_band_label: string
+          created_at: string
+          deploy_now_pct: number
+          deployment_fraction: number
+          deployment_label: string
+          effective_max_allocation_pct: number
+          entry_evaluation_id: string | null
+          entry_state: string
+          evidence_cap_multiplier: number
+          evidence_confidence: number | null
+          id: string
+          is_calibration: boolean
+          mint: string
+          operational_status: string
+          price_history_source: string | null
+          raw_interpolated_max_pct: number
+          reason_codes: string[]
+          reserve_pct: number
+          sizing_policy_version: string
+          structural_modifier: number
+          structural_risk: string
+          thesis_call_id: string | null
+          thesis_report_id: string | null
+          thesis_score: number | null
+          timing_resolution: string | null
+        }
+        Insert: {
+          calculated_at?: string
+          conviction_band: string
+          conviction_band_label: string
+          created_at?: string
+          deploy_now_pct: number
+          deployment_fraction: number
+          deployment_label: string
+          effective_max_allocation_pct: number
+          entry_evaluation_id?: string | null
+          entry_state: string
+          evidence_cap_multiplier: number
+          evidence_confidence?: number | null
+          id?: string
+          is_calibration?: boolean
+          mint: string
+          operational_status: string
+          price_history_source?: string | null
+          raw_interpolated_max_pct: number
+          reason_codes?: string[]
+          reserve_pct: number
+          sizing_policy_version: string
+          structural_modifier: number
+          structural_risk: string
+          thesis_call_id?: string | null
+          thesis_report_id?: string | null
+          thesis_score?: number | null
+          timing_resolution?: string | null
+        }
+        Update: {
+          calculated_at?: string
+          conviction_band?: string
+          conviction_band_label?: string
+          created_at?: string
+          deploy_now_pct?: number
+          deployment_fraction?: number
+          deployment_label?: string
+          effective_max_allocation_pct?: number
+          entry_evaluation_id?: string | null
+          entry_state?: string
+          evidence_cap_multiplier?: number
+          evidence_confidence?: number | null
+          id?: string
+          is_calibration?: boolean
+          mint?: string
+          operational_status?: string
+          price_history_source?: string | null
+          raw_interpolated_max_pct?: number
+          reason_codes?: string[]
+          reserve_pct?: number
+          sizing_policy_version?: string
+          structural_modifier?: number
+          structural_risk?: string
+          thesis_call_id?: string | null
+          thesis_report_id?: string | null
+          thesis_score?: number | null
+          timing_resolution?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sizing_recommendations_entry_evaluation_id_fkey"
+            columns: ["entry_evaluation_id"]
+            isOneToOne: false
+            referencedRelation: "entry_state_evaluations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sizing_recommendations_thesis_call_id_fkey"
+            columns: ["thesis_call_id"]
+            isOneToOne: false
+            referencedRelation: "token_stage_milestones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sizing_recommendations_thesis_report_id_fkey"
+            columns: ["thesis_report_id"]
+            isOneToOne: false
+            referencedRelation: "thesis_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       structural_evaluations: {
         Row: {
           chain: string
