@@ -537,6 +537,17 @@ export async function runThesisSynthesis(
       gateDiagnostics,
     });
 
+    // Freeze the thesis-time market baseline once, append-only. Never
+    // rewritten and never fatal to a synthesis that already succeeded.
+    await captureThesisBaseline({
+      reportId,
+      runId,
+      candidate: s,
+      isCalibration,
+      observation: s.input.tokenId ? (markets.get(s.input.tokenId) ?? null) : null,
+    });
+
+
     results.push({
       mint: s.input.mint,
       symbol: s.input.symbol,
