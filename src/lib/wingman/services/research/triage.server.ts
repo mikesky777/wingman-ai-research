@@ -706,16 +706,29 @@ export interface PersistedTriageDecision {
 /** Newest persisted triage run plus its decisions. Read-only. */
 export async function loadLatestTriage(
   mode: "PRODUCTION" | "CALIBRATION" = "PRODUCTION",
+  options: { sourceScanId?: string | null; requireScan?: boolean } = {},
 ): Promise<{
   run: TriageRunSummary;
   decisions: PersistedTriageDecision[];
 } | null> {
   // Mode is authoritative: a later calibration run must never be shown as the
   // production current state, and vice versa.
-  const { data, error } = await supabaseAdmin
+  //
+  // PRODUCTION is additionally cohort-scoped: it is the triage of the ACTIVE
+  // eligible scan, never the globally newest triage of an older cohort.
+  let scanId = options.sourceScanId ?? null;
+  if (mode === "PRODUCTION" && !scanId && options.requireScan !== false) {
+    const { loadActiveResearchCohort } = await import("./cohort.server");
+    const cohort = await loadActiveResearchCohort();
+    if (!cohort.scan) return null;
+    scanId = cohort.scan.id;
+  }
+  let query = supabaseAdmin
     .from("ai_triage_runs")
     .select("*")
-    .eq("is_calibration", mode === "CALIBRATION")
+    .eq("is_calibration", mode === "CALIBRATION");
+  if (scanId) query = query.eq("source_scan_id", scanId);
+  const { data, error } = await query
     .order("started_at", { ascending: false })
     .limit(1)
     .maybeSingle();
