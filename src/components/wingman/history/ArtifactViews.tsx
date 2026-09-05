@@ -17,14 +17,18 @@ import { getHistoryArtifacts } from "@/lib/wingman/history.functions";
 import { formatDate, formatUsd } from "@/lib/wingman/format";
 import {
   ARTIFACT_NO_BASELINE_NOTE as NO_BASELINE_NOTE,
+  SAME_COHORT_RERUN_LABEL,
   THESIS_NO_BASELINE_NOTE,
+  selectThesisPopulation,
   sortThesisArtifacts,
   summarizeThesisArtifacts,
+  thesisPopulationCounts,
   type ArtifactStat,
   type DeepResearchArtifact,
   type ThesisArtifact,
   type ThesisArtifactSort,
   type ThesisPerformanceSummary,
+  type ThesisPopulation,
 } from "@/lib/wingman/services/history/artifacts";
 
 function useArtifacts() {
@@ -226,10 +230,13 @@ function ThesisPerformanceRow({ row }: { row: ThesisArtifact }) {
 export function ThesisSynthesizedArtifacts() {
   const { data, isLoading } = useArtifacts();
   const [sort, setSort] = useState<ThesisArtifactSort>("RECENT");
+  const [population, setPopulation] = useState<ThesisPopulation>("THESIS_EVENTS");
   const rows: ThesisArtifact[] = data?.thesis ?? [];
   const sorted = sortThesisArtifacts(rows, sort);
-  const summary = summarizeThesisArtifacts(rows);
-  const unmeasured = rows.length - summary.artifactsWithBaseline;
+  const counts = thesisPopulationCounts(rows);
+  const measuredPopulation = selectThesisPopulation(rows, population);
+  const summary = summarizeThesisArtifacts(measuredPopulation);
+  const unmeasured = measuredPopulation.length - summary.artifactsWithBaseline;
 
   return (
     <Section
@@ -245,6 +252,32 @@ export function ThesisSynthesizedArtifacts() {
         />
       ) : (
         <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="font-mono text-[10px] tracking-wide text-muted-foreground">
+              {counts.storedArtifacts} stored artifacts · {counts.thesisEvents} thesis events ·{" "}
+              {counts.uniqueTokens} unique tokens
+            </span>
+            <div className="flex items-center gap-1">
+              {(
+                [
+                  ["THESIS_EVENTS", "THESIS EVENTS"],
+                  ["UNIQUE_TOKENS", "UNIQUE TOKENS"],
+                ] as [ThesisPopulation, string][]
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  onClick={() => setPopulation(id)}
+                  className={`rounded border px-2 py-1 font-mono text-[10px] tracking-wide ${
+                    population === id
+                      ? "border-primary text-primary"
+                      : "border-border text-muted-foreground"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
           <ThesisSummaryCards summary={summary} />
           <div className="flex flex-wrap items-center gap-2">
             {SORTS.map((s) => (
@@ -262,7 +295,7 @@ export function ThesisSynthesizedArtifacts() {
             ))}
             {unmeasured > 0 ? (
               <span className="text-[10px] text-muted-foreground">
-                {unmeasured} of {rows.length} without a thesis-time baseline
+                {unmeasured} of {measuredPopulation.length} without a thesis-time baseline
               </span>
             ) : null}
           </div>
@@ -284,6 +317,11 @@ export function ThesisSynthesizedArtifacts() {
                     <span className="block">
                       {r.verdict ?? "—"} · bear {r.bearCaseSeverity ?? "—"}
                     </span>
+                    {r.sameCohortRerun ? (
+                      <span className="mt-1 block font-mono text-[9px] tracking-wide text-muted-foreground">
+                        {SAME_COHORT_RERUN_LABEL}
+                      </span>
+                    ) : null}
                   </>
                 }
                 summary={r.oneSentenceThesis}

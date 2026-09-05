@@ -17,6 +17,7 @@ import {
 } from "../outcomes/market-validity";
 import { deriveStageOutcome } from "./stage-outcomes";
 import type { CandidateAppearance, SnapshotObservation } from "../outcomes/outcomes";
+import { classifyThesisArtifacts } from "./artifacts";
 import type {
   DeepResearchArtifact,
   HistoryArtifactIdentity,
@@ -77,7 +78,7 @@ export async function loadHistoryArtifacts(): Promise<HistoryArtifacts> {
     supabaseAdmin
       .from("thesis_reports")
       .select(
-        "id, token_id, mint, symbol, name, created_at, thesis_score, evidence_confidence, verdict, bear_case_severity, one_sentence_thesis, strongest_bear_case, qualified_as_opportunity, thesis_policy_version, rubric_version, prompt_version, model_provider, model_identifier, market_cap_at_synthesis, price_at_synthesis, liquidity_at_synthesis, triage_run_id, deep_research_run_id",
+        "id, token_id, mint, symbol, name, created_at, thesis_score, evidence_confidence, verdict, bear_case_severity, one_sentence_thesis, strongest_bear_case, qualified_as_opportunity, thesis_policy_version, rubric_version, prompt_version, model_provider, model_identifier, market_cap_at_synthesis, price_at_synthesis, liquidity_at_synthesis, triage_run_id, deep_research_run_id, deep_research_report_id, thesis_synthesis_run_id",
       )
       .eq("is_calibration", false)
       .order("created_at", { ascending: false }),
@@ -142,6 +143,23 @@ export async function loadHistoryArtifacts(): Promise<HistoryArtifacts> {
 
   const measured = await loadThesisMeasurements(thesisRows);
 
+  // Cohort/scan provenance for calibration metadata (read-only).
+  const thesisRunIds = [
+    ...new Set(
+      thesisRows.map((r) => str(r, "thesis_synthesis_run_id")).filter((v): v is string => !!v),
+    ),
+  ];
+  const scanByRun = new Map<string, string | null>();
+  for (const ids of chunk(thesisRunIds)) {
+    const { data } = await supabaseAdmin
+      .from("thesis_synthesis_runs")
+      .select("id, source_scan_id")
+      .in("id", ids);
+    for (const row of ((data as Row[]) ?? [])) {
+      scanByRun.set(row["id"] as string, (row["source_scan_id"] as string | null) ?? null);
+    }
+  }
+
   const thesis: ThesisArtifact[] = thesisRows.map((r) => {
     const id = r["id"] as string;
     const m = measured.get(id) ?? { baseline: null, performance: null };
@@ -163,15 +181,21 @@ export async function loadHistoryArtifacts(): Promise<HistoryArtifacts> {
       promptVersion: str(r, "prompt_version"),
       modelProvider: str(r, "model_provider"),
       modelIdentifier: str(r, "model_identifier"),
-      sourceScanId: null,
+      sourceScanId: scanByRun.get(str(r, "thesis_synthesis_run_id") ?? "") ?? null,
       triageRunId: str(r, "triage_run_id"),
       deepResearchRunId: str(r, "deep_research_run_id"),
+      deepResearchReportId: str(r, "deep_research_report_id"),
+      // Overwritten by classifyThesisArtifacts below.
+      canonicalWithinCohortMint: true,
+      sameCohortRerun: false,
+      recurrenceNumberAcrossProductionCohorts: 0,
+      timeSincePriorCanonicalSynthesisMs: null,
       baseline: m.baseline,
       performance: m.performance,
     };
   });
 
-  return { deepResearch, thesis };
+  return { deepResearch, thesis: classifyThesisArtifacts(thesis) };
 }
 
 interface ThesisMeasurement {

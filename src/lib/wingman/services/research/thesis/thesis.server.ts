@@ -13,6 +13,7 @@
  */
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { assertThesisInputProvenance } from "../cohort";
+import { isUniqueViolation, productionIdempotencyKey } from "./idempotency";
 import { recordAiStageMilestone } from "../../history/milestones.server";
 import { assessResearchEligibility } from "../packet";
 import { loadCurrentMarkets, loadRunCandidates, type LoadedCandidate } from "../packet.server";
@@ -65,6 +66,7 @@ export type ThesisRunCode =
   | "NO_DEEP_RESEARCH_REPORTS"
   | "NO_ELIGIBLE_CANDIDATES"
   | "THESIS_INPUT_PROVENANCE_MISMATCH"
+  | "PRODUCTION_RUN_ALREADY_IN_FLIGHT"
   | "MISSING_API_KEY";
 
 export interface ThesisCandidateResult {
@@ -400,7 +402,9 @@ export async function runThesisSynthesis(
   if (cohortAll.length === 0) return emptyBatch(mode, "NO_DEEP_RESEARCH_REPORTS", provider);
 
   // Production never re-synthesises a candidate that already has a settled
-  // production thesis report for this cohort. Batches therefore resume safely.
+  // production thesis report for this cohort, and never one that already has a
+  // canonical artifact for the exact Deep Research report. Both checks run
+  // BEFORE any model spend; the DB unique index is the race-safe backstop.
   let cohort = cohortAll;
   if (!isCalibration && activeTriageRunId) {
     const { loadCohortThesisReports, isSettledThesisStatus } = await import("../cohort.server");
@@ -408,7 +412,26 @@ export async function runThesisSynthesis(
     const settled = new Set(
       existing.filter((r) => isSettledThesisStatus(r.status)).map((r) => r.mint),
     );
-    cohort = cohortAll.filter((c) => !settled.has(c.mint));
+    const claimedKeys = await loadClaimedProductionKeys(
+      cohortAll
+        .map((c) =>
+          productionIdempotencyKey({
+            triageRunId: c.triageRunId ?? null,
+            mint: c.mint,
+            deepResearchReportId: c.reportId ?? null,
+          }),
+        )
+        .filter((k): k is string => Boolean(k)),
+    );
+    cohort = cohortAll.filter((c) => {
+      if (settled.has(c.mint)) return false;
+      const key = productionIdempotencyKey({
+        triageRunId: c.triageRunId ?? null,
+        mint: c.mint,
+        deepResearchReportId: c.reportId ?? null,
+      });
+      return !(key && claimedKeys.has(key));
+    });
     if (cohort.length === 0) return emptyBatch(mode, "NO_ELIGIBLE_CANDIDATES", provider);
   }
 
@@ -448,7 +471,11 @@ export async function runThesisSynthesis(
   }
   const markets = await loadCurrentMarkets(tokenIds);
 
+  // Cohort lock: a partial unique index allows only one in-flight production
+  // run per triage cohort, so an overlapping/double-clicked request is
+  // rejected here — before any model spend.
   const runId = await insertRun({ isCalibration, provider, inputs: selected });
+  if (runId === null) return emptyBatch(mode, "PRODUCTION_RUN_ALREADY_IN_FLIGHT", provider);
 
   const synthesized: SynthesizedCandidate[] = [];
   for (const input of selected) {
@@ -552,6 +579,10 @@ export async function runThesisSynthesis(
       thesisCallMilestoneId,
       gateDiagnostics,
     });
+
+    // The canonical artifact was written by a concurrent production batch.
+    // No second artifact, no second baseline, no rewrite of the existing one.
+    if (reportId === null) continue;
 
     // Freeze the thesis-time market baseline once, append-only. Never
     // rewritten and never fatal to a synthesis that already succeeded.
@@ -876,11 +907,35 @@ async function recordThesisCall(args: {
   return data ? ((data as Row)["id"] as string) : null;
 }
 
+/**
+ * Production idempotency keys already claimed by a persisted production
+ * thesis artifact. Read before any model spend.
+ */
+async function loadClaimedProductionKeys(keys: string[]): Promise<Set<string>> {
+  const claimed = new Set<string>();
+  if (keys.length === 0) return claimed;
+  for (let i = 0; i < keys.length; i += 100) {
+    const { data } = await supabaseAdmin
+      .from("thesis_reports")
+      .select("production_idempotency_key")
+      .in("production_idempotency_key", keys.slice(i, i + 100));
+    for (const row of ((data as Row[]) ?? [])) {
+      const key = row["production_idempotency_key"];
+      if (typeof key === "string") claimed.add(key);
+    }
+  }
+  return claimed;
+}
+
+/**
+ * Opens a synthesis run. Production returns `null` when another production
+ * run for the same cohort is already in flight (partial unique index).
+ */
 async function insertRun(input: {
   isCalibration: boolean;
   provider: ThesisProvider;
   inputs: ThesisInputCandidate[];
-}): Promise<string> {
+}): Promise<string | null> {
   const { data, error } = await supabaseAdmin
     .from("thesis_synthesis_runs")
     .insert({
@@ -898,7 +953,10 @@ async function insertRun(input: {
     })
     .select("id")
     .single();
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (!input.isCalibration && isUniqueViolation(error)) return null;
+    throw new Error(error.message);
+  }
   return (data as Row)["id"] as string;
 }
 
@@ -974,7 +1032,7 @@ async function insertReport(args: {
   qualified: boolean;
   thesisCallMilestoneId: string | null;
   gateDiagnostics: GateDiagnostics;
-}): Promise<string> {
+}): Promise<string | null> {
   const { candidate: s } = args;
   const c = s.components;
   const sem = s.semantics;
@@ -1063,10 +1121,25 @@ async function insertReport(args: {
       model_provider: args.provider.provider,
       model_identifier: args.provider.model,
       diagnostics: ({ ...s.diagnostics, validationIssues: s.validationIssues, error: s.error } ) as never,
+      // thesis_idempotency/v1 — production only. The partial unique index on
+      // this column is the transaction-safe guarantee that one production
+      // Deep Research artifact yields at most one canonical thesis artifact.
+      production_idempotency_key: args.isCalibration
+        ? null
+        : productionIdempotencyKey({
+            triageRunId: s.input.triageRunId ?? null,
+            mint: s.input.mint,
+            deepResearchReportId: s.input.reportId ?? null,
+          }),
     })
     .select("id")
     .single();
-  if (error) throw new Error(error.message);
+  if (error) {
+    // A concurrent production batch already wrote the canonical artifact for
+    // this exact cohort × mint × Deep Research report. Never a second one.
+    if (!args.isCalibration && isUniqueViolation(error)) return null;
+    throw new Error(error.message);
+  }
   return (data as Row)["id"] as string;
 }
 
