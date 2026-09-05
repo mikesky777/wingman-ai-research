@@ -431,7 +431,7 @@ export function validateThesisOutput(
     }
     components[c.key] = clamped;
   }
-  const thesisScore = THESIS_COMPONENTS.reduce((sum, c) => sum + components[c.key], 0);
+  const thesisScore = THESIS_COMPONENTS.reduce((sum, c) => sum + (components[c.key] ?? 0), 0);
 
   const sections = {} as ThesisSections;
   const rawSections = (obj["sections"] && typeof obj["sections"] === "object"
