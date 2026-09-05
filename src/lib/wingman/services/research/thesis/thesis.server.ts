@@ -1087,7 +1087,17 @@ export interface ThesisReportSummary {
   verdict: string | null;
   bearSeverity: string | null;
   components: ComponentScores | null;
-  evidenceDeductions: { code: string; points: number; detail: string }[];
+  evidenceDeductions: {
+    code: string;
+    points: number;
+    detail: string;
+    unresolvedReasons?: string[];
+    searchHealth?: string;
+  }[];
+  /** evidence_confidence/v1.1 artifact; null on frozen v1 reports. */
+  evidenceConfidenceVersion: string | null;
+  evidenceConfidenceRawScore: number | null;
+  evidenceConfidenceArtifact: Record<string, unknown> | null;
   oneSentenceThesis: string | null;
   narrativeThesis: string | null;
   sections: ThesisSections | null;
@@ -1242,6 +1252,10 @@ export async function loadThesisReports(
     components: (r["component_scores"] as ComponentScores) ?? null,
     evidenceDeductions:
       (r["evidence_confidence_components"] as ThesisReportSummary["evidenceDeductions"]) ?? [],
+    evidenceConfidenceVersion: (r["evidence_confidence_version"] as string) ?? null,
+    evidenceConfidenceRawScore: (r["evidence_confidence_raw_score"] as number) ?? null,
+    evidenceConfidenceArtifact:
+      (r["evidence_confidence_artifact"] as Record<string, unknown>) ?? null,
     oneSentenceThesis: (r["one_sentence_thesis"] as string) ?? null,
     narrativeThesis: (r["narrative_thesis"] as string) ?? null,
     sections: (r["sections"] as ThesisSections) ?? null,
