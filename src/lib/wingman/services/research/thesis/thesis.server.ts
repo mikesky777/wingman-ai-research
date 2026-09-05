@@ -1102,3 +1102,40 @@ export async function loadThesisReports(
     sources: sourcesByReport.get((r["deep_research_report_id"] as string) ?? "") ?? [],
   }));
 }
+
+export interface ThesisProgress {
+  triageRunId: string | null;
+  /** Settled deep-research dossiers in the active cohort that thesis can consume. */
+  eligible: number;
+  /** Candidates with a settled production thesis report in this cohort. */
+  synthesized: number;
+  /** Eligible candidates still waiting for a thesis. */
+  pending: number;
+  /** Production THESIS_CALL milestones in this cohort. */
+  thesisCalls: number;
+}
+
+/**
+ * Thesis batch progress for the ACTIVE production cohort. Read-only.
+ */
+export async function loadThesisProgress(): Promise<ThesisProgress> {
+  const { loadActiveResearchCohort, loadCohortThesisReports, isSettledThesisStatus } = await import(
+    "../cohort.server"
+  );
+  const active = await loadActiveResearchCohort();
+  if (!active.triageRunId) {
+    return { triageRunId: null, eligible: 0, synthesized: 0, pending: 0, thesisCalls: 0 };
+  }
+  const inputs = await loadThesisInputs({ isCalibration: false, triageRunId: active.triageRunId });
+  const cohort = inputs.filter((c) => c.triageRunId === active.triageRunId);
+  const refs = await loadCohortThesisReports(active.triageRunId);
+  const settled = new Set(refs.filter((r) => isSettledThesisStatus(r.status)).map((r) => r.mint));
+  const pending = cohort.filter((c) => !settled.has(c.mint)).length;
+  return {
+    triageRunId: active.triageRunId,
+    eligible: cohort.length,
+    synthesized: settled.size,
+    pending,
+    thesisCalls: refs.filter((r) => r.thesisCallMilestoneId).length,
+  };
+}
