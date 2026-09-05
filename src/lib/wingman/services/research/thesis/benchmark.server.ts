@@ -406,38 +406,33 @@ async function loadPairAddresses(mints: string[]): Promise<Map<string, string | 
   return out;
 }
 
+export interface BenchmarkPlan {
+  fullCohortPasses: number;
+  stabilityPasses: number;
+  concurrency: number;
+  synthesisCallsExecuted: number;
+  reusedSamples: number;
+}
+
 export function buildBenchmarkComparison(args: {
   base: ThesisBenchmarkResult;
   access: { selectedModel: string | null; usedFallback: boolean; attempts: OpenAiModelAccessAttempt[] };
   baselines: FrozenThesisBaseline[];
-  batches: ThesisBatchResult[];
+  samplesByMint: Map<string, BenchmarkRunSample[]>;
+  stabilityMints: Set<string>;
+  plan: BenchmarkPlan;
+  executed: ThesisBatchResult[];
   cohortRunId: string;
   cohortModel: string | null;
   pairByMint: Map<string, string | null>;
-  narrativeByRunMint?: Map<string, BenchmarkNarrative>;
 }): ThesisBenchmarkResult {
-  const { base, access, baselines, batches, cohortRunId, cohortModel, pairByMint } = args;
-  const narratives = args.narrativeByRunMint ?? new Map<string, BenchmarkNarrative>();
+  const { base, access, baselines, cohortRunId, cohortModel, pairByMint, plan, executed } = args;
+  const batches = executed;
 
   const comparisons: BenchmarkCandidateComparison[] = baselines.map((b) => {
-    const samples: BenchmarkRunSample[] = [];
-    for (const batch of batches) {
-      const c = batch.candidates.find((x) => x.mint === b.mint);
-      if (!c) continue;
-      const narrative = narratives.get(`${batch.runId ?? ""}:${b.mint}`) ?? null;
-      samples.push({
-        runId: batch.runId ?? "",
-        thesisScore: c.thesisScore,
-        evidenceConfidence: c.evidenceConfidence,
-        verdict: c.verdict,
-        bearSeverity: c.bearSeverity,
-        components: c.components,
-        catalystKind: narrative?.catalystKind ?? "NONE",
-        strongestCatalyst: narrative?.strongestCatalyst ?? null,
-        strongestBearCase: narrative?.strongestBearCase ?? null,
-        status: c.status,
-      });
-    }
+    const target = args.stabilityMints.has(b.mint) ? plan.stabilityPasses : plan.fullCohortPasses;
+    const samples: BenchmarkRunSample[] = (args.samplesByMint.get(b.mint) ?? []).slice(0, target);
+
 
     const scores = samples.map((s) => s.thesisScore).filter((v): v is number => v !== null);
     const confs = samples.map((s) => s.evidenceConfidence).filter((v): v is number => v !== null);
