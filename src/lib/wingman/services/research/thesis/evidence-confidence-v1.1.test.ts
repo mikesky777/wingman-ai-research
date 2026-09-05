@@ -98,7 +98,7 @@ describe("evidence_confidence/v1.1 — independence semantics", () => {
         reliabilityClass: "SECONDARY",
         onChainMirror: true,
         evidenceOrigin: "ONCHAIN_STATE",
-      } as ResearchSource,
+      } as unknown as ResearchSource,
       {
         ref: "S2",
         url: "https://birdeye.so/token/abc",
@@ -109,7 +109,7 @@ describe("evidence_confidence/v1.1 — independence semantics", () => {
         reliabilityClass: "SECONDARY",
         onChainMirror: true,
         evidenceOrigin: "ONCHAIN_STATE",
-      } as ResearchSource,
+      } as unknown as ResearchSource,
       {
         ref: "S3",
         url: "https://www.coindesk.com/article",
@@ -120,7 +120,7 @@ describe("evidence_confidence/v1.1 — independence semantics", () => {
         reliabilityClass: "SECONDARY",
         onChainMirror: false,
         evidenceOrigin: "HOST:coindesk.com",
-      } as ResearchSource,
+      } as unknown as ResearchSource,
     ];
     const coverage = computeCoverage([] as ResearchClaim[], sources);
     expect(coverage.independentSourceCount).toBe(3);
@@ -161,8 +161,19 @@ describe("evidence_confidence/v1.1 — diagnostics, floors and search health", (
       searchHealth: "READY",
       searchUnavailable: false,
     });
+    const healthyEmptyInput: EvidenceConfidenceInput = {
+      ...base,
+      unresolvedDomainCount: 6,
+      unresolvedReasons: Array(6).fill("NO_EVIDENCE_FOUND"),
+      independentSourceCount: 0,
+      distinctIndependentEvidenceOrigins: 0,
+      sourceCount: 0,
+      sourceDomainDiversity: 0,
+      searchHealth: "READY",
+      searchUnavailable: false,
+    };
     const searchFailed = computeEvidenceConfidence({
-      ...healthyEmpty,
+      ...healthyEmptyInput,
       unresolvedReasons: Array(6).fill("SEARCH_UNAVAILABLE"),
       searchHealth: "SEARCH_UNAVAILABLE",
       searchUnavailable: true,

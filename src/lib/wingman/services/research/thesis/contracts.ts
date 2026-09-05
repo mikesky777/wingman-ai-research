@@ -195,7 +195,7 @@ export interface EvidenceConfidenceInput {
    */
   corroboratedClaimCount?: number;
   /** Confidence that sources refer to THIS exact mint. DIAGNOSTIC_ONLY. */
-  tokenIdentityConfidence?: string;
+  tokenIdentityConfidence?: string | undefined;
   /**
    * Confidence that a creator/team/project claim is correctly attributed.
    * This — NOT mint identity — drives the ATTRIBUTION deduction.
