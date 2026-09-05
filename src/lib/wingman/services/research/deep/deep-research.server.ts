@@ -67,6 +67,7 @@ export type DeepResearchRunCode =
   | "OK"
   | "NO_ELIGIBLE_TRIAGE_RUN"
   | "NO_DEEP_RESEARCH_CANDIDATES"
+  | "DEEP_RESEARCH_PROVENANCE_MISMATCH"
   | "MISSING_API_KEY";
 
 /**
