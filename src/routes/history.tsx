@@ -359,7 +359,9 @@ function StageView({ stage }: { stage: FunnelStage }) {
             title="No stage entries yet"
             description={
               policyApplies && policy === "CURRENT" && rows.length > 0
-                ? "No calls have been made yet under the current policy. Switch to All history to see earlier calls, measured under the rules that were live at the time."
+                ? stage === "SETUP_QUALIFIED"
+                  ? "No setups have been recorded yet under the current policy. Switch to All history to see earlier setups, measured under the rules that were live at the time."
+                  : "No calls have been made yet under the current policy. Switch to All history to see earlier calls, measured under the rules that were live at the time."
                 : stage === "SURVIVOR"
                   ? "A token joins this cohort once it is selected as a Wingman Survivor."
                   : stage === "SETUP_QUALIFIED"
