@@ -83,6 +83,17 @@ export interface ThesisArtifact extends HistoryArtifactIdentity {
   sourceScanId: string | null;
   triageRunId: string | null;
   deepResearchRunId: string | null;
+  deepResearchReportId: string | null;
+  /**
+   * `thesis_population/v1` classification, derived from exact provenance only
+   * — never from score or performance.
+   */
+  canonicalWithinCohortMint: boolean;
+  sameCohortRerun: boolean;
+  /** 1-based appearance of this mint across distinct production cohorts. */
+  recurrenceNumberAcrossProductionCohorts: number;
+  /** ms between this artifact and the prior canonical synthesis of the mint. */
+  timeSincePriorCanonicalSynthesisMs: number | null;
   /** `null` when no legitimate thesis-time baseline exists for this artifact. */
   baseline: ThesisBaseline | null;
   performance: ThesisPerformance | null;
