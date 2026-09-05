@@ -512,9 +512,10 @@ export function buildBenchmarkComparison(args: {
   const recommendation = deriveBenchmarkRecommendation({
     meanScoreDelta,
     unstable,
-    total: comparisons.length,
+    total: repeated.length || comparisons.length,
     qualifyChanges: comparisons.filter((c) => c.wouldQualifyDifferently).length,
   });
+
 
   return {
     ...base,
