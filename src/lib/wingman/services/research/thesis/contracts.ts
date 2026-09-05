@@ -624,13 +624,75 @@ const SEVERITY_ORDER: Record<BearSeverity, number> = {
   CRITICAL: 3,
 };
 
+/**
+ * opportunity_gate/v1.1 — independent evidence ORIGINS, not raw source count.
+ *
+ * The raw `independentSourceCount` can be inflated by explorers, wallets and
+ * DEX interfaces that merely mirror the same chain state. The gate therefore
+ * reads the mirror-excluding `distinctIndependentEvidenceOrigins` computed by
+ * Deep Research v1.1+. Project-owned, project-affiliated and community sources
+ * never count. There is NO fallback to the raw count: when the field is
+ * absent the gate is NOT_EVALUABLE and no Thesis Call may be created.
+ * Historical artifacts keep the semantics they were decided under.
+ */
+export const OPPORTUNITY_GATE_VERSION = "opportunity_gate/v1.1";
+
+export type IndependentOriginGateStatus = "PASS" | "FAIL" | "NOT_EVALUABLE";
+
+export interface IndependentOriginGateResult {
+  version: typeof OPPORTUNITY_GATE_VERSION;
+  status: IndependentOriginGateStatus;
+  /** The value actually gated on. */
+  distinctIndependentEvidenceOrigins: number | null;
+  /** DIAGNOSTIC_ONLY — never gated on. */
+  independentSourceCount: number;
+  required: number;
+  reason: string | null;
+}
+
+export function evaluateIndependentOriginGate(
+  input: {
+    distinctIndependentEvidenceOrigins?: number | null;
+    independentSourceCount?: number | null;
+  },
+  policy: OpportunityPolicy = OPPORTUNITY_POLICY,
+): IndependentOriginGateResult {
+  const origins = input.distinctIndependentEvidenceOrigins;
+  const raw = input.independentSourceCount ?? 0;
+  const base = {
+    version: OPPORTUNITY_GATE_VERSION,
+    independentSourceCount: raw,
+    required: policy.minIndependentSources,
+  } as const;
+  if (typeof origins !== "number" || !Number.isFinite(origins)) {
+    return {
+      ...base,
+      status: "NOT_EVALUABLE",
+      distinctIndependentEvidenceOrigins: null,
+      reason: "MISSING_REQUIRED_EVIDENCE_SEMANTICS",
+    };
+  }
+  if (origins < policy.minIndependentSources) {
+    return {
+      ...base,
+      status: "FAIL",
+      distinctIndependentEvidenceOrigins: origins,
+      reason: "INSUFFICIENT_DISTINCT_INDEPENDENT_ORIGINS",
+    };
+  }
+  return { ...base, status: "PASS", distinctIndependentEvidenceOrigins: origins, reason: null };
+}
+
 export interface OpportunityCandidate {
   mint: string;
   thesisScore: number;
   evidenceConfidence: number;
   verdict: ThesisVerdict;
   bearSeverity: BearSeverity;
+  /** DIAGNOSTIC_ONLY — the gate does not read this. */
   independentSourceCount: number;
+  /** Mirror-excluded origins; null when the dossier lacks v1.1+ semantics. */
+  distinctIndependentEvidenceOrigins: number | null;
   eligibleNow: boolean;
 }
 
@@ -643,7 +705,7 @@ export function qualifiesAsOpportunity(
   if (c.thesisScore < policy.minThesisScore) return false;
   if (c.evidenceConfidence < policy.minEvidenceConfidence) return false;
   if (SEVERITY_ORDER[c.bearSeverity] > SEVERITY_ORDER[policy.maxBearSeverity]) return false;
-  if (c.independentSourceCount < policy.minIndependentSources) return false;
+  if (evaluateIndependentOriginGate(c, policy).status !== "PASS") return false;
   return true;
 }
 
