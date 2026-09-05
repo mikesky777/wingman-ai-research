@@ -142,19 +142,23 @@ export function scoreEntry(args: {
   if (structureVerdict === "NEUTRAL") structure = 1.5;
   if (structureVerdict === "DETERIORATING") structure = 0.5;
   if (structureVerdict === "BROKEN") structure = 0;
-  if (f.higherLow && structureVerdict === "CONSTRUCTIVE") {
+  if (highRes && f.higherLow && structureVerdict === "CONSTRUCTIVE") {
     structure += 0.5;
     notes.push("Higher low in place");
   }
-  if (f.reclaimHolding) {
+  if (highRes && f.reclaimHolding) {
     structure += 0.5;
     notes.push("Reclaim holding above the derived base");
   }
-  if (f.compressionRatio !== null && f.compressionRatio <= 0.6) {
+  if (highRes && f.compressionRatio !== null && f.compressionRatio <= 0.6) {
     structure += 0.25;
     notes.push("Range compressing versus the earlier window");
   }
-  if (f.lowerHighs) breaks.push("A further lower high confirming the downtrend");
+  if (highRes && f.lowerHighs) breaks.push("A further lower high confirming the downtrend");
+  if (!highRes) {
+    notes.push("Broad trajectory only — coarse observations cannot prove candle-grade structure");
+    improve.push("Candle-resolution history that can confirm or deny a higher low");
+  }
 
   // ---- Extension 0–3 -------------------------------------------------
   let extension = 1.5;
