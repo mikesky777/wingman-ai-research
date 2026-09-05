@@ -279,8 +279,34 @@ export async function loadLiveCalls(): Promise<LiveCallsResult> {
         priceHistorySource: (entry?.["price_history_source"] as string | null) ?? null,
         structuralStatus: structuralByMint.get(mint) ?? null,
       },
+      lifecycle: (() => {
+        const state = liveByMilestone.get(m["id"] as string)!;
+        const episode = state.currentEpisode!;
+        return {
+          monitoringStatus: state.monitoringStatus,
+          monitoringReason: state.monitoringReason,
+          episodeNumber: episode.episodeNumber,
+          liveSince: episode.activatedAt,
+          priorEpisodes: Math.max(state.episodes.length - 1, 0),
+        };
+      })(),
     };
   });
 
-  return { count: calls.length, calls };
+  // Rule 9: at most one card per exact mint (newest activation wins).
+  const byMint = new Map<string, LiveCall>();
+  for (const call of calls) {
+    const existing = byMint.get(call.mint);
+    if (
+      !existing ||
+      Date.parse(call.lifecycle.liveSince) > Date.parse(existing.lifecycle.liveSince)
+    ) {
+      byMint.set(call.mint, call);
+    }
+  }
+  const deduped = [...byMint.values()].sort(
+    (a, b) => Date.parse(b.lifecycle.liveSince) - Date.parse(a.lifecycle.liveSince),
+  );
+
+  return { count: deduped.length, calls: deduped };
 }
