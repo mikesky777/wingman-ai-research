@@ -231,6 +231,12 @@ export function scoreEntry(args: {
     volumeFlow -= 0.25;
     notes.push("Price accelerating while participation fails to broaden");
   }
+  // v1.1 divergence safety: contextual credit can never lift collapsed flow
+  // back into constructive territory.
+  if (f.volumeTrendRatio !== null && f.volumeTrendRatio < 0.35) {
+    volumeFlow = Math.min(volumeFlow, 0.5);
+  }
+
 
   // ---- Risk definition 0–2 -------------------------------------------
   let riskDefinition = 0.5;
