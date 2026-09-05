@@ -71,7 +71,13 @@ export type TriageRunStatus =
 export interface TriageRunResult {
   mode: TriageMode;
   status: TriageRunStatus;
-  code: "OK" | "NO_ELIGIBLE_CURRENT_SCAN" | "PROVIDER_FAILED" | "VALIDATION_FAILED" | "NO_CANDIDATES";
+  code:
+    | "OK"
+    | "NO_ELIGIBLE_CURRENT_SCAN"
+    | "PROVIDER_FAILED"
+    | "VALIDATION_FAILED"
+    | "NO_CANDIDATES"
+    | "ALREADY_TRIAGED";
   triageRunId: string | null;
   sourceScanId: string | null;
   scannerPolicyVersion: string | null;
