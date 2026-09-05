@@ -237,10 +237,16 @@ export function ThesisPanel({ calibration = false }: { calibration?: boolean } =
                 <dl className="mt-3 grid gap-2 text-[11px] sm:grid-cols-2">
                   <div>
                     <dt className="label-xs">
-                      Strongest catalyst{r.strongestCatalyst ? ` (${r.catalystKind})` : ""}
+                      Strongest catalyst
+                      {r.strongestCatalyst
+                        ? ` (${r.catalystClassification ?? r.catalystKind})`
+                        : ""}
                     </dt>
                     <dd className="text-muted-foreground">
                       {r.strongestCatalyst ?? "No verified catalyst found"}
+                      {r.catalystVerificationBasis ? (
+                        <span className="block text-[10px]">{r.catalystVerificationBasis}</span>
+                      ) : null}
                     </dd>
                   </div>
                   <div>
@@ -251,6 +257,17 @@ export function ThesisPanel({ calibration = false }: { calibration?: boolean } =
                     <dt className="label-xs">Strongest concern</dt>
                     <dd className="text-muted-foreground">{r.strongestConcern ?? "—"}</dd>
                   </div>
+                  {r.narrativeMaturity ? (
+                    <div>
+                      <dt className="label-xs">Narrative maturity</dt>
+                      <dd className="text-muted-foreground">
+                        {r.narrativeMaturity}
+                        {r.narrativeSupportCodes.length
+                          ? ` · ${r.narrativeSupportCodes.join(", ")}`
+                          : ""}
+                      </dd>
+                    </div>
+                  ) : null}
                 </dl>
 
                 {r.blockedReasons.length ? (
