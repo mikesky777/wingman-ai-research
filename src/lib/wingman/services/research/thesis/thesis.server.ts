@@ -956,15 +956,11 @@ export async function loadThesisReports(
   const isCalibration = mode === "calibration";
   let rows: Row[] = [];
   if (!isCalibration) {
-    // Newest production synthesis run, complete cohort.
-    const { data: runRow } = await supabaseAdmin
-      .from("thesis_synthesis_runs")
-      .select("id")
-      .eq("is_calibration", false)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    const runId = runRow ? ((runRow as Row)["id"] as string) : null;
+    // ACTIVE cohort synthesis run only — never the globally newest run, which
+    // may belong to a previous scan.
+    const { loadActiveResearchCohort } = await import("../cohort.server");
+    const active = await loadActiveResearchCohort();
+    const runId = active.thesisSynthesisRunId;
     if (!runId) return [];
     const { data, error } = await supabaseAdmin
       .from("thesis_reports")
