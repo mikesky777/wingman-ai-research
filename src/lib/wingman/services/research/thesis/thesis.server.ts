@@ -30,6 +30,7 @@ import {
   selectOpportunities,
   validateThesisOutput,
   type BearSeverity,
+  type CatalystKind,
   type ComponentScores,
   type EvidenceConfidenceBreakdown,
   type ThesisSections,
@@ -94,6 +95,8 @@ export interface ThesisBatchResult {
 export interface RunThesisSynthesisOptions {
   mode?: ThesisMode;
   limit?: number;
+  /** Production: restrict the cohort to one production triage run's shortlist. */
+  triageRunId?: string;
   /** Calibration only: synthesize a specific set of deep research report ids. */
   reportIds?: string[];
   provider?: ThesisProvider;
@@ -174,9 +177,16 @@ async function loadThesisInputs(options: {
   const out: ThesisInputCandidate[] = [];
   for (const r of reports) {
     const mint = r["mint"] as string;
+    const run = runs.get(r["deep_research_run_id"] as string) ?? null;
+    if (!options.isCalibration) {
+      // Production only synthesises completed shortlist research with full provenance.
+      const status = (run?.["status"] as string) ?? "";
+      if (status !== "completed") continue;
+      if (!run?.["shortlist_milestone_id"]) continue;
+      if (!run?.["research_packet_id"]) continue;
+    }
     if (seen.has(mint)) continue; // newest report per mint only
     seen.add(mint);
-    const run = runs.get(r["deep_research_run_id"] as string) ?? null;
     const diagnostics = (run?.["diagnostics"] as Record<string, unknown> | null) ?? null;
     const dossier = (r["dossier"] as unknown as ResearchDossier) ?? null;
     const triageRunId = (run?.["triage_run_id"] as string) ?? null;
@@ -273,6 +283,8 @@ interface SynthesizedCandidate {
     strongestBullCase: string | null;
     strongestBearCase: string | null;
     strongestCatalyst: string | null;
+    catalystKind: CatalystKind;
+    whyNowMarketSignal: string | null;
     strongestConcern: string | null;
     catalysts: string[];
     invalidation: string[];
@@ -297,6 +309,8 @@ function emptyText(): SynthesizedCandidate["text"] {
     strongestBullCase: null,
     strongestBearCase: null,
     strongestCatalyst: null,
+    catalystKind: "NONE",
+    whyNowMarketSignal: null,
     strongestConcern: null,
     catalysts: [],
     invalidation: [],
@@ -323,10 +337,13 @@ export async function runThesisSynthesis(
     isCalibration,
     ...(options.reportIds?.length ? { reportIds: options.reportIds } : {}),
   });
-  if (inputs.length === 0) return emptyBatch(mode, "NO_DEEP_RESEARCH_REPORTS", provider);
+  const cohort = options.triageRunId
+    ? inputs.filter((c) => c.triageRunId === options.triageRunId)
+    : inputs;
+  if (cohort.length === 0) return emptyBatch(mode, "NO_DEEP_RESEARCH_REPORTS", provider);
 
-  const limit = Math.min(Math.max(options.limit ?? 3, 1), 10);
-  const selected = inputs.slice(0, limit);
+  const limit = Math.min(Math.max(options.limit ?? 3, 1), 15);
+  const selected = cohort.slice(0, limit);
 
   // Current eligibility is re-checked against the scan the packets came from.
   const scanIds = [...new Set(selected.map((c) => c.sourceScanId).filter((v): v is string => Boolean(v)))];
@@ -603,6 +620,8 @@ async function synthesizeCandidate(args: {
       strongestBullCase: validated.strongestBullCase,
       strongestBearCase: validated.strongestBearCase,
       strongestCatalyst: validated.strongestCatalyst,
+      catalystKind: validated.catalystKind,
+      whyNowMarketSignal: validated.whyNowMarketSignal,
       strongestConcern: validated.strongestConcern,
       catalysts: validated.catalysts,
       invalidation: validated.invalidation,
@@ -761,6 +780,8 @@ async function insertReport(args: {
       strongest_bull_case: s.text.strongestBullCase,
       strongest_bear_case: s.text.strongestBearCase,
       strongest_catalyst: s.text.strongestCatalyst,
+      catalyst_kind: s.text.catalystKind,
+      why_now_market_signal: s.text.whyNowMarketSignal,
       strongest_concern: s.text.strongestConcern,
       sections: (s.text.sections ?? null) as never,
       catalysts: s.text.catalysts,
@@ -842,6 +863,8 @@ export interface ThesisReportSummary {
   strongestBullCase: string | null;
   strongestBearCase: string | null;
   strongestCatalyst: string | null;
+  catalystKind: string;
+  whyNowMarketSignal: string | null;
   strongestConcern: string | null;
   catalysts: string[];
   invalidation: string[];
@@ -858,18 +881,80 @@ export interface ThesisReportSummary {
   deepResearchReportId: string | null;
   researchPacketId: string | null;
   triageRunId: string | null;
+  pairAddress: string | null;
+  triageRank: number | null;
   sources: { ref: string; url: string | null; title: string | null; independence: string }[];
 }
 
-/** Newest thesis reports, read-only, for the Research workbench. */
-export async function loadThesisReports(limit = 12): Promise<ThesisReportSummary[]> {
-  const { data, error } = await supabaseAdmin
-    .from("thesis_reports")
-    .select("*")
-    .order("created_at", { ascending: false })
-    .limit(limit);
-  if (error) throw new Error(error.message);
-  const rows = (data as Row[]) ?? [];
+/**
+ * Newest thesis reports, read-only, for the Research workbench.
+ * Production and calibration are never mixed: the caller picks the mode and
+ * production shows the newest production synthesis run in full.
+ */
+export async function loadThesisReports(
+  limit = 12,
+  mode: ThesisMode = "production",
+): Promise<ThesisReportSummary[]> {
+  const isCalibration = mode === "calibration";
+  let rows: Row[] = [];
+  if (!isCalibration) {
+    // Newest production synthesis run, complete cohort.
+    const { data: runRow } = await supabaseAdmin
+      .from("thesis_synthesis_runs")
+      .select("id")
+      .eq("is_calibration", false)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const runId = runRow ? ((runRow as Row)["id"] as string) : null;
+    if (!runId) return [];
+    const { data, error } = await supabaseAdmin
+      .from("thesis_reports")
+      .select("*")
+      .eq("thesis_synthesis_run_id", runId)
+      .order("thesis_score", { ascending: false, nullsFirst: false })
+      .limit(50);
+    if (error) throw new Error(error.message);
+    rows = (data as Row[]) ?? [];
+  } else {
+    const { data, error } = await supabaseAdmin
+      .from("thesis_reports")
+      .select("*")
+      .eq("is_calibration", true)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (error) throw new Error(error.message);
+    rows = (data as Row[]) ?? [];
+  }
+
+  const mints = [...new Set(rows.map((r) => r["mint"] as string))];
+  const pairByMint = new Map<string, string | null>();
+  const rankByMint = new Map<string, number | null>();
+  if (mints.length) {
+    const { data: tokenRows } = await supabaseAdmin
+      .from("tokens")
+      .select("contract_address, dex_pair_address")
+      .in("contract_address", mints);
+    for (const t of (tokenRows as Row[] | null) ?? []) {
+      pairByMint.set(t["contract_address"] as string, (t["dex_pair_address"] as string) ?? null);
+    }
+    const triageIds = [
+      ...new Set(
+        rows.map((r) => r["triage_run_id"] as string | null).filter((v): v is string => Boolean(v)),
+      ),
+    ];
+    if (triageIds.length) {
+      const { data: decisionRows } = await supabaseAdmin
+        .from("ai_triage_decisions")
+        .select("mint, triage_rank, triage_run_id")
+        .in("triage_run_id", triageIds)
+        .in("mint", mints);
+      for (const d of (decisionRows as Row[] | null) ?? []) {
+        rankByMint.set(d["mint"] as string, (d["triage_rank"] as number) ?? null);
+      }
+    }
+  }
+
 
   const reportIds = [
     ...new Set(
@@ -917,6 +1002,10 @@ export async function loadThesisReports(limit = 12): Promise<ThesisReportSummary
     strongestBullCase: (r["strongest_bull_case"] as string) ?? null,
     strongestBearCase: (r["strongest_bear_case"] as string) ?? null,
     strongestCatalyst: (r["strongest_catalyst"] as string) ?? null,
+    catalystKind: (r["catalyst_kind"] as string) ?? "NONE",
+    whyNowMarketSignal: (r["why_now_market_signal"] as string) ?? null,
+    pairAddress: pairByMint.get(r["mint"] as string) ?? null,
+    triageRank: rankByMint.get(r["mint"] as string) ?? null,
     strongestConcern: (r["strongest_concern"] as string) ?? null,
     catalysts: (r["catalysts"] as string[]) ?? [],
     invalidation: (r["invalidation"] as string[]) ?? [],

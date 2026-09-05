@@ -11,7 +11,9 @@
  */
 
 export const THESIS_POLICY_VERSION = "thesis_synthesis/v1";
-export const THESIS_PROMPT_VERSION = "thesis_synthesis_prompt/v1";
+/** v1.1 separates a real external catalyst from a pure market signal. */
+export const THESIS_PROMPT_VERSION = "thesis_synthesis_prompt/v1.1";
+export const NO_VERIFIED_CATALYST = "No verified catalyst found";
 /**
  * Input policy. Realized post-cutoff performance (outcomes) is stripped from
  * everything the synthesizer sees, exactly as in triage.
@@ -40,6 +42,24 @@ export const THESIS_MAX_SCORE = THESIS_COMPONENTS.reduce((sum, c) => sum + c.wei
 
 export const BEAR_SEVERITIES = ["LOW", "MODERATE", "HIGH", "CRITICAL"] as const;
 export type BearSeverity = (typeof BEAR_SEVERITIES)[number];
+
+/**
+ * A catalyst is an identifiable EXTERNAL trigger (event, launch, listing,
+ * announcement, cultural/media moment). Price/volume/participation
+ * acceleration is a MARKET SIGNAL and is never a catalyst.
+ */
+export const CATALYST_KINDS = ["VERIFIED", "PLAUSIBLE", "NONE"] as const;
+export type CatalystKind = (typeof CATALYST_KINDS)[number];
+
+/** Market-behaviour language that must never be stored as an external catalyst. */
+export const MARKET_SIGNAL_PATTERN =
+  /\b(volume|price action|price momentum|momentum|reaccelerat\w*|re-accelerat\w*|acceleration|buy pressure|renewed (?:interest|participation)|participation|wallet activity|buyer count|scanner persistence|liquidity (?:rising|increase)|market cap (?:rising|climbing)|pump\w*|rallied|rally)\b/i;
+
+/** True when the text describes market behaviour rather than an external trigger. */
+export function isMarketSignalOnly(text: string | null): boolean {
+  if (!text) return false;
+  return MARKET_SIGNAL_PATTERN.test(text);
+}
 
 export const THESIS_VERDICTS = [
   "STRONG_THESIS",
@@ -279,7 +299,11 @@ export interface ValidatedThesisOutput {
   strongestBullCase: string | null;
   strongestBearCase: string | null;
   bearSeverity: BearSeverity;
+  /** Real external catalyst only; null when none was verified. */
   strongestCatalyst: string | null;
+  catalystKind: CatalystKind;
+  /** Timing context from market behaviour — never presented as a catalyst. */
+  whyNowMarketSignal: string | null;
   strongestConcern: string | null;
   catalysts: string[];
   invalidation: string[];
@@ -394,6 +418,24 @@ export function validateThesisOutput(
     return text;
   };
 
+  // Catalyst semantics: market behaviour is a WHY NOW signal, never a catalyst.
+  let strongestCatalyst = asString(obj["strongestCatalyst"]);
+  let whyNowMarketSignal = asString(obj["whyNowMarketSignal"]);
+  const kindRaw = asString(obj["catalystKind"])?.toUpperCase() as CatalystKind | undefined;
+  let catalystKind: CatalystKind =
+    kindRaw && CATALYST_KINDS.includes(kindRaw) ? kindRaw : strongestCatalyst ? "PLAUSIBLE" : "NONE";
+  if (strongestCatalyst && isMarketSignalOnly(strongestCatalyst)) {
+    issues.push({
+      code: "CATALYST_WAS_MARKET_SIGNAL",
+      detail: strongestCatalyst.slice(0, 160),
+    });
+    whyNowMarketSignal = whyNowMarketSignal ?? strongestCatalyst;
+    strongestCatalyst = null;
+    catalystKind = "NONE";
+  }
+  if (!strongestCatalyst) catalystKind = "NONE";
+  const catalysts = asStringArray(obj["catalysts"]).filter((c) => !isMarketSignalOnly(c));
+
   const criticalRaw = obj["criticalUnresolvedIssues"];
   const criticalUnresolvedIssues = Number.isFinite(Number(criticalRaw))
     ? Math.max(0, Math.min(10, Math.round(Number(criticalRaw))))
@@ -408,9 +450,11 @@ export function validateThesisOutput(
     strongestBullCase: checkAction("bullCase", asString(obj["strongestBullCase"])),
     strongestBearCase: asString(obj["strongestBearCase"]),
     bearSeverity,
-    strongestCatalyst: asString(obj["strongestCatalyst"]),
+    strongestCatalyst,
+    catalystKind,
+    whyNowMarketSignal,
     strongestConcern: asString(obj["strongestConcern"]),
-    catalysts: asStringArray(obj["catalysts"]),
+    catalysts,
     invalidation,
     evidenceGaps: asStringArray(obj["evidenceGaps"]),
     supportingClaimRefs,
@@ -460,6 +504,12 @@ export function buildThesisSystemPrompt(): string {
     "6. Never reason about what happened to the price after the evidence cutoff. You are given none of it.",
     "7. A DAMAGED price structure or a NONE setup is not an automatic failure, and neither is an interesting scanner profile a substitute for external evidence.",
     "",
+    "CATALYST VS MARKET SIGNAL (strict)",
+    "A CATALYST is an identifiable EXTERNAL trigger: an upcoming event, launch, listing, announcement, scheduled cultural/media moment, or ecosystem event with a defensible connection. Set catalystKind to VERIFIED (evidenced) or PLAUSIBLE (reasonably inferred from evidence).",
+    "Price/volume/momentum/reacceleration/renewed participation/wallet activity/scanner persistence are MARKET SIGNALS, never catalysts. Put them in whyNowMarketSignal.",
+    "If no real external catalyst exists, set strongestCatalyst to null and catalystKind to NONE. Never fill the catalyst field with market behaviour to avoid an empty value.",
+    "Market behaviour may still inform the catalystNarrative component as timing context, labelled as MARKET SIGNAL.",
+    "",
     "SCORING RUBRIC (score each component independently, integers only)",
     rubric,
     "Do not output a total: the total is computed as the exact sum of your components.",
@@ -487,7 +537,9 @@ export function buildThesisSystemPrompt(): string {
         strongestBullCase: "string",
         strongestBearCase: "string",
         bearCaseSeverity: "LOW|MODERATE|HIGH|CRITICAL",
-        strongestCatalyst: "string",
+        strongestCatalyst: "string|null (external trigger only)",
+        catalystKind: "VERIFIED|PLAUSIBLE|NONE",
+        whyNowMarketSignal: "string|null (market behaviour timing context)",
         strongestConcern: "string",
         catalysts: ["string"],
         invalidation: ["string"],

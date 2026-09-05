@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Section } from "@/components/wingman/Section";
 import { EmptyState } from "@/components/wingman/EmptyState";
 import { getThesisReports, runThesisSynthesisBatch } from "@/lib/wingman/thesis.functions";
+import { TokenIdentity } from "@/components/wingman/TokenIdentity";
 import { THESIS_COMPONENTS } from "@/lib/wingman/services/research/thesis/contracts";
 import { relativeTime, formatUsd } from "@/lib/wingman/format";
 import { toast } from "sonner";
@@ -43,10 +44,11 @@ export function ThesisPanel() {
   const fetchReports = useServerFn(getThesisReports);
   const startRun = useServerFn(runThesisSynthesisBatch);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [mode, setMode] = useState<"PRODUCTION" | "CALIBRATION">("PRODUCTION");
 
   const { data: reports = [], isLoading } = useQuery({
-    queryKey: ["thesis", "reports"],
-    queryFn: () => fetchReports(),
+    queryKey: ["thesis", "reports", mode],
+    queryFn: () => fetchReports({ data: { mode } }),
   });
 
   const mutation = useMutation({
@@ -79,7 +81,21 @@ export function ThesisPanel() {
       title="Thesis"
       description="Judgement over collected evidence. Thesis Score is conviction in the idea; Evidence Confidence is how trustworthy the evidence behind it is. Neither is a probability of success, and no entry or sizing is produced here."
       actions={
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex overflow-hidden rounded-md border border-border">
+            {(["PRODUCTION", "CALIBRATION"] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setMode(m)}
+                className={`px-2.5 py-1 text-[10px] font-medium tracking-wide ${
+                  mode === m ? "bg-primary/15 text-primary" : "text-muted-foreground"
+                }`}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
           <Button
             variant="outline"
             size="sm"
@@ -114,9 +130,20 @@ export function ThesisPanel() {
             const open = openId === r.id;
             return (
               <li key={r.id} className="rounded-md border border-border bg-surface/60 p-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-semibold">{r.symbol ?? short(r.mint)}</span>
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <TokenIdentity
+                      symbol={r.symbol ?? short(r.mint)}
+                      name={r.name ?? null}
+                      mint={r.mint}
+                      pairAddress={r.pairAddress}
+                    />
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                    {r.triageRank !== null ? (
+                      <Badge variant="outline" className="text-[10px]">
+                        AI #{r.triageRank}
+                      </Badge>
+                    ) : null}
                     {r.isCalibration ? (
                       <Badge variant="outline" className="text-[10px]">
                         CALIBRATION
@@ -139,6 +166,7 @@ export function ThesisPanel() {
                         MC {formatUsd(r.marketCap)}
                       </span>
                     ) : null}
+                    </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge
@@ -172,8 +200,16 @@ export function ThesisPanel() {
 
                 <dl className="mt-3 grid gap-2 text-[11px] sm:grid-cols-2">
                   <div>
-                    <dt className="label-xs">Strongest catalyst</dt>
-                    <dd className="text-muted-foreground">{r.strongestCatalyst ?? "—"}</dd>
+                    <dt className="label-xs">
+                      Strongest catalyst{r.strongestCatalyst ? ` (${r.catalystKind})` : ""}
+                    </dt>
+                    <dd className="text-muted-foreground">
+                      {r.strongestCatalyst ?? "No verified catalyst found"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="label-xs">Why now (market signal)</dt>
+                    <dd className="text-muted-foreground">{r.whyNowMarketSignal ?? "—"}</dd>
                   </div>
                   <div>
                     <dt className="label-xs">Strongest concern</dt>

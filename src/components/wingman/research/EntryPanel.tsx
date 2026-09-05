@@ -11,6 +11,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Crosshair, Loader2, RefreshCw, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { CopyCaButton, DexScreenerLink } from "@/components/wingman/TokenIdentity";
 import { Section } from "@/components/wingman/Section";
 import { EmptyState } from "@/components/wingman/EmptyState";
 import { DexScreenerEmbed } from "@/components/wingman/history/DexScreenerEmbed";
@@ -141,6 +142,13 @@ export function EntryPanel() {
                         </span>
                       ) : null}
                     </p>
+                    <p className="font-mono text-[10px] break-all text-muted-foreground" title={row.mint}>
+                      {row.mint}
+                    </p>
+                    <div className="mt-1 flex flex-wrap gap-1.5">
+                      <CopyCaButton mint={row.mint} />
+                      <DexScreenerLink pairAddress={null} mint={row.mint} />
+                    </div>
                     <p className="label-xs mt-1 text-muted-foreground">
                       THESIS {row.thesisScore ?? "—"} · Evidence {row.evidenceConfidence ?? "—"}
                       {row.thesisVerdict ? ` · ${row.thesisVerdict}` : ""}
