@@ -295,7 +295,7 @@ export function ThesisSynthesizedArtifacts() {
             ))}
             {unmeasured > 0 ? (
               <span className="text-[10px] text-muted-foreground">
-                {unmeasured} of {rows.length} without a thesis-time baseline
+                {unmeasured} of {measuredPopulation.length} without a thesis-time baseline
               </span>
             ) : null}
           </div>
