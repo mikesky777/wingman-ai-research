@@ -371,8 +371,19 @@ export function resolveNarrativeMaturity(input: NarrativeMaturityInput): {
 export const CALIBRATION_HYPOTHESIS_INDEPENDENT_SOURCE_GATE =
   "CALIBRATION_HYPOTHESIS_INDEPENDENT_SOURCE_GATE";
 
+export interface IndependentOriginGateSummary {
+  version: string;
+  status: "PASS" | "FAIL" | "NOT_EVALUABLE";
+  distinctIndependentEvidenceOrigins: number | null;
+  independentSourceCount: number;
+  required: number;
+  reason: string | null;
+}
+
 export interface GateDiagnosticsInput {
   independentSourceCount: number;
+  /** opportunity_gate/v1.1 — the value the gate actually used. */
+  originGate?: IndependentOriginGateSummary;
   primarySourceCount: number;
   communitySourceCount: number;
   evidenceConfidence: number;
@@ -386,7 +397,9 @@ export interface GateDiagnosticsInput {
 
 export interface GateDiagnostics {
   semanticsVersion: typeof THESIS_EVIDENCE_SEMANTICS_VERSION;
+  /** DIAGNOSTIC_ONLY. */
   independentSourceCount: number;
+  originGate: IndependentOriginGateSummary | null;
   primarySourceCount: number;
   communitySourceCount: number;
   searchHealth: string;
@@ -404,11 +417,14 @@ export interface GateDiagnostics {
  * Calibration Observatory can later ask if the gate is additive at all.
  */
 export function buildGateDiagnostics(input: GateDiagnosticsInput): GateDiagnostics {
-  const binding =
-    input.otherGatesPassed && input.independentSourceCount < input.minIndependentSources;
+  const gateSatisfied = input.originGate
+    ? input.originGate.status === "PASS"
+    : input.independentSourceCount >= input.minIndependentSources;
+  const binding = input.otherGatesPassed && !gateSatisfied;
   return {
     semanticsVersion: THESIS_EVIDENCE_SEMANTICS_VERSION,
     independentSourceCount: input.independentSourceCount,
+    originGate: input.originGate ?? null,
     primarySourceCount: input.primarySourceCount,
     communitySourceCount: input.communitySourceCount,
     searchHealth: input.searchHealth,

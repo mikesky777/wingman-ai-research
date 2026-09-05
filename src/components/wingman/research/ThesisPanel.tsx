@@ -449,6 +449,33 @@ function ThesisDetail({ report }: { report: Report }) {
             </div>
           ) : null}
 
+          {report.gateDiagnostics?.originGate ? (
+            <p className="text-[11px] text-muted-foreground">
+              Thesis Call gate ({report.gateDiagnostics.originGate.version}):{" "}
+              <span
+                className={
+                  report.gateDiagnostics.originGate.status === "PASS"
+                    ? "text-success"
+                    : "text-warning"
+                }
+              >
+                {report.gateDiagnostics.originGate.status}
+              </span>{" "}
+              — distinct independent origins{" "}
+              <span className="tabular">
+                {report.gateDiagnostics.originGate.distinctIndependentEvidenceOrigins ?? "—"}
+              </span>{" "}
+              ≥ {report.gateDiagnostics.originGate.required} (raw independent sources{" "}
+              <span className="tabular">
+                {report.gateDiagnostics.originGate.independentSourceCount}
+              </span>{" "}
+              — not gated on)
+              {report.gateDiagnostics.originGate.reason
+                ? ` · ${report.gateDiagnostics.originGate.reason}`
+                : ""}
+            </p>
+          ) : null}
+
           {report.gateDiagnostics?.independentSourceGateBinding ? (
             <p className="text-[11px] text-warning">
               Calibration note: source independence was the only unmet gate (
