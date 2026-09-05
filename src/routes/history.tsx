@@ -6,13 +6,11 @@ import { syncStageMilestones } from "@/lib/wingman/history.functions";
 import { Loader2, RefreshCw } from "lucide-react";
 import { AppShell } from "@/components/wingman/AppShell";
 import { Section } from "@/components/wingman/Section";
-import { StatTile } from "@/components/wingman/StatTile";
 import { EmptyState } from "@/components/wingman/EmptyState";
 import { Button } from "@/components/ui/button";
 import { HistoryCohortService } from "@/lib/wingman/services/history/cohort-service";
 import { StageMilestoneService } from "@/lib/wingman/services/history/stage-service";
 import {
-  FUNNEL_STAGES,
   STAGE_TERMS,
   filterStageRows,
   sortStageRows,
