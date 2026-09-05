@@ -1231,3 +1231,19 @@ async function loadRetryableMints(triageRunId: string): Promise<Set<string>> {
   }
   return retryable;
 }
+
+/**
+ * Mints of THIS production triage run that already have any persisted attempt
+ * (completed, partial, insufficient, blocked, running or failed). Used so
+ * "Run Deep Research" only ever starts genuinely NOT_STARTED candidates and can
+ * never rerun or overwrite finished work.
+ */
+async function loadAttemptedMints(triageRunId: string): Promise<Set<string>> {
+  const { data, error } = await supabaseAdmin
+    .from("deep_research_runs")
+    .select("mint")
+    .eq("triage_run_id", triageRunId)
+    .eq("is_calibration", false);
+  if (error) throw new Error(error.message);
+  return new Set(((data as Row[]) ?? []).map((r) => r["mint"] as string));
+}
