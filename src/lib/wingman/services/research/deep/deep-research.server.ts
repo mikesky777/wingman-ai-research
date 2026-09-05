@@ -323,6 +323,12 @@ export async function runDeepResearch(
     const limit = typeof options.limit === "number" && options.limit > 0 ? options.limit : shortlist.length;
     shortlist = shortlist.slice(0, limit);
   } else {
+    if (options.startNotStartedOnly) {
+      const attempted = await loadAttemptedMints(triageRun.id);
+      const before = shortlist.length;
+      shortlist = shortlist.filter((c) => !attempted.has(c.mint));
+      skippedWithOutcome = before - shortlist.length;
+    }
     const offset = typeof options.offset === "number" && options.offset > 0 ? options.offset : 0;
     const limit = typeof options.limit === "number" && options.limit > 0 ? options.limit : shortlist.length;
     shortlist = shortlist.slice(offset, offset + limit);
