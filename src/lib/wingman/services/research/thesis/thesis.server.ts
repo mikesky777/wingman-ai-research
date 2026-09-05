@@ -723,7 +723,7 @@ async function synthesizeCandidate(args: {
     // DIAGNOSTIC_ONLY — never scored.
     corroboratedClaimCount: dossier?.coverage?.corroboratedClaimCount ?? 0,
     tokenIdentityConfidence:
-      dossier?.tokenIdentityConfidence ?? dossier?.identityAttributionConfidence ?? null ?? undefined,
+      dossier?.tokenIdentityConfidence ?? dossier?.identityAttributionConfidence ?? undefined,
     projectAttributionConfidence: dossier?.projectAttributionConfidence ?? "UNRESOLVED",
     narrativeResolved: Boolean(dossier?.narrativeResolved),
     packetEvidenceGapCount: packet?.gaps.length ?? 0,
@@ -984,6 +984,11 @@ async function insertReport(args: {
       score_valuation: c?.valuation ?? null,
       component_scores: (c ?? null) as never,
       evidence_confidence_components: (s.evidence?.deductions ?? null) as never,
+      // evidence_confidence/v1.1 artifact: version, pre-floor score, every
+      // deduction, unresolved reasons, search health and calibration inputs.
+      evidence_confidence_version: s.evidence?.version ?? null,
+      evidence_confidence_raw_score: s.evidence?.rawScore ?? null,
+      evidence_confidence_artifact: (s.evidence ?? null) as never,
       one_sentence_thesis: s.text.oneSentenceThesis,
       narrative_thesis: s.text.narrativeThesis,
       strongest_bull_case: s.text.strongestBullCase,
