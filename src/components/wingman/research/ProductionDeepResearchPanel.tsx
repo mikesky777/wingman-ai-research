@@ -8,7 +8,7 @@
  */
 import { useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +16,7 @@ import { Section } from "@/components/wingman/Section";
 import { EmptyState } from "@/components/wingman/EmptyState";
 import { TokenIdentity } from "@/components/wingman/TokenIdentity";
 import { getProductionFunnel } from "@/lib/wingman/triage.functions";
-import { getDeepResearchReport } from "@/lib/wingman/deep-research.functions";
+import { getDeepResearchReport, runDeepResearchBatch } from "@/lib/wingman/deep-research.functions";
 import { relativeTime } from "@/lib/wingman/format";
 import {
   countShortlistStatuses,
@@ -168,6 +168,8 @@ export function ProductionDeepResearchPanel() {
   const fetchFunnel = useServerFn(getProductionFunnel);
   const [filter, setFilter] = useState<DeepResearchFilter>("ALL");
   const [openMint, setOpenMint] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const retryResearch = useServerFn(runDeepResearchBatch);
 
   const { data, isLoading } = useQuery({
     queryKey: ["research", "production-funnel"],
@@ -177,12 +179,48 @@ export function ProductionDeepResearchPanel() {
   const shortlist = useMemo(() => data?.shortlist ?? [], [data]);
   const counts = useMemo(() => countShortlistStatuses(shortlist), [shortlist]);
   const visible = useMemo(() => filterShortlist(shortlist, filter), [shortlist, filter]);
+  const retryableCount = useMemo(
+    () => shortlist.filter((c) => c.status === "FAILED" && c.retryable).length,
+    [shortlist],
+  );
+
+  // Retries only re-attempt retryable execution failures. Completed dossiers
+  // are never rerun and never overwritten.
+  const retry = useMutation({
+    mutationFn: () =>
+      retryResearch({
+        data: {
+          mode: "PRODUCTION" as const,
+          retryFailed: true,
+          limit: 12,
+          triageRunId: data?.triage?.id ?? null,
+        },
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["research", "production-funnel"] });
+      void queryClient.invalidateQueries({ queryKey: ["deep-research"] });
+    },
+  });
 
   return (
     <Section
       title="Production Deep Research"
       description="Every production shortlist candidate and its persisted research status. Unresearched members stay visible."
-      actions={<Badge variant="outline">PRODUCTION</Badge>}
+      actions={
+        <div className="flex items-center gap-2">
+          {retryableCount > 0 ? (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={retry.isPending}
+              onClick={() => retry.mutate()}
+            >
+              {retry.isPending ? "Retrying…" : `Retry failed research (${retryableCount})`}
+            </Button>
+          ) : null}
+          <Badge variant="outline">PRODUCTION</Badge>
+        </div>
+      }
     >
       <div className="flex flex-wrap gap-1.5">
         {FILTERS.map((f) => {
@@ -237,7 +275,7 @@ export function ProductionDeepResearchPanel() {
                   </div>
                   <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
                     <Badge variant="outline" className={statusTone[c.status]}>
-                      {c.status}
+                      {c.status === "FAILED" && c.failureCode ? c.failureCode : c.status}
                     </Badge>
                     {c.status === "COMPLETED" || c.status === "PARTIAL" ? (
                       <>
