@@ -101,19 +101,31 @@ export function selectAiScanSource(
 }
 
 /**
- * Same definition, minus the packet requirement.
+ * THE active Research scan: the newest healthy, completed production scan
+ * under the current scanner policy — WITHOUT requiring Research Packets.
  *
- * Packet GENERATION is what creates packets, so requiring packets there would
- * be circular. Every other invariant (completed, healthy, non-empty, current
- * policy) is identical, so one definition of "current eligible production
- * scan" is shared instead of a second, subtly different selector.
+ * Packets are a downstream stage, not part of scan identity. A brand new
+ * healthy scan with zero packets is still the active cohort; its packet stage
+ * simply reads NOT_STARTED. There is never a fallback to an older scan just
+ * because that older scan happens to have packets.
  */
-export function selectScanForPacketGeneration(
+export function selectActiveResearchScan(
   runs: AiScanSourceCandidate[],
   expectedPolicyVersion: string = SELECTION_POLICY_VERSION,
 ): AiScanSourceResult {
-  return selectAiScanSource(
+  const result = selectAiScanSource(
     runs.map((r) => ({ ...r, researchPacketCount: Math.max(r.researchPacketCount, 1) })),
     expectedPolicyVersion,
   );
+  if (!result.ok || !result.runId) return result;
+  // Report the REAL packet count for the selected scan, not the synthetic one.
+  const real = runs.find((r) => r.id === result.runId)?.researchPacketCount ?? 0;
+  return { ...result, researchPacketCount: real };
 }
+
+/**
+ * Packet generation targets the same scan Research is anchored on. Requiring
+ * packets here would be circular, so this is an alias of the active-scan rule.
+ */
+export const selectScanForPacketGeneration = selectActiveResearchScan;
+
