@@ -12,10 +12,12 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { SELECTION_POLICY_VERSION } from "../history/policy-epochs";
 import {
   selectAiScanSource,
+  selectActiveResearchScan,
   selectScanForPacketGeneration,
   type AiScanSourceCandidate,
   type AiScanSourceResult,
 } from "./ai-scan-source";
+
 import {
   RESEARCH_UNIVERSE_CONFIG,
   buildResearchPacket,
@@ -371,13 +373,22 @@ export async function loadScanSourceCandidates(limit = 25): Promise<AiScanSource
 }
 
 /**
- * THE canonical "current eligible production scan" for Research.
- * ai_scan_source/v1 semantics: completed + healthy discovery + production
- * policy + non-empty universe + exact research packets.
+ * Triage source gate: completed + healthy discovery + production policy +
+ * non-empty universe + packets that belong to THAT scan. Triage genuinely
+ * needs packets, so this keeps the packet requirement.
  */
 export async function selectEligibleProductionScan(): Promise<AiScanSourceResult> {
   return selectAiScanSource(await loadScanSourceCandidates(), SELECTION_POLICY_VERSION);
 }
+
+/**
+ * THE canonical ACTIVE RESEARCH SCAN: newest healthy completed production scan
+ * under the current policy, regardless of packet count.
+ */
+export async function selectActiveProductionScan(): Promise<AiScanSourceResult> {
+  return selectActiveResearchScan(await loadScanSourceCandidates(), SELECTION_POLICY_VERSION);
+}
+
 
 /**
  * Assemble packets for one eligible scan. Pure read + append-only write.

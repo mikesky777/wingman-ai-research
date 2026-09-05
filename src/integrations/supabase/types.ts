@@ -1533,6 +1533,10 @@ export type Database = {
           quantitatively_ranked: number
           recurrence_diagnostics: Json | null
           refresh_diagnostics: Json | null
+          research_packet_count: number | null
+          research_packet_error: string | null
+          research_packet_generated_at: string | null
+          research_packet_status: string | null
           scanner_version: string | null
           selection_policy_version: string | null
           started_at: string
@@ -1574,6 +1578,10 @@ export type Database = {
           quantitatively_ranked?: number
           recurrence_diagnostics?: Json | null
           refresh_diagnostics?: Json | null
+          research_packet_count?: number | null
+          research_packet_error?: string | null
+          research_packet_generated_at?: string | null
+          research_packet_status?: string | null
           scanner_version?: string | null
           selection_policy_version?: string | null
           started_at?: string
@@ -1615,6 +1623,10 @@ export type Database = {
           quantitatively_ranked?: number
           recurrence_diagnostics?: Json | null
           refresh_diagnostics?: Json | null
+          research_packet_count?: number | null
+          research_packet_error?: string | null
+          research_packet_generated_at?: string | null
+          research_packet_status?: string | null
           scanner_version?: string | null
           selection_policy_version?: string | null
           started_at?: string

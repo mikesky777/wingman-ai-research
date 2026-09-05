@@ -85,6 +85,7 @@ import {
   resolveTokenIds,
   startScanRun,
   recordDiscoveryHealth,
+  recordResearchPacketResult,
 } from "./persistence.server";
 import { refreshOutcomes } from "../outcomes/outcome-persistence.server";
 import { recordScanMilestones } from "../history/milestones.server";
@@ -202,17 +203,29 @@ export async function generatePacketsForRunSafely(
   try {
     const { generateResearchPackets } = await import("../research/packet.server");
     const result = await generateResearchPackets({ scanRunId, persist: true });
+    const persisted = result.persistedCount ?? result.packets.length;
+    await recordResearchPacketResult(scanRunId, {
+      status: persisted > 0 ? "READY" : "NOT_STARTED",
+      count: persisted,
+      error: null,
+    }).catch(() => undefined);
     return {
       attempted: true,
       generated: result.packets.length,
-      persisted: result.persistedCount ?? result.packets.length,
+      persisted,
       eligibleNow: result.packets.filter((p) => p.packet.eligibility.researchEligibleNow).length,
       error: null,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error("generateResearchPackets failed", message);
+    await recordResearchPacketResult(scanRunId, {
+      status: "FAILED",
+      count: 0,
+      error: message,
+    }).catch(() => undefined);
     return { attempted: true, generated: 0, persisted: 0, eligibleNow: 0, error: message };
+
   }
 }
 
@@ -845,12 +858,15 @@ export async function runScannerPipeline(
       );
     }
 
-    // Canonical Research Packets for THIS run. Automatic: a healthy completed
-    // current-policy scan is only a usable AI triage source once its packets
-    // exist. Failure here is diagnostic — the scan stays completed, triage
-    // simply keeps rejecting the run until packets are regenerated.
+    // Canonical Research Packets for THIS run. Automatic on every healthy
+    // completed run: `calibrationMode` is a legacy scanner run flag (it
+    // defaults to true for ordinary production scans and is NOT the
+    // production/calibration discriminator), so it must never suppress packet
+    // generation. Failure here is diagnostic — the scan stays the active
+    // Research cohort and the packet stage reports FAILED/NOT_STARTED.
+
     const researchPackets =
-      config.calibrationMode || discoveryHealth.state !== "OK"
+      discoveryHealth.state !== "OK"
         ? NO_PACKET_ATTEMPT
         : await generatePacketsForRunSafely(runId);
 
