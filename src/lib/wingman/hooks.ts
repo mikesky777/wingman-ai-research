@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { OutcomeService, ResearchService, ScannerService } from "./services";
 import { getLiveCalls } from "./live-calls.functions";
+import { getLiveCallSizing } from "./sizing.functions";
 
 /** Query keys for every backend-read surface. */
 export const wingmanKeys = {
@@ -15,6 +16,7 @@ export const wingmanKeys = {
   outcomes: ["wingman", "outcomes"] as const,
   watchlist: ["wingman", "watchlist"] as const,
   liveCalls: ["wingman", "live-calls"] as const,
+  liveCallSizing: ["wingman", "live-call-sizing"] as const,
 };
 
 /**
@@ -25,6 +27,17 @@ export function useLiveCalls() {
   return useQuery({
     queryKey: wingmanKeys.liveCalls,
     queryFn: () => getLiveCalls(),
+  });
+}
+
+/**
+ * Deterministic sizing/v1 for official production calls only.
+ * With zero THESIS_CALLs this returns an honest empty result.
+ */
+export function useLiveCallSizing() {
+  return useQuery({
+    queryKey: wingmanKeys.liveCallSizing,
+    queryFn: () => getLiveCallSizing(),
   });
 }
 
