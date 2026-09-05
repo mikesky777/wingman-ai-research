@@ -108,7 +108,13 @@ function PositionPlan({ sizing }: { sizing: SizingRecommendation | undefined }) 
   );
 }
 
-function LiveCallCard({ call, sizing }: { call: LiveCall; sizing?: SizingRecommendation }) {
+function LiveCallCard({
+  call,
+  sizing,
+}: {
+  call: LiveCall;
+  sizing?: SizingRecommendation | undefined;
+}) {
   const thesis = call.thesis;
   const entryState = entryStateOrNull(call.current.entryState);
   return (
