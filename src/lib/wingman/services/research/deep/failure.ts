@@ -63,7 +63,9 @@ export function classifyResearchFailure(
     type = "AI_RATE_LIMIT";
   } else if (status && Number(status) >= 500) {
     type = "AI_PROVIDER_TRANSIENT";
-  } else if (text.includes("search provider") || text.includes("firecrawl")) {
+  } else if (text.includes("external search") ||
+    text.includes("search_provider_unavailable") ||
+    text.includes("firecrawl")) {
     type = "SEARCH_PROVIDER_TRANSIENT";
   } else if (status === "401" || text.includes("api key")) {
     type = "AI_CONFIG";
