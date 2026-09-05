@@ -249,10 +249,14 @@ export function ThesisSynthesizedArtifacts() {
   const [sort, setSort] = useState<ThesisArtifactSort>("RECENT");
   const [population, setPopulation] = useState<ThesisPopulation>("THESIS_EVENTS");
   const [setup, setSetup] = useState<HistorySetupFilter>("ALL");
+  // Preserved same-cohort reruns stay out of the primary card list unless the
+  // audit toggle is on. KPIs never include them either way.
+  const [showReruns, setShowReruns] = useState(false);
   const allRows: ThesisArtifact[] = data?.thesis ?? [];
   // Cards and KPIs always use the same selected setup population.
   const rows = filterBySetup(allRows, setup);
-  const sorted = sortThesisArtifacts(rows, sort);
+  const visibleRows = showReruns ? rows : rows.filter((r) => !r.sameCohortRerun);
+  const sorted = sortThesisArtifacts(visibleRows, sort);
   const counts = thesisPopulationCounts(rows);
   const measuredPopulation = selectThesisPopulation(rows, population);
   const summary = summarizeThesisArtifacts(measuredPopulation);
