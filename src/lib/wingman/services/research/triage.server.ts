@@ -34,6 +34,7 @@ import {
   validateTriageOutput,
   withQuantRanks,
   type CalibrationAnalysis,
+  extractPacketIdentity,
   type ComparedDecision,
   type TriageCandidateInput,
   type TriageInputAblation,
@@ -811,12 +812,16 @@ export async function loadLatestTriage(): Promise<{
   const decisions: PersistedTriageDecision[] = rows.map((d) => ({
     mint: d["mint"] as string,
     ...(() => {
+      const mint = d["mint"] as string;
       const pid = (d["research_packet_id"] as string) ?? null;
       const idn = pid ? identityByPacketId.get(pid) : undefined;
+      // Same-ticker safety: identity is only shown when the packet's own mint
+      // matches this decision's exact mint.
+      const trusted = idn && (!idn.packetMint || idn.packetMint === mint) ? idn : undefined;
       return {
-        symbol: idn?.symbol ?? null,
-        name: idn?.name ?? null,
-        pairAddress: idn?.pairAddress ?? null,
+        symbol: trusted?.symbol ?? null,
+        name: trusted?.name ?? null,
+        pairAddress: trusted?.pairAddress ?? null,
       };
     })(),
     candidateSource: (d["candidate_source"] as string) ?? null,
