@@ -615,6 +615,14 @@ export function computeCoverage(
     unknownIndependenceSourceCount: countBy("UNKNOWN"),
     onChainMirrorCount: sources.filter((s) => s.onChainMirror || isOnChainMirror(s.url)).length,
     distinctEvidenceOrigins: countDistinctEvidenceOrigins(sources.map((s) => s.url)),
+    distinctIndependentEvidenceOrigins: countDistinctEvidenceOrigins(
+      sources
+        .filter(
+          (s) =>
+            s.independence === "INDEPENDENT" && !(s.onChainMirror || isOnChainMirror(s.url)),
+        )
+        .map((s) => s.url),
+    ),
     independentDomainsCovered: [...independentDomains],
     corroboratedClaimCount: claims.filter((c) => c.provenance === "INDEPENDENTLY_CORROBORATED")
       .length,
