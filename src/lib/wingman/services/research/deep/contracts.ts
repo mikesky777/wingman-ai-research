@@ -207,6 +207,12 @@ export interface ResearchDossier {
     onChainMirrorCount: number;
     /** Genuinely distinct underlying evidence origins behind the sources. */
     distinctEvidenceOrigins: number;
+    /**
+     * Distinct evidence origins that are ALSO genuinely independent: project,
+     * community and on-chain-mirror origins are excluded. Five explorers
+     * showing the same chain state count once — and not as independence.
+     */
+    distinctIndependentEvidenceOrigins: number;
     /** Domains supported by at least one claim citing an independent source. */
     independentDomainsCovered: ResearchDomain[];
     corroboratedClaimCount: number;
