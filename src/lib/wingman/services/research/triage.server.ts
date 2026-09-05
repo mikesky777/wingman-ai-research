@@ -14,6 +14,8 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { recordAiStageMilestone } from "../history/milestones.server";
 import { SELECTION_POLICY_VERSION } from "../history/policy-epochs";
 import { type AiScanSourceResult } from "./ai-scan-source";
+import { loadCohortTriageRunId } from "./cohort.server";
+import { shouldBlockProductionRerun } from "./triage-rerun";
 import { assessResearchEligibility } from "./packet";
 import {
   chunkIds,
