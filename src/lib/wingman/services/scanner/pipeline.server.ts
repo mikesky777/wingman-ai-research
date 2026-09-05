@@ -850,7 +850,7 @@ export async function runScannerPipeline(
     // exist. Failure here is diagnostic — the scan stays completed, triage
     // simply keeps rejecting the run until packets are regenerated.
     const researchPackets =
-      config.calibrationMode || discoveryHealth.state !== "OK"
+      discoveryHealth.state !== "OK"
         ? NO_PACKET_ATTEMPT
         : await generatePacketsForRunSafely(runId);
 
