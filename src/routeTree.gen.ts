@@ -17,6 +17,7 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as WatchlistRouteImport } from './routes/watchlist'
 import { Route as TokenTokenIdRouteImport } from './routes/token.$tokenId'
 import { Route as ApiPublicThesisBenchmarkRouteImport } from './routes/api/public/thesis-benchmark'
+import { Route as ApiPublicThesisV2CalibrationRouteImport } from './routes/api/public/thesis-v2-calibration'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -59,6 +60,12 @@ const ApiPublicThesisBenchmarkRoute =
     path: '/api/public/thesis-benchmark',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicThesisV2CalibrationRoute =
+  ApiPublicThesisV2CalibrationRouteImport.update({
+    id: '/api/public/thesis-v2-calibration',
+    path: '/api/public/thesis-v2-calibration',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -69,6 +76,7 @@ export interface FileRoutesByFullPath {
   '/watchlist': typeof WatchlistRoute
   '/token/$tokenId': typeof TokenTokenIdRoute
   '/api/public/thesis-benchmark': typeof ApiPublicThesisBenchmarkRoute
+  '/api/public/thesis-v2-calibration': typeof ApiPublicThesisV2CalibrationRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -79,6 +87,7 @@ export interface FileRoutesByTo {
   '/watchlist': typeof WatchlistRoute
   '/token/$tokenId': typeof TokenTokenIdRoute
   '/api/public/thesis-benchmark': typeof ApiPublicThesisBenchmarkRoute
+  '/api/public/thesis-v2-calibration': typeof ApiPublicThesisV2CalibrationRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -90,6 +99,7 @@ export interface FileRoutesById {
   '/watchlist': typeof WatchlistRoute
   '/token/$tokenId': typeof TokenTokenIdRoute
   '/api/public/thesis-benchmark': typeof ApiPublicThesisBenchmarkRoute
+  '/api/public/thesis-v2-calibration': typeof ApiPublicThesisV2CalibrationRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -102,6 +112,7 @@ export interface FileRouteTypes {
     | '/watchlist'
     | '/token/$tokenId'
     | '/api/public/thesis-benchmark'
+    | '/api/public/thesis-v2-calibration'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -112,6 +123,7 @@ export interface FileRouteTypes {
     | '/watchlist'
     | '/token/$tokenId'
     | '/api/public/thesis-benchmark'
+    | '/api/public/thesis-v2-calibration'
   id:
     | '__root__'
     | '/'
@@ -122,6 +134,7 @@ export interface FileRouteTypes {
     | '/watchlist'
     | '/token/$tokenId'
     | '/api/public/thesis-benchmark'
+    | '/api/public/thesis-v2-calibration'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -133,6 +146,7 @@ export interface RootRouteChildren {
   WatchlistRoute: typeof WatchlistRoute
   TokenTokenIdRoute: typeof TokenTokenIdRoute
   ApiPublicThesisBenchmarkRoute: typeof ApiPublicThesisBenchmarkRoute
+  ApiPublicThesisV2CalibrationRoute: typeof ApiPublicThesisV2CalibrationRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -193,6 +207,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicThesisBenchmarkRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/thesis-v2-calibration': {
+      id: '/api/public/thesis-v2-calibration'
+      path: '/api/public/thesis-v2-calibration'
+      fullPath: '/api/public/thesis-v2-calibration'
+      preLoaderRoute: typeof ApiPublicThesisV2CalibrationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -205,6 +226,7 @@ const rootRouteChildren: RootRouteChildren = {
   WatchlistRoute: WatchlistRoute,
   TokenTokenIdRoute: TokenTokenIdRoute,
   ApiPublicThesisBenchmarkRoute: ApiPublicThesisBenchmarkRoute,
+  ApiPublicThesisV2CalibrationRoute: ApiPublicThesisV2CalibrationRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
