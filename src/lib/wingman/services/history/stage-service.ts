@@ -234,6 +234,22 @@ export const StageMilestoneService = {
         entryMarketCap !== null && entryMarketCap > 0 && currentMarketCap !== null
           ? ((currentMarketCap - entryMarketCap) / entryMarketCap) * 100
           : null;
+      const enteredAt = (m["first_entered_at"] as string | null) ?? null;
+      // Same formulas and validity rules as Survivors; only the baseline differs.
+      const derived = derivesSeries
+        ? deriveStageOutcome(
+            {
+              enteredAt,
+              marketCapAtEntry: entryMarketCap,
+              priceAtEntry: num(m, "price_at_entry"),
+            },
+            {
+              candidates: candidatesByToken.get(tokenId) ?? [],
+              snapshots: snapshotsByToken.get(tokenId) ?? [],
+            },
+            nowIso,
+          )
+        : null;
       const setupAtEntry = (m["setup_at_entry"] as string | null) ?? null;
       const setupKey = ((m["setup_key"] as string | null) ?? "ALL") as StageRow["setupKey"];
 
