@@ -482,8 +482,15 @@ export function validateModelOutput(
       domain,
       status,
       summary: status === "UNRESOLVED" ? null : (summaryByDomain.get(domain) ?? null),
+      unresolvedReason: deriveUnresolvedReason({
+        status,
+        searchHealth,
+        researched,
+        hasAnyClaim: domainClaims.length > 0,
+      }),
     };
   });
+
 
   let narrative = asString(obj["oneSentenceNarrative"]);
   if (narrative && BANNED_ADVICE.test(narrative)) {
