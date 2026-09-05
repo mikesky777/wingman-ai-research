@@ -65,7 +65,7 @@ export async function loadCohortThesisRunId(
 }
 
 export async function loadActiveResearchCohort(): Promise<ActiveResearchCohort> {
-  const eligibility = await selectEligibleProductionScan();
+  const eligibility = await selectActiveProductionScan();
   if (!eligibility.ok || !eligibility.runId) {
     return {
       cohortVersion: RESEARCH_COHORT_VERSION,
