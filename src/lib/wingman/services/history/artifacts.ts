@@ -112,6 +112,99 @@ export const ARTIFACT_NO_BASELINE_NOTE =
 export const THESIS_NO_BASELINE_NOTE =
   "Performance baseline unavailable for this historical artifact.";
 
+/** Diagnostic label for a preserved, non-canonical same-cohort duplicate. */
+export const SAME_COHORT_RERUN_LABEL = "SAME-COHORT RERUN · NON-CANONICAL KPI";
+
+export type ThesisPopulation = "THESIS_EVENTS" | "UNIQUE_TOKENS";
+
+/**
+ * `thesis_population/v1` — classify artifacts by exact provenance.
+ *
+ * Within one cohort (triage run) × mint, the EARLIEST artifact is canonical.
+ * Later artifacts of that same cohort × mint are same-cohort reruns: they stay
+ * visible in History but never count as independent observations. Selection is
+ * purely chronological — never by score, peak or any later outcome.
+ */
+export function classifyThesisArtifacts(rows: ThesisArtifact[]): ThesisArtifact[] {
+  const time = (r: ThesisArtifact) =>
+    r.synthesizedAt ? Date.parse(r.synthesizedAt) : Number.POSITIVE_INFINITY;
+  const ordered = [...rows].sort((a, b) => time(a) - time(b));
+
+  const canonicalIds = new Set<string>();
+  const seenCohortMint = new Set<string>();
+  const cohortsPerMint = new Map<string, Set<string>>();
+  const recurrence = new Map<string, number>();
+  const lastCanonicalAt = new Map<string, number>();
+  const sincePrior = new Map<string, number | null>();
+
+  for (const r of ordered) {
+    const cohort = r.triageRunId ?? `report:${r.reportId}`;
+    const key = `${cohort}::${r.mint}`;
+    if (seenCohortMint.has(key)) continue;
+    seenCohortMint.add(key);
+    canonicalIds.add(r.reportId);
+
+    const cohorts = cohortsPerMint.get(r.mint) ?? new Set<string>();
+    cohorts.add(cohort);
+    cohortsPerMint.set(r.mint, cohorts);
+    recurrence.set(r.reportId, cohorts.size);
+
+    const prior = lastCanonicalAt.get(r.mint) ?? null;
+    const at = time(r);
+    sincePrior.set(r.reportId, prior !== null && Number.isFinite(at) ? at - prior : null);
+    if (Number.isFinite(at)) lastCanonicalAt.set(r.mint, at);
+  }
+
+  return rows.map((r) => {
+    const canonical = canonicalIds.has(r.reportId);
+    return {
+      ...r,
+      canonicalWithinCohortMint: canonical,
+      sameCohortRerun: !canonical,
+      recurrenceNumberAcrossProductionCohorts: recurrence.get(r.reportId) ?? 0,
+      timeSincePriorCanonicalSynthesisMs: sincePrior.get(r.reportId) ?? null,
+    };
+  });
+}
+
+/**
+ * Statistical population for the KPI header.
+ *
+ * THESIS_EVENTS — one canonical observation per cohort × mint.
+ * UNIQUE_TOKENS — the EARLIEST canonical event per exact mint. No hindsight
+ * selection of the best score, best peak or latest winner.
+ */
+export function selectThesisPopulation(
+  rows: ThesisArtifact[],
+  population: ThesisPopulation,
+): ThesisArtifact[] {
+  const canonical = rows.filter((r) => r.canonicalWithinCohortMint);
+  if (population === "THESIS_EVENTS") return canonical;
+  const time = (r: ThesisArtifact) =>
+    r.synthesizedAt ? Date.parse(r.synthesizedAt) : Number.POSITIVE_INFINITY;
+  const earliest = new Map<string, ThesisArtifact>();
+  for (const r of [...canonical].sort((a, b) => time(a) - time(b))) {
+    if (!earliest.has(r.mint)) earliest.set(r.mint, r);
+  }
+  return [...earliest.values()];
+}
+
+/** Population counts shown above the KPI tiles. */
+export function thesisPopulationCounts(rows: ThesisArtifact[]): {
+  storedArtifacts: number;
+  thesisEvents: number;
+  uniqueTokens: number;
+  sameCohortReruns: number;
+} {
+  const canonical = rows.filter((r) => r.canonicalWithinCohortMint);
+  return {
+    storedArtifacts: rows.length,
+    thesisEvents: canonical.length,
+    uniqueTokens: new Set(canonical.map((r) => r.mint)).size,
+    sameCohortReruns: rows.length - canonical.length,
+  };
+}
+
 /** A single statistic plus the number of valid readings behind it. */
 export interface ArtifactStat {
   value: number | null;
