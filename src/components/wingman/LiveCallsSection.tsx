@@ -228,7 +228,7 @@ export function LiveCallsSection({
 }: {
   calls: LiveCall[] | undefined;
   loading: boolean;
-  sizings?: SizingRecommendation[];
+  sizings?: SizingRecommendation[] | undefined;
 }) {
   const count = calls?.length ?? 0;
   const sizingByCall = new Map((sizings ?? []).map((s) => [s.thesisCallId ?? "", s]));
