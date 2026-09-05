@@ -1764,6 +1764,7 @@ export type Database = {
         Row: {
           bear_case_severity: string | null
           blocked_reasons: string[]
+          catalyst_kind: string | null
           catalysts: string[]
           chain: string
           component_scores: Json | null
@@ -1819,10 +1820,12 @@ export type Database = {
           triage_decision_id: string | null
           triage_run_id: string | null
           verdict: string | null
+          why_now_market_signal: string | null
         }
         Insert: {
           bear_case_severity?: string | null
           blocked_reasons?: string[]
+          catalyst_kind?: string | null
           catalysts?: string[]
           chain?: string
           component_scores?: Json | null
@@ -1878,10 +1881,12 @@ export type Database = {
           triage_decision_id?: string | null
           triage_run_id?: string | null
           verdict?: string | null
+          why_now_market_signal?: string | null
         }
         Update: {
           bear_case_severity?: string | null
           blocked_reasons?: string[]
+          catalyst_kind?: string | null
           catalysts?: string[]
           chain?: string
           component_scores?: Json | null
@@ -1937,6 +1942,7 @@ export type Database = {
           triage_decision_id?: string | null
           triage_run_id?: string | null
           verdict?: string | null
+          why_now_market_signal?: string | null
         }
         Relationships: [
           {
