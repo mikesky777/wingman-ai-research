@@ -1,26 +1,51 @@
 /**
  * History ARTIFACT read model (server-only).
  *
- * Deep Research and Thesis Synthesized are artifact stages: real persisted
- * production reports exist, but no stage-relative outcome baseline was ever
- * captured for them. Nothing here invents a baseline, a milestone, a peak or a
- * drawdown, and nothing is ever written.
+ * Deep Research stays artifact-only: no stage-relative outcome baseline was
+ * ever captured for it.
+ *
+ * Thesis Synthesized is measurable, but ONLY from its own thesis-time
+ * baseline: either a baseline the thesis run persisted, or the exact persisted
+ * decision-time observation an older report was synthesized on. No AI
+ * Shortlist / Survivor baseline is ever borrowed, no baseline is invented, and
+ * nothing here is ever written.
  */
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import {
+  assessMarketValidity,
+  isMetricUsable,
+} from "../outcomes/market-validity";
+import { deriveStageOutcome } from "./stage-outcomes";
+import type { CandidateAppearance, SnapshotObservation } from "../outcomes/outcomes";
 import type {
   DeepResearchArtifact,
   HistoryArtifactIdentity,
   HistoryArtifacts,
   ThesisArtifact,
+  ThesisBaseline,
+  ThesisPerformance,
 } from "./artifacts";
 
 type Row = Record<string, unknown>;
 
 const num = (row: Row, key: string): number | null => {
   const v = row[key];
-  return typeof v === "number" && Number.isFinite(v) ? v : null;
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v))) return Number(v);
+  return null;
 };
 const str = (row: Row, key: string): string | null => (row[key] as string | null) ?? null;
+
+const chunk = <T,>(items: T[], size = 100): T[][] => {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+};
+
+/** Same market cap within float noise counts as the same persisted print. */
+const sameMarketCap = (a: number | null, b: number | null): boolean =>
+  a !== null && b !== null && Math.abs(a - b) <= Math.max(1e-6, Math.abs(a) * 1e-9);
+
 
 /** Production-only artifacts. Calibration rows are excluded at the query. */
 export async function loadHistoryArtifacts(): Promise<HistoryArtifacts> {
