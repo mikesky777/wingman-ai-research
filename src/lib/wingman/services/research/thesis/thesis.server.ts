@@ -41,6 +41,14 @@ import {
   type ValidationIssue,
 } from "./contracts";
 import {
+  THESIS_EVIDENCE_SEMANTICS_VERSION,
+  buildEvidenceSemantics,
+  buildGateDiagnostics,
+  legacyCatalystKind,
+  type EvidenceSemantics,
+  type GateDiagnostics,
+} from "./evidence-semantics";
+import {
   createLovableThesisProvider,
   parseThesisJson,
   type ThesisProvider,
