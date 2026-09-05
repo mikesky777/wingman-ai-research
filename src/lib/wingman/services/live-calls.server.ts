@@ -71,6 +71,14 @@ export interface LiveCall {
     priceHistorySource: string | null;
     structuralStatus: string | null;
   };
+  /** Current lifecycle state — the open Live episode that qualifies this card. */
+  lifecycle: {
+    monitoringStatus: string;
+    monitoringReason: string | null;
+    episodeNumber: number;
+    liveSince: string;
+    priorEpisodes: number;
+  };
 }
 
 export interface LiveCallsResult {
