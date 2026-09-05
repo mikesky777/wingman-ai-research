@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { OutcomeService, ResearchService, ScannerService } from "./services";
+import { getLiveCalls } from "./live-calls.functions";
 
 /** Query keys for every backend-read surface. */
 export const wingmanKeys = {
@@ -13,7 +14,19 @@ export const wingmanKeys = {
   opportunity: (id: string) => ["wingman", "opportunity", id] as const,
   outcomes: ["wingman", "outcomes"] as const,
   watchlist: ["wingman", "watchlist"] as const,
+  liveCalls: ["wingman", "live-calls"] as const,
 };
+
+/**
+ * Official production Live Calls — immutable THESIS_CALL records only.
+ * Never includes shortlists, synthesized-only theses, or calibration data.
+ */
+export function useLiveCalls() {
+  return useQuery({
+    queryKey: wingmanKeys.liveCalls,
+    queryFn: () => getLiveCalls(),
+  });
+}
 
 export function useLatestScan() {
   return useQuery({

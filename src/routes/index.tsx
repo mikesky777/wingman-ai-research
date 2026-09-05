@@ -7,9 +7,10 @@ import { StatTile } from "@/components/wingman/StatTile";
 import { OpportunityTable } from "@/components/wingman/OpportunityTable";
 import { EmptyState } from "@/components/wingman/EmptyState";
 import { EntryStateMachine } from "@/components/wingman/EntryStateMachine";
+import { LiveCallsSection } from "@/components/wingman/LiveCallsSection";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { useLatestScan, useOpportunities } from "@/lib/wingman/hooks";
+import { useLatestScan, useLiveCalls, useOpportunities } from "@/lib/wingman/hooks";
 import { formatNumber, formatTime } from "@/lib/wingman/format";
 import { MOCK_DATA_NOTICE } from "@/lib/wingman/config";
 
