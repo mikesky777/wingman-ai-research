@@ -41,6 +41,17 @@ export function useLiveCallSizing() {
   });
 }
 
+/**
+ * Live lifecycle: current monitoring state plus the append-only ledger of
+ * activations, deactivations and monitoring-status changes.
+ */
+export function useLiveLifecycle() {
+  return useQuery({
+    queryKey: wingmanKeys.liveLifecycle,
+    queryFn: () => getLiveLifecycle(),
+  });
+}
+
 export function useLatestScan() {
   return useQuery({
     queryKey: wingmanKeys.latestScan,
