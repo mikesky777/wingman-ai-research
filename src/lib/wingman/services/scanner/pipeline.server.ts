@@ -165,7 +165,20 @@ export interface RunScanResult {
   runId: string | null;
   /** Run already holding the lock, when the attempt was rejected. */
   activeRunId: string | null;
+  /**
+   * Canonical Research Packet generation for THIS run. Diagnostic only: a
+   * packet failure never invalidates the scan, it only blocks AI triage until
+   * the packets are regenerated (the step is idempotent and retryable).
+   */
+  researchPackets: {
+    attempted: boolean;
+    generated: number;
+    persisted: number;
+    eligibleNow: number;
+    error: string | null;
+  };
 }
+
 
 /** Enrich one survivor: fresh DexScreener pull → new immutable snapshot. */
 async function enrichSurvivor(
