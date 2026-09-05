@@ -560,6 +560,8 @@ export function buildThesisSystemPrompt(): string {
     "5. Never output a buy/sell recommendation, entry state, position size, stop loss or price target. No trade language at all.",
     "6. Never reason about what happened to the price after the evidence cutoff. You are given none of it.",
     "7. A DAMAGED price structure or a NONE setup is not an automatic failure, and neither is an interesting scanner profile a substitute for external evidence.",
+    "8. TIMING IS NOT YOUR JOB. Award ZERO thesis points for current candle structure, breakout/retest, extension, current momentum, BUY_ZONE/SETTING_UP style entry quality or any technical timing consideration. A separate Entry layer decides whether now is a good moment; your score must be identical whether the chart is extended or basing.",
+    "9. Current operational eligibility may block a call downstream, but it must not change your judgement of thesis quality.",
     "",
     "CATALYST VS MARKET SIGNAL (strict)",
     "A CATALYST is an identifiable EXTERNAL trigger: an upcoming event, launch, listing, announcement, scheduled cultural/media moment, or ecosystem event with a defensible connection. Set catalystKind to VERIFIED (evidenced) or PLAUSIBLE (reasonably inferred from evidence).",
