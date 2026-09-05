@@ -53,7 +53,7 @@ export async function loadProductionFunnel(): Promise<ProductionFunnel> {
   if (scanId) {
     const { data } = await supabaseAdmin
       .from("scan_runs")
-      .select("id, completed_at, discovered_token_count, selection_policy_version")
+      .select("id, completed_at, tokens_discovered, selection_policy_version")
       .eq("id", scanId)
       .maybeSingle();
     const r = (data as Row | null) ?? null;
@@ -61,7 +61,7 @@ export async function loadProductionFunnel(): Promise<ProductionFunnel> {
       scan = {
         id: r["id"] as string,
         completedAt: (r["completed_at"] as string) ?? null,
-        discoveredTokenCount: (r["discovered_token_count"] as number) ?? null,
+        discoveredTokenCount: (r["tokens_discovered"] as number) ?? null,
         policyVersion: (r["selection_policy_version"] as string) ?? null,
       };
     }
