@@ -94,15 +94,32 @@ export function ProductionFunnelPanel() {
       <div className="flex flex-wrap gap-2">
         <Stage
           label="SCANNER"
-          status={s.packets}
+          status={data.scan.completedAt ? "COMPLETED" : "PENDING"}
           lines={[
-            { text: `${data.scan.packetCount} research candidates` },
+            { text: `${data.scan.discoveredTokenCount ?? 0} discovered` },
             {
               text: data.scan.completedAt ? relativeTime(data.scan.completedAt) : "—",
               tone: "text-muted-foreground",
             },
           ]}
         />
+        <Stage
+          label="RESEARCH PACKETS"
+          status={s.packets}
+          lines={[
+            { text: `${data.scan.packetCount} research candidates` },
+            {
+              text:
+                s.packets === "FAILED"
+                  ? (data.scan.packetError ?? "generation failed — retry below")
+                  : s.packets === "NOT_STARTED"
+                    ? "not generated for this scan"
+                    : "ready for triage",
+              tone: s.packets === "FAILED" ? "text-negative" : "text-muted-foreground",
+            },
+          ]}
+        />
+
         <Stage
           label="AI TRIAGE"
           status={s.triage}
