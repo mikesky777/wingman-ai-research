@@ -252,6 +252,32 @@ export function ThesisSynthesizedArtifacts() {
         />
       ) : (
         <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="font-mono text-[10px] tracking-wide text-muted-foreground">
+              {counts.storedArtifacts} stored artifacts · {counts.thesisEvents} thesis events ·{" "}
+              {counts.uniqueTokens} unique tokens
+            </span>
+            <div className="flex items-center gap-1">
+              {(
+                [
+                  ["THESIS_EVENTS", "THESIS EVENTS"],
+                  ["UNIQUE_TOKENS", "UNIQUE TOKENS"],
+                ] as [ThesisPopulation, string][]
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  onClick={() => setPopulation(id)}
+                  className={`rounded border px-2 py-1 font-mono text-[10px] tracking-wide ${
+                    population === id
+                      ? "border-primary text-primary"
+                      : "border-border text-muted-foreground"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
           <ThesisSummaryCards summary={summary} />
           <div className="flex flex-wrap items-center gap-2">
             {SORTS.map((s) => (
