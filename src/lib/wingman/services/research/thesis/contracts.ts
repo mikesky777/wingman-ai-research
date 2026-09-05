@@ -990,6 +990,13 @@ export function buildThesisSystemPrompt(): string {
     JSON.stringify(
       {
         components: Object.fromEntries(THESIS_COMPONENTS.map((c) => [c.key, 0])),
+        componentReasons: Object.fromEntries(
+          THESIS_COMPONENTS.map((c) => [
+            c.key,
+            { reason: "string", reasonCode: "MIXED_EVIDENCE" },
+          ]),
+        ),
+
         oneSentenceThesis: "string",
         narrativeThesis: "string",
         sections: {
