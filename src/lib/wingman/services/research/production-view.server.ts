@@ -9,6 +9,7 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { loadLatestTriage, type TriageRunSummary } from "./triage.server";
 import type { DeepResearchReportSummary } from "./deep/deep-research.server";
+import { classifyResearchFailure } from "./deep/failure";
 import {
   buildProductionShortlist,
   countShortlistStatuses,
@@ -71,7 +72,7 @@ export async function loadProductionFunnel(): Promise<ProductionFunnel> {
   // Deep Research attempts belonging to THIS production triage run only.
   const { data: runRows, error: runError } = await supabaseAdmin
     .from("deep_research_runs")
-    .select("id, mint, status, started_at")
+    .select("id, mint, status, started_at, error, diagnostics")
     .eq("triage_run_id", triage.run.id)
     .eq("is_calibration", false)
     .order("started_at", { ascending: true });
@@ -94,6 +95,10 @@ export async function loadProductionFunnel(): Promise<ProductionFunnel> {
 
   const attempts: DeepResearchRunInput[] = ((runRows as Row[]) ?? []).map((r) => {
     const rep = reportByRunId.get(r["id"] as string) ?? null;
+    const failure =
+      (r["status"] as string) === "failed"
+        ? classifyResearchFailure((r["error"] as string) ?? null)
+        : null;
     const dossier =
       (rep?.["dossier"] as { coverage?: { independentSourceCount?: number } } | undefined) ?? null;
     return {
@@ -106,6 +111,8 @@ export async function loadProductionFunnel(): Promise<ProductionFunnel> {
       independentSourceCount: dossier?.coverage?.independentSourceCount ?? null,
       coveragePct: (rep?.["evidence_coverage_pct"] as number) ?? null,
       researchedAt: (rep?.["created_at"] as string) ?? (r["started_at"] as string) ?? null,
+      failureCode: failure ? failure.code : null,
+      retryable: failure ? failure.retryable : false,
     };
   });
 

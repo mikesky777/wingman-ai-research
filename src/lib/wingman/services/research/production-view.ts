@@ -36,6 +36,9 @@ export interface DeepResearchRunInput {
   independentSourceCount: number | null;
   coveragePct: number | null;
   researchedAt: string | null;
+  /** Structured execution-failure code, e.g. FAILED_AI_CREDIT_LIMIT. */
+  failureCode?: string | null;
+  retryable?: boolean | null;
 }
 
 export interface ProductionShortlistEntry extends ShortlistDecisionInput {
@@ -46,6 +49,8 @@ export interface ProductionShortlistEntry extends ShortlistDecisionInput {
   independentSourceCount: number | null;
   coveragePct: number | null;
   researchedAt: string | null;
+  failureCode: string | null;
+  retryable: boolean;
 }
 
 /**
@@ -124,6 +129,8 @@ export function buildProductionShortlist(
         independentSourceCount: run?.independentSourceCount ?? null,
         coveragePct: run?.coveragePct ?? null,
         researchedAt: run?.researchedAt ?? null,
+        failureCode: run?.failureCode ?? null,
+        retryable: run?.retryable === true,
       };
     });
 }
