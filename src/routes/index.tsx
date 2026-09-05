@@ -10,7 +10,7 @@ import { EntryStateMachine } from "@/components/wingman/EntryStateMachine";
 import { LiveCallsSection } from "@/components/wingman/LiveCallsSection";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { useLatestScan, useLiveCalls, useOpportunities } from "@/lib/wingman/hooks";
+import { useLatestScan, useLiveCalls, useLiveCallSizing, useOpportunities } from "@/lib/wingman/hooks";
 import { formatNumber, formatTime } from "@/lib/wingman/format";
 import { MOCK_DATA_NOTICE } from "@/lib/wingman/config";
 
