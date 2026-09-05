@@ -275,6 +275,17 @@ export function ProductionDeepResearchPanel() {
         })}
       </div>
 
+      {start.data && start.data.code !== "OK" ? (
+        <p className="mt-3 text-xs text-negative">
+          {start.data.code === "DEEP_RESEARCH_PROVENANCE_MISMATCH"
+            ? "DEEP_RESEARCH_PROVENANCE_MISMATCH — nothing was researched; the shortlist did not resolve to the active scan and triage run."
+            : start.data.code}
+        </p>
+      ) : null}
+      {start.isError ? (
+        <p className="mt-3 text-xs text-negative">Deep Research batch failed to start.</p>
+      ) : null}
+
       {isLoading ? (
         <p className="mt-4 text-xs text-muted-foreground">Loading shortlist…</p>
       ) : shortlist.length === 0 ? (
