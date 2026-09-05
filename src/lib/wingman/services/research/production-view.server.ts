@@ -40,6 +40,8 @@ export interface ProductionFunnel {
     discoveredTokenCount: number | null;
     policyVersion: string | null;
     packetCount: number;
+    packetStatus: "READY" | "NOT_STARTED" | "FAILED";
+    packetError: string | null;
   } | null;
   /** Why no scan is active, when scan is null. */
   eligibility: ActiveResearchCohort["eligibility"] | null;
@@ -66,6 +68,7 @@ function emptyFunnel(cohort: ActiveResearchCohort | null): ProductionFunnel {
     eligibility: cohort?.eligibility ?? null,
     stages: deriveCohortStages({
       packetCount: cohort?.scan?.packetCount ?? 0,
+      packetStatus: cohort?.scan?.packetStatus,
       triageRunId: null,
       triageStatus: null,
       shortlistCount: 0,
@@ -203,6 +206,7 @@ export async function loadProductionFunnel(): Promise<ProductionFunnel> {
     eligibility: cohort.eligibility,
     stages: deriveCohortStages({
       packetCount: cohort.scan.packetCount,
+      packetStatus: cohort.scan.packetStatus,
       triageRunId: triage.run.id,
       triageStatus: triage.run.status,
       shortlistCount: cohortShortlistCount,

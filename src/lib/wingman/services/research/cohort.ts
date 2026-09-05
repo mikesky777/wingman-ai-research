@@ -26,6 +26,12 @@ export type CohortStageStatus =
 export interface CohortStageInput {
   /** Packets belonging to the exact active scan. */
   packetCount: number;
+  /**
+   * Persisted packet-generation outcome for the active scan, when recorded.
+   * A recorded FAILED with zero packets is reported as FAILED so the UI can
+   * offer a retry instead of implying the stage was never attempted.
+   */
+  packetStatus?: "READY" | "NOT_STARTED" | "FAILED";
   /** Production triage run for the exact active scan, if any. */
   triageRunId: string | null;
   triageStatus: string | null;
@@ -55,7 +61,8 @@ export interface CohortStages {
 
 /** Deterministic stage vocabulary for the active cohort. Never guesses. */
 export function deriveCohortStages(input: CohortStageInput): CohortStages {
-  const packets: CohortStageStatus = input.packetCount > 0 ? "READY" : "NOT_STARTED";
+  const packets: CohortStageStatus =
+    input.packetCount > 0 ? "READY" : input.packetStatus === "FAILED" ? "FAILED" : "NOT_STARTED";
 
   let triage: CohortStageStatus = "NOT_STARTED";
   if (input.triageRunId) {
