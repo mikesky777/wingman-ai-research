@@ -120,6 +120,19 @@ export function TriagePanel() {
           <FlaskConical className="size-4" />
           Calibration (dry run)
         </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => packetMutation.mutate()}
+          disabled={packetMutation.isPending}
+        >
+          {packetMutation.isPending ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : (
+            <PackagePlus className="size-4" />
+          )}
+          Generate / retry research packets
+        </Button>
         {lastCode === "NO_ELIGIBLE_CURRENT_SCAN" ? (
           <span className="text-xs text-warning">
             No eligible current scan — nothing was triaged.
