@@ -389,6 +389,62 @@ function ThesisDetail({ report }: { report: Report }) {
         </div>
       ) : null}
 
+      {report.evidenceSemanticsVersion ? (
+        <div className="space-y-3">
+          <p className="label-xs">
+            EVIDENCE ({report.evidenceSemanticsVersion})
+            {report.sourceMix ? (
+              <span className="ml-2 font-normal text-muted-foreground">
+                {report.sourceMix.independent} independent · {report.sourceMix.community} community ·{" "}
+                {report.sourceMix.projectOwned + report.sourceMix.projectAffiliated} project ·{" "}
+                {report.sourceMix.unknown} unknown
+              </span>
+            ) : null}
+          </p>
+
+          <EvidenceList
+            label="SUPPORTING (POSITIVE)"
+            items={report.positiveEvidence}
+            tone="text-muted-foreground"
+          />
+          <EvidenceList
+            label="ADVERSE (NEGATIVE — cited)"
+            items={report.negativeEvidence}
+            tone="text-destructive"
+          />
+          <EvidenceList
+            label="NOT ESTABLISHED (MISSING — not bearish)"
+            items={report.missingEvidence}
+            tone="text-muted-foreground"
+          />
+          <EvidenceList
+            label="AMBIGUOUS"
+            items={report.ambiguousEvidence}
+            tone="text-muted-foreground"
+          />
+
+          {report.narrativeMaturityReasons.length ? (
+            <div>
+              <p className="label-xs mb-1">NARRATIVE MATURITY REASONING</p>
+              <ul className="list-disc space-y-1 pl-4 text-xs text-muted-foreground">
+                {report.narrativeMaturityReasons.map((x) => (
+                  <li key={x}>{x}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
+          {report.gateDiagnostics?.independentSourceGateBinding ? (
+            <p className="text-[11px] text-warning">
+              Calibration note: source independence was the only unmet gate (
+              {report.gateDiagnostics.independentSourceCount} independent,{" "}
+              {report.gateDiagnostics.primarySourceCount} primary,{" "}
+              {report.gateDiagnostics.communitySourceCount} community). The gate was still applied.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
       {report.sources.length ? (
         <div>
           <p className="label-xs mb-1">SOURCES</p>
