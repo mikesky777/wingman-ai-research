@@ -10,7 +10,7 @@ import { EntryStateMachine } from "@/components/wingman/EntryStateMachine";
 import { LiveCallsSection } from "@/components/wingman/LiveCallsSection";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { useLatestScan, useLiveCalls, useOpportunities } from "@/lib/wingman/hooks";
+import { useLatestScan, useLiveCalls, useLiveCallSizing, useOpportunities } from "@/lib/wingman/hooks";
 import { formatNumber, formatTime } from "@/lib/wingman/format";
 import { MOCK_DATA_NOTICE } from "@/lib/wingman/config";
 
@@ -45,6 +45,8 @@ function Dashboard() {
   const { data: latestScan, isLoading: scanLoading } = useLatestScan();
   const { data: opportunities = [], isLoading: oppsLoading } = useOpportunities();
   const { data: liveCalls, isLoading: liveCallsLoading } = useLiveCalls();
+  // Deterministic sizing/v1 for official calls only; empty while 0 calls exist.
+  const { data: liveCallSizing } = useLiveCallSizing();
   const summary = latestScan?.summary;
   const [scanning, setScanning] = useState(false);
   const [lastScanAt, setLastScanAt] = useState<string | null>(null);
@@ -112,7 +114,11 @@ function Dashboard() {
           />
         </div>
 
-        <LiveCallsSection calls={liveCalls?.calls} loading={liveCallsLoading} />
+        <LiveCallsSection
+          calls={liveCalls?.calls}
+          loading={liveCallsLoading}
+          sizings={liveCallSizing?.sizings}
+        />
 
         <Section
           title="Top Opportunities"

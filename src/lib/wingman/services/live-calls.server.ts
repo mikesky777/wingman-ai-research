@@ -67,6 +67,9 @@ export interface LiveCall {
     entryPolicyVersion: string | null;
     timingResolution: string | null;
     entryEvaluatedAt: string | null;
+    entryEvaluationId: string | null;
+    priceHistorySource: string | null;
+    structuralStatus: string | null;
   };
 }
 
@@ -120,7 +123,7 @@ export async function loadLiveCalls(): Promise<LiveCallsResult> {
     ...new Set(milestones.map((r) => r["contract_address"] as string).filter(Boolean)),
   ];
 
-  const [tokensRes, thesisRes, entryRes, snapshotRes] = await Promise.all([
+  const [tokensRes, thesisRes, entryRes, snapshotRes, structuralRes] = await Promise.all([
     supabaseAdmin
       .from("tokens")
       .select("id, contract_address, symbol, name, dex_pair_address")
@@ -138,7 +141,7 @@ export async function loadLiveCalls(): Promise<LiveCallsResult> {
     mints.length
       ? supabaseAdmin
           .from("entry_state_evaluations")
-          .select("mint, state, entry_policy_version, timing_resolution, evaluated_at")
+          .select("id, mint, state, entry_policy_version, timing_resolution, price_history_source, evaluated_at")
           .in("mint", mints)
           .eq("is_calibration", false)
           .order("evaluated_at", { ascending: false })
@@ -148,8 +151,15 @@ export async function loadLiveCalls(): Promise<LiveCallsResult> {
       .select("token_id, market_cap, liquidity_usd, captured_at")
       .in("token_id", tokenIds)
       .order("captured_at", { ascending: false }),
+    mints.length
+      ? supabaseAdmin
+          .from("scan_candidates")
+          .select("contract_address, structural_status, created_at")
+          .in("contract_address", mints)
+          .order("created_at", { ascending: false })
+      : Promise.resolve({ data: [] as Row[], error: null }),
   ]);
-  for (const res of [tokensRes, thesisRes, entryRes, snapshotRes]) {
+  for (const res of [tokensRes, thesisRes, entryRes, snapshotRes, structuralRes]) {
     if (res.error) throw new Error(res.error.message);
   }
 
@@ -172,6 +182,14 @@ export async function loadLiveCalls(): Promise<LiveCallsResult> {
   for (const r of (snapshotRes.data as Row[]) ?? []) {
     const id = r["token_id"] as string;
     if (!snapshotByTokenId.has(id)) snapshotByTokenId.set(id, r);
+  }
+
+  const structuralByMint = new Map<string, string | null>();
+  for (const r of (structuralRes.data as Row[]) ?? []) {
+    const mint = r["contract_address"] as string;
+    if (!structuralByMint.has(mint)) {
+      structuralByMint.set(mint, (r["structural_status"] as string | null) ?? null);
+    }
   }
 
   const calls: LiveCall[] = milestones.map((m) => {
@@ -231,6 +249,9 @@ export async function loadLiveCalls(): Promise<LiveCallsResult> {
         entryPolicyVersion: (entry?.["entry_policy_version"] as string | null) ?? null,
         timingResolution: (entry?.["timing_resolution"] as string | null) ?? null,
         entryEvaluatedAt: (entry?.["evaluated_at"] as string | null) ?? null,
+        entryEvaluationId: (entry?.["id"] as string | null) ?? null,
+        priceHistorySource: (entry?.["price_history_source"] as string | null) ?? null,
+        structuralStatus: structuralByMint.get(mint) ?? null,
       },
     };
   });

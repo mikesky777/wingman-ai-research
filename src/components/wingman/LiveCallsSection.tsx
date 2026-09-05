@@ -19,6 +19,8 @@ import { formatNumber, formatTime } from "@/lib/wingman/format";
 import { ENTRY_STATES } from "@/lib/wingman/config";
 import type { EntryState } from "@/lib/wingman/types";
 import type { LiveCall } from "@/lib/wingman/services/live-calls.server";
+import type { SizingRecommendation } from "@/lib/wingman/services/sizing/contracts";
+import { sizingHeadline } from "@/lib/wingman/services/sizing/contracts";
 
 const money = (v: number | null) => (v == null ? "—" : `$${formatNumber(v)}`);
 
@@ -55,7 +57,64 @@ function entryStateOrNull(state: string | null): EntryState | null {
   return state && state in ENTRY_STATES ? (state as EntryState) : null;
 }
 
-function LiveCallCard({ call }: { call: LiveCall }) {
+const pct = (v: number | null) => (v == null ? "—" : `${v.toFixed(2)}%`);
+
+/**
+ * POSITION PLAN — deterministic sizing/v1.
+ * Kept visually separate from Thesis quality and Entry timing. Percentages
+ * are of the Wingman strategy bankroll; no execution is implied or connected.
+ */
+function PositionPlan({ sizing }: { sizing: SizingRecommendation | undefined }) {
+  if (!sizing) {
+    return (
+      <div className="rounded border border-border/60 p-3">
+        <p className="text-[10px] font-semibold tracking-wide text-muted-foreground uppercase">
+          Position plan
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">Sizing not yet calculated.</p>
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-2 rounded border border-border/60 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-[10px] font-semibold tracking-wide text-muted-foreground uppercase">
+          Position plan
+        </p>
+        <Badge variant="outline" className="text-[10px]">
+          {sizingHeadline(sizing)}
+        </Badge>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        <Fact label="Max allocation" value={pct(sizing.effectiveMaxAllocationPct)} />
+        <Fact label="Deploy now" value={pct(sizing.deployNowPct)} />
+        <Fact label="Reserve" value={pct(sizing.reservePct)} />
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        <Fact label="Band" value={sizing.convictionBandLabel} />
+        <Fact label="Raw target" value={pct(sizing.rawInterpolatedMaxPct)} />
+        <Fact
+          label="Structural"
+          value={`${sizing.structuralRisk} ${sizing.structuralModifier.toFixed(2)}x`}
+        />
+      </div>
+      <p className="text-[11px] text-muted-foreground">
+        {sizing.reasonCodes.join(" · ") || "—"}
+      </p>
+      <p className="font-mono text-[10px] text-muted-foreground">
+        {sizing.sizingPolicyVersion} · % of Wingman strategy bankroll
+      </p>
+    </div>
+  );
+}
+
+function LiveCallCard({
+  call,
+  sizing,
+}: {
+  call: LiveCall;
+  sizing?: SizingRecommendation | undefined;
+}) {
   const thesis = call.thesis;
   const entryState = entryStateOrNull(call.current.entryState);
   return (
@@ -145,6 +204,8 @@ function LiveCallCard({ call }: { call: LiveCall }) {
         </div>
       </div>
 
+      <PositionPlan sizing={sizing} />
+
       <div className="flex flex-wrap gap-1.5 border-t border-border/60 pt-3">
         <Button asChild variant="outline" size="sm" className="h-7 gap-1 px-2 text-[11px]">
           <Link to="/research">
@@ -169,11 +230,14 @@ function LiveCallCard({ call }: { call: LiveCall }) {
 export function LiveCallsSection({
   calls,
   loading,
+  sizings,
 }: {
   calls: LiveCall[] | undefined;
   loading: boolean;
+  sizings?: SizingRecommendation[] | undefined;
 }) {
   const count = calls?.length ?? 0;
+  const sizingByCall = new Map((sizings ?? []).map((s) => [s.thesisCallId ?? "", s]));
   return (
     <div id="live-calls">
       <Section
@@ -186,12 +250,16 @@ export function LiveCallsSection({
           <EmptyState
             icon={<PhoneCall className="size-4" />}
             title="No production thesis currently meets Wingman's opportunity criteria."
-            description="Live Calls appear here the moment a production thesis clears every opportunity gate and a THESIS_CALL is recorded."
+            description="No production calls currently require sizing. Live Calls — and their position plans — appear here the moment a production thesis clears every opportunity gate and a THESIS_CALL is recorded."
           />
         ) : (
           <div className="space-y-4">
             {calls!.map((call) => (
-              <LiveCallCard key={call.call.milestoneId} call={call} />
+              <LiveCallCard
+                key={call.call.milestoneId}
+                call={call}
+                sizing={sizingByCall.get(call.call.milestoneId)}
+              />
             ))}
           </div>
         )}
