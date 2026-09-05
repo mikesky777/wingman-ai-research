@@ -56,6 +56,24 @@ export interface LatestScan {
   summary: ScanSummary;
 }
 
+/**
+ * Latest scan ATTEMPT of any status. Distinct from the funnel, which only ever
+ * describes a completed run: an attempt may be running, failed or abandoned.
+ */
+export interface ScanAttemptRow {
+  runId: string;
+  status: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  discovered: number;
+  calibrationMode: boolean;
+  scannerVersion: string | null;
+  discoveryHealth: string | null;
+  selectionPolicyVersion: string | null;
+  policyEpoch: string | null;
+  errorMessage: string | null;
+}
+
 /** Scanner v1 funnel counts, read straight from the run ledger. */
 export interface ScanFunnel {
   runId: string;
