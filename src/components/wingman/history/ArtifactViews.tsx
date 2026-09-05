@@ -17,14 +17,18 @@ import { getHistoryArtifacts } from "@/lib/wingman/history.functions";
 import { formatDate, formatUsd } from "@/lib/wingman/format";
 import {
   ARTIFACT_NO_BASELINE_NOTE as NO_BASELINE_NOTE,
+  SAME_COHORT_RERUN_LABEL,
   THESIS_NO_BASELINE_NOTE,
+  selectThesisPopulation,
   sortThesisArtifacts,
   summarizeThesisArtifacts,
+  thesisPopulationCounts,
   type ArtifactStat,
   type DeepResearchArtifact,
   type ThesisArtifact,
   type ThesisArtifactSort,
   type ThesisPerformanceSummary,
+  type ThesisPopulation,
 } from "@/lib/wingman/services/history/artifacts";
 
 function useArtifacts() {
