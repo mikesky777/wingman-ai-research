@@ -652,3 +652,25 @@ export async function recordDiscoveryHealth(
     } as never)
     .eq("id", runId);
 }
+
+/**
+ * Persist the outcome of automatic Research Packet generation for one run.
+ *
+ * Diagnostic only: this NEVER changes run status. It exists so the Research
+ * read-model can distinguish READY / NOT_STARTED / FAILED honestly instead of
+ * inferring "not started" from an empty packet table.
+ */
+export async function recordResearchPacketResult(
+  runId: string,
+  result: { status: "READY" | "FAILED" | "NOT_STARTED"; count: number; error: string | null },
+): Promise<void> {
+  await supabaseAdmin
+    .from("scan_runs")
+    .update({
+      research_packet_status: result.status,
+      research_packet_count: result.count,
+      research_packet_error: result.error ? result.error.slice(0, 500) : null,
+      research_packet_generated_at: new Date().toISOString(),
+    } as never)
+    .eq("id", runId);
+}
