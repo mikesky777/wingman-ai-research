@@ -67,6 +67,7 @@ export type DeepResearchRunCode =
   | "OK"
   | "NO_ELIGIBLE_TRIAGE_RUN"
   | "NO_DEEP_RESEARCH_CANDIDATES"
+  | "DEEP_RESEARCH_PROVENANCE_MISMATCH"
   | "MISSING_API_KEY";
 
 /**
@@ -159,6 +160,18 @@ export interface RunDeepResearchOptions {
    * Completed / insufficient / blocked outcomes are never rerun.
    */
   retryFailedOnly?: boolean;
+  /**
+   * Production only: research ONLY shortlist members with no persisted attempt
+   * at all. Completed, partial, blocked, running and failed mints are left
+   * untouched (failures are handled by `retryFailedOnly`).
+   */
+  startNotStartedOnly?: boolean;
+  /**
+   * Production only: refuse to spend model/search budget unless the resolved
+   * triage run and its source scan are EXACTLY the active Research cohort.
+   */
+  requireActiveCohort?: boolean;
+
 
   budget?: Partial<ResearchBudget>;
   provider?: DeepResearchProvider;
@@ -272,6 +285,24 @@ export async function runDeepResearch(
     return emptyBatch(mode, "NO_ELIGIBLE_TRIAGE_RUN", null, null, provider);
   }
 
+  // Exact-provenance guard: stop before any model/search spend if the resolved
+  // run is not the active production cohort's triage run for its exact scan.
+  if (!isCalibration && options.requireActiveCohort) {
+    const { loadActiveResearchCohort } = await import("../cohort.server");
+    const cohort = await loadActiveResearchCohort();
+    const scanOk = !!cohort.scan && cohort.scan.id === triageRun.sourceScanId;
+    const triageOk = !!cohort.triageRunId && cohort.triageRunId === triageRun.id;
+    if (!scanOk || !triageOk) {
+      return emptyBatch(
+        mode,
+        "DEEP_RESEARCH_PROVENANCE_MISMATCH",
+        triageRun.id,
+        triageRun.sourceScanId,
+        provider,
+      );
+    }
+  }
+
   let skippedWithOutcome = 0;
   let shortlist = await loadShortlist(triageRun);
   if (shortlist.length === 0) {
@@ -292,6 +323,12 @@ export async function runDeepResearch(
     const limit = typeof options.limit === "number" && options.limit > 0 ? options.limit : shortlist.length;
     shortlist = shortlist.slice(0, limit);
   } else {
+    if (options.startNotStartedOnly) {
+      const attempted = await loadAttemptedMints(triageRun.id);
+      const before = shortlist.length;
+      shortlist = shortlist.filter((c) => !attempted.has(c.mint));
+      skippedWithOutcome = before - shortlist.length;
+    }
     const offset = typeof options.offset === "number" && options.offset > 0 ? options.offset : 0;
     const limit = typeof options.limit === "number" && options.limit > 0 ? options.limit : shortlist.length;
     shortlist = shortlist.slice(offset, offset + limit);
@@ -1193,4 +1230,20 @@ async function loadRetryableMints(triageRunId: string): Promise<Set<string>> {
     if (classifyResearchFailure(row["error"] as string | null).retryable) retryable.add(mint);
   }
   return retryable;
+}
+
+/**
+ * Mints of THIS production triage run that already have any persisted attempt
+ * (completed, partial, insufficient, blocked, running or failed). Used so
+ * "Run Deep Research" only ever starts genuinely NOT_STARTED candidates and can
+ * never rerun or overwrite finished work.
+ */
+async function loadAttemptedMints(triageRunId: string): Promise<Set<string>> {
+  const { data, error } = await supabaseAdmin
+    .from("deep_research_runs")
+    .select("mint")
+    .eq("triage_run_id", triageRunId)
+    .eq("is_calibration", false);
+  if (error) throw new Error(error.message);
+  return new Set(((data as Row[]) ?? []).map((r) => r["mint"] as string));
 }

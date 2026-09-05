@@ -184,6 +184,11 @@ export function ProductionDeepResearchPanel() {
     [shortlist],
   );
 
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ queryKey: ["research", "production-funnel"] });
+    void queryClient.invalidateQueries({ queryKey: ["deep-research"] });
+  };
+
   // Retries only re-attempt retryable execution failures. Completed dossiers
   // are never rerun and never overwritten.
   const retry = useMutation({
@@ -196,11 +201,29 @@ export function ProductionDeepResearchPanel() {
           triageRunId: data?.triage?.id ?? null,
         },
       }),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["research", "production-funnel"] });
-      void queryClient.invalidateQueries({ queryKey: ["deep-research"] });
-    },
+    onSuccess: invalidate,
   });
+
+  // Starts ONLY shortlist members with no persisted attempt, strictly inside
+  // the active cohort (exact scan + exact production triage run).
+  const start = useMutation({
+    mutationFn: () =>
+      retryResearch({
+        data: {
+          mode: "PRODUCTION" as const,
+          startNotStarted: true,
+          requireActiveCohort: true,
+          limit: 40,
+          triageRunId: data?.triage?.id ?? null,
+        },
+      }),
+    onSuccess: invalidate,
+  });
+
+  const notStartedCount = useMemo(
+    () => shortlist.filter((c) => c.status === "NOT_STARTED").length,
+    [shortlist],
+  );
 
   return (
     <Section
@@ -208,6 +231,13 @@ export function ProductionDeepResearchPanel() {
       description="Every production shortlist candidate and its persisted research status. Unresearched members stay visible."
       actions={
         <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            disabled={notStartedCount === 0 || start.isPending || retry.isPending}
+            onClick={() => start.mutate()}
+          >
+            {start.isPending ? "Researching…" : `Run Deep Research (${notStartedCount})`}
+          </Button>
           {retryableCount > 0 ? (
             <Button
               size="sm"
@@ -244,6 +274,17 @@ export function ProductionDeepResearchPanel() {
           );
         })}
       </div>
+
+      {start.data && start.data.code !== "OK" ? (
+        <p className="mt-3 text-xs text-negative">
+          {start.data.code === "DEEP_RESEARCH_PROVENANCE_MISMATCH"
+            ? "DEEP_RESEARCH_PROVENANCE_MISMATCH — nothing was researched; the shortlist did not resolve to the active scan and triage run."
+            : start.data.code}
+        </p>
+      ) : null}
+      {start.isError ? (
+        <p className="mt-3 text-xs text-negative">Deep Research batch failed to start.</p>
+      ) : null}
 
       {isLoading ? (
         <p className="mt-4 text-xs text-muted-foreground">Loading shortlist…</p>
