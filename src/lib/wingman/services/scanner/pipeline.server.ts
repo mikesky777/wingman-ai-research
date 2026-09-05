@@ -256,6 +256,7 @@ export async function runScannerPipeline(
         code: "ALREADY_RUNNING",
         runId: null,
         activeRunId: error.activeRunId,
+        researchPackets: NO_PACKET_ATTEMPT,
       };
     }
     return {
@@ -806,12 +807,28 @@ export async function runScannerPipeline(
       );
     }
 
-    return { ok: true, summary, message: null, code: "COMPLETED", runId, activeRunId: null };
+    return {
+      ok: true,
+      summary,
+      message: null,
+      code: "COMPLETED",
+      runId,
+      activeRunId: null,
+      researchPackets,
+    };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Scan failed.";
     // A failed run is isolated; earlier completed runs stay untouched.
     await failScanRun(runId, message);
     console.error("runScannerPipeline failed", message);
-    return { ok: false, summary: null, message, code: "FAILED", runId, activeRunId: null };
+    return {
+      ok: false,
+      summary: null,
+      message,
+      code: "FAILED",
+      runId,
+      activeRunId: null,
+      researchPackets: NO_PACKET_ATTEMPT,
+    };
   }
 }
