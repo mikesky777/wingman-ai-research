@@ -531,15 +531,21 @@ export function buildBenchmarkComparison(args: {
     opportunitiesCreated: batches.reduce((a, b) => a + b.opportunities, 0),
     thesisCallsCreated: batches.reduce((a, b) => a + b.thesisCalls, 0),
     comparisons,
+    plan,
+    stabilityNote:
+      "Stability testing is intentionally concentrated on the near-threshold / high-interest subset " +
+      `(${THESIS_BENCHMARK_STABILITY_SYMBOLS.join(", ")}); the rest of the cohort is synthesised once.`,
     summary: {
       meanScoreDelta,
       meanConfidenceDelta: mean(confDeltas),
       verdictChanges,
       unstableCandidates: unstable,
+      stabilityCandidatesTested: repeated.length,
       maxScoreSpread: spreads.length ? Math.max(...spreads) : null,
       catalystDisagreements: comparisons.filter((c) => c.catalystDisagreement).length,
     },
     recommendation,
+
   };
 }
 
