@@ -179,6 +179,43 @@ export interface RunScanResult {
   };
 }
 
+export type ResearchPacketStepResult = RunScanResult["researchPackets"];
+
+const NO_PACKET_ATTEMPT: ResearchPacketStepResult = {
+  attempted: false,
+  generated: 0,
+  persisted: 0,
+  eligibleNow: 0,
+  error: null,
+};
+
+/**
+ * Generate the canonical Research Packets for one completed scan.
+ *
+ * Idempotent by construction: packet storage is append-only and triage always
+ * reads the newest packet per mint from THIS run, so a retry is safe. Never
+ * throws — a packet failure is diagnostic and must not invalidate the scan.
+ */
+export async function generatePacketsForRunSafely(
+  scanRunId: string,
+): Promise<ResearchPacketStepResult> {
+  try {
+    const { generateResearchPackets } = await import("../research/packet.server");
+    const result = await generateResearchPackets({ scanRunId, persist: true });
+    return {
+      attempted: true,
+      generated: result.packets.length,
+      persisted: result.persistedCount ?? result.packets.length,
+      eligibleNow: result.packets.filter((p) => p.packet.eligibility.researchEligibleNow).length,
+      error: null,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("generateResearchPackets failed", message);
+    return { attempted: true, generated: 0, persisted: 0, eligibleNow: 0, error: message };
+  }
+}
+
 
 /** Enrich one survivor: fresh DexScreener pull → new immutable snapshot. */
 async function enrichSurvivor(
