@@ -399,7 +399,9 @@ export function buildBenchmarkComparison(args: {
       verdictStable: verdicts.size <= 1,
       verdictChanged: challengerVerdict !== null && challengerVerdict !== b.verdict,
       componentDeltas,
-      catalystDisagreement: false,
+      catalystDisagreement: samples.some(
+        (s) => (s.catalystKind || "NONE") !== (b.catalystKind || "NONE"),
+      ),
       wouldQualifyDifferently:
         medScore !== null &&
         b.thesisScore !== null &&
