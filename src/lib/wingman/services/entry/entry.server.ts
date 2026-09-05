@@ -103,13 +103,23 @@ async function loadThesisInputs(options: {
   mints?: string[];
   limit: number;
 }): Promise<ThesisInput[]> {
+  // Production timing only ever evaluates the ACTIVE cohort's thesis reports.
+  let cohortRunId: string | null = null;
+  if (!options.isCalibration) {
+    const { loadActiveResearchCohort } = await import("../research/cohort.server");
+    const active = await loadActiveResearchCohort();
+    if (!active.thesisSynthesisRunId) return [];
+    cohortRunId = active.thesisSynthesisRunId;
+  }
+
   let query = supabaseAdmin
     .from("thesis_reports")
     .select("*")
     .order("created_at", { ascending: false })
     .limit(80);
+  if (cohortRunId) query = query.eq("thesis_synthesis_run_id", cohortRunId).eq("is_calibration", false);
   if (options.mints?.length) query = query.in("mint", options.mints);
-  else if (!options.isCalibration) query = query.eq("is_calibration", false);
+  else if (!cohortRunId && !options.isCalibration) query = query.eq("is_calibration", false);
 
   const { data, error } = await query;
   if (error) throw new Error(error.message);
