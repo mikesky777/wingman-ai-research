@@ -306,6 +306,10 @@ export interface EntryMappingInput {
   damageFail: boolean;
   /** Enough candle history to make a structural judgement at all. */
   hasStructuralHistory: boolean;
+  /** v1.1: resolution of the timing evidence behind the components. */
+  resolution?: TimingResolution;
+  /** v1.1: composite collapse evidence. */
+  damage?: EntryDamageResult;
 }
 
 export interface EntryMappingResult {
