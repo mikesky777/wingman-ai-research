@@ -478,3 +478,38 @@ function ThesisDetail({ report }: { report: Report }) {
     </div>
   );
 }
+
+type EvidenceRow = Report["positiveEvidence"][number];
+
+/** Descriptive only: shows what was evidenced, contradicted or simply not found. */
+function EvidenceList({
+  label,
+  items,
+  tone,
+}: {
+  label: string;
+  items: EvidenceRow[];
+  tone: string;
+}) {
+  if (!items.length) return null;
+  return (
+    <div>
+      <p className="label-xs mb-1">{label}</p>
+      <ul className="space-y-1 text-xs">
+        {items.slice(0, 10).map((i, idx) => (
+          <li key={`${label}-${idx}`} className={tone}>
+            {i.statement}
+            <span className="ml-1 text-[10px] text-muted-foreground">
+              [{i.basis}
+              {i.severity ? ` · ${i.severity}` : ""}
+              {i.gapCode ? ` · ${i.gapCode}` : ""}
+              {i.sourceRefs.length ? ` · ${i.sourceRefs.join(", ")}` : ""}
+              {i.claimRefs.length ? ` · ${i.claimRefs.join(", ")}` : ""}
+              {i.affiliation !== "UNKNOWN" ? ` · ${i.affiliation}` : ""}]
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
