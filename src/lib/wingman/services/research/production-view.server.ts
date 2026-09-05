@@ -8,6 +8,7 @@
  */
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { loadLatestTriage, type TriageRunSummary } from "./triage.server";
+import type { DeepResearchReportSummary } from "./deep/deep-research.server";
 import {
   buildProductionShortlist,
   countShortlistStatuses,
@@ -133,13 +134,43 @@ export async function loadProductionFunnel(): Promise<ProductionFunnel> {
   };
 }
 
-/** Loads one persisted Deep Research report by id (production or calibration). */
-export async function loadDeepResearchReportById(id: string): Promise<Row | null> {
+/** Loads one persisted Deep Research report by id, in the panel's shape. */
+export async function loadDeepResearchReportById(
+  id: string,
+): Promise<DeepResearchReportSummary | null> {
   const { data, error } = await supabaseAdmin
     .from("deep_research_reports")
     .select("*")
     .eq("id", id)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  return (data as Row | null) ?? null;
+  const r = (data as Row | null) ?? null;
+  if (!r) return null;
+  const dossier = r["dossier"] as DeepResearchReportSummary["dossier"];
+  const coverage = (dossier as { coverage?: Record<string, number> } | null)?.coverage ?? {};
+  return {
+    id: r["id"] as string,
+    runId: r["deep_research_run_id"] as string,
+    mint: r["mint"] as string,
+    symbol: (dossier as { symbol?: string | null } | null)?.symbol ?? null,
+    isCalibration: Boolean(r["is_calibration"]),
+    status: (r["status"] as string) ?? "unknown",
+    createdAt: (r["created_at"] as string) ?? "",
+    oneSentenceNarrative: (r["one_sentence_narrative"] as string) ?? null,
+    narrativeResolved: Boolean(r["narrative_resolved"]),
+    identityAttributionConfidence:
+      (r["identity_attribution_confidence"] as string) ?? "UNRESOLVED",
+    coveragePct: (r["evidence_coverage_pct"] as number) ?? null,
+    sourceCount: (r["source_count"] as number) ?? 0,
+    primarySourceCount: (r["primary_source_count"] as number) ?? 0,
+    independentSourceCount: coverage["independentSourceCount"] ?? 0,
+    projectOwnedSourceCount: coverage["projectOwnedSourceCount"] ?? 0,
+    projectAffiliatedSourceCount: coverage["projectAffiliatedSourceCount"] ?? 0,
+    corroboratedClaimCount: coverage["corroboratedClaimCount"] ?? 0,
+    searchVersion: (dossier as { searchVersion?: string | null } | null)?.searchVersion ?? null,
+    conflictingClaimCount: (r["conflicting_claim_count"] as number) ?? 0,
+    unresolvedGapCount: (r["unresolved_gap_count"] as number) ?? 0,
+    unresolvedDomains: (r["unresolved_domains"] as string[]) ?? [],
+    dossier,
+  } as DeepResearchReportSummary;
 }
