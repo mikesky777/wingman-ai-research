@@ -23,6 +23,7 @@ import {
   THESIS_INPUT_POLICY_VERSION,
   THESIS_POLICY_VERSION,
   THESIS_PROMPT_VERSION,
+  type ThesisComponentReasons,
   THESIS_RUBRIC_VERSION,
   buildThesisSystemPrompt,
   buildThesisUserPrompt,
@@ -302,6 +303,8 @@ interface SynthesizedCandidate {
   status: ThesisStatus;
   blockedReasons: string[];
   components: ComponentScores | null;
+  /** thesis_rubric/v2.2 — persisted per-component score reasons. */
+  componentReasons: ThesisComponentReasons | null;
   thesisScore: number | null;
   evidence: EvidenceConfidenceBreakdown | null;
   verdict: ThesisVerdict | null;
@@ -455,6 +458,7 @@ export async function runThesisSynthesis(
         status: "failed",
         blockedReasons: [],
         components: null,
+        componentReasons: null,
         thesisScore: null,
         evidence: null,
         verdict: null,
@@ -620,6 +624,7 @@ async function synthesizeCandidate(args: {
   const base: Omit<SynthesizedCandidate, "status" | "blockedReasons"> = {
     input,
     components: null,
+    componentReasons: null,
     thesisScore: null,
     evidence: null,
     verdict: null,
@@ -769,6 +774,7 @@ async function synthesizeCandidate(args: {
     status: verdict === "INSUFFICIENT_EVIDENCE" ? "insufficient_evidence" : "completed",
     blockedReasons: [],
     components: validated.components,
+    componentReasons: validated.componentReasons,
     thesisScore: validated.thesisScore,
     evidence,
     verdict,
@@ -983,6 +989,8 @@ async function insertReport(args: {
       score_mindshare: c?.mindshare ?? null,
       score_valuation: c?.valuation ?? null,
       component_scores: (c ?? null) as never,
+      // thesis_rubric/v2.2 — structured reason per component, for calibration.
+      component_reasons: (s.componentReasons ?? null) as never,
       evidence_confidence_components: (s.evidence?.deductions ?? null) as never,
       // evidence_confidence/v1.1 artifact: version, pre-floor score, every
       // deduction, unresolved reasons, search health and calibration inputs.

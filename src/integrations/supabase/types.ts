@@ -2097,6 +2097,7 @@ export type Database = {
           catalyst_verification_basis: string | null
           catalysts: string[]
           chain: string
+          component_reasons: Json | null
           component_scores: Json | null
           created_at: string
           current_eligibility: Json | null
@@ -2174,6 +2175,7 @@ export type Database = {
           catalyst_verification_basis?: string | null
           catalysts?: string[]
           chain?: string
+          component_reasons?: Json | null
           component_scores?: Json | null
           created_at?: string
           current_eligibility?: Json | null
@@ -2251,6 +2253,7 @@ export type Database = {
           catalyst_verification_basis?: string | null
           catalysts?: string[]
           chain?: string
+          component_reasons?: Json | null
           component_scores?: Json | null
           created_at?: string
           current_eligibility?: Json | null

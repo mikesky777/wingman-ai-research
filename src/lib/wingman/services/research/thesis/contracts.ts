@@ -33,9 +33,20 @@ export const THESIS_COMPONENTS_V1 = [
 
 /** ACTIVE policy. Thesis answers fundamentals only — never timing. */
 export const THESIS_POLICY_VERSION = "thesis_synthesis/v2";
-export const THESIS_RUBRIC_VERSION = "thesis_rubric/v2";
-/** v2 removes chart/entry context; v1.1 catalyst-vs-market-signal rules stay. */
-export const THESIS_PROMPT_VERSION = "thesis_synthesis_prompt/v2";
+/** FROZEN v2 scoring semantics — historical reports keep this exact string. */
+export const THESIS_RUBRIC_VERSION_V2 = "thesis_rubric/v2";
+export const THESIS_PROMPT_VERSION_V2 = "thesis_synthesis_prompt/v2";
+/**
+ * v2.2 — scoring SEMANTICS patch only. Same seven components, same weights,
+ * same 100-point total, same gates. It adds explicit band anchors so the full
+ * numeric range is reachable, separates narrative strength from catalyst
+ * strength inside the 20-point component, keeps MISSING evidence out of the
+ * score, treats UNKNOWN dev/holders/participation neutrally, and requires a
+ * persisted per-component reason.
+ */
+export const THESIS_RUBRIC_VERSION = "thesis_rubric/v2.2";
+export const THESIS_PROMPT_VERSION = "thesis_synthesis_prompt/v2.2";
+
 export const NO_VERIFIED_CATALYST = "No verified catalyst found";
 /**
  * Input policy. Realized post-cutoff performance (outcomes) is stripped from
@@ -68,6 +79,179 @@ export type ThesisComponentKey = (typeof THESIS_COMPONENTS_V1)[number]["key"];
 export type ComponentScores = Partial<Record<ThesisComponentKey, number>>;
 
 export const THESIS_MAX_SCORE = THESIS_COMPONENTS.reduce((sum, c) => sum + c.weight, 0);
+
+/** Component keys used by the ACTIVE (v2 / v2.2) rubric. */
+export type ThesisV2ComponentKey = (typeof THESIS_COMPONENTS)[number]["key"];
+
+export const THESIS_SCORE_BANDS = [
+  "VERY_WEAK",
+  "WEAK",
+  "AVERAGE",
+  "STRONG",
+  "EXCEPTIONAL",
+] as const;
+export type ThesisScoreBand = (typeof THESIS_SCORE_BANDS)[number];
+
+export interface ThesisScoreAnchor {
+  band: ThesisScoreBand;
+  min: number;
+  max: number;
+  meaning: string;
+}
+
+export interface ThesisComponentAnchors {
+  /**
+   * Where a component should sit when the required facts are simply UNKNOWN
+   * and no adverse evidence exists. Unknown is conservative, never punitive.
+   */
+  unknownEvidenceDefault: [number, number];
+  anchors: ThesisScoreAnchor[];
+}
+
+function bands(
+  weight: 10 | 15 | 20,
+  meanings: [string, string, string, string, string],
+): ThesisScoreAnchor[] {
+  const cuts: Record<10 | 15 | 20, [number, number][]> = {
+    20: [
+      [0, 4],
+      [5, 8],
+      [9, 12],
+      [13, 16],
+      [17, 20],
+    ],
+    15: [
+      [0, 3],
+      [4, 6],
+      [7, 9],
+      [10, 12],
+      [13, 15],
+    ],
+    10: [
+      [0, 1],
+      [2, 3],
+      [4, 6],
+      [7, 8],
+      [9, 10],
+    ],
+  };
+  return THESIS_SCORE_BANDS.map((band, i) => ({
+    band,
+    min: cuts[weight][i]![0],
+    max: cuts[weight][i]![1],
+    meaning: meanings[i]!,
+  }));
+}
+
+/**
+ * thesis_rubric/v2.2 anchors.
+ *
+ * Every band is REACHABLE: the top band describes an excellent real memecoin
+ * thesis supported by the evidence at hand, not theoretical perfection.
+ */
+export const THESIS_COMPONENT_ANCHORS: Record<ThesisV2ComponentKey, ThesisComponentAnchors> = {
+  memeQuality: {
+    unknownEvidenceDefault: [9, 11],
+    anchors: bands(20, [
+      "Generic or purely derivative meme with no identity of its own.",
+      "Recognizable format but shallow, copied or interchangeable identity.",
+      "Recognizable meme with a coherent identity and some staying power.",
+      "Identifiable lore with a clear origin story, consistent symbolism or a defensible creator/cultural link.",
+      "Culturally sticky, durable lore: widely recognized reference, self-sustaining community canon, or a strong verified creator/origin link. Absence of mainstream media coverage does NOT cap this band.",
+    ]),
+  },
+  catalystNarrative: {
+    unknownEvidenceDefault: [9, 12],
+    anchors: bands(20, [
+      "No coherent narrative and no catalyst; the token stands for nothing identifiable.",
+      "Vague or borrowed narrative; any catalyst is speculative.",
+      "Serviceable narrative with limited reach, or a plausible catalyst supporting a modest narrative.",
+      "Strong, clearly articulated narrative with real relevance, OR a credible verified catalyst supporting a sound narrative.",
+      "Exceptional narrative with genuine cultural or ecosystem relevance — optionally reinforced by a verified catalyst. A strong narrative WITHOUT any scheduled catalyst can reach this band.",
+    ]),
+  },
+  distribution: {
+    unknownEvidenceDefault: [7, 9],
+    anchors: bands(15, [
+      "Verified insider- or single-entity-controlled supply; distribution is thesis-breaking.",
+      "Severe concentration evidenced, with clear control or dump capability.",
+      "Ordinary memecoin concentration: elevated top-10 share, no evidenced insider control. Unknown holder identity also sits here.",
+      "Better-than-typical distribution: broad holder base, no concerning clusters evidenced.",
+      "Healthy, broad and well-dispersed distribution evidenced with growing holders and no control risk.",
+    ]),
+  },
+  liquidity: {
+    unknownEvidenceDefault: [7, 9],
+    anchors: bands(15, [
+      "Severe evidenced exit risk: liquidity far too thin for the market cap, exit realistically impossible without collapse.",
+      "Thin liquidity relative to market cap; exit meaningfully impaired.",
+      "Workable liquidity for the size: exit possible with normal slippage for a typical position.",
+      "Good depth relative to market cap with healthy turnover.",
+      "Deep, well-supported liquidity with strong turnover; exitability is a genuine strength.",
+    ]),
+  },
+  devIntegrity: {
+    unknownEvidenceDefault: [5, 6],
+    anchors: bands(10, [
+      "Evidenced bad actor: rug history, confirmed malicious behaviour or clearly adverse launch history.",
+      "Concrete adverse signals evidenced (suspicious launch mechanics, evidenced dev sell-down).",
+      "NEUTRAL: developer unknown, anonymous or unverified with NO adverse evidence. Anonymity alone belongs here, not lower.",
+      "Identifiable team or clean, verifiable launch mechanics with no adverse history.",
+      "Strong, verified integrity: known reputable creator or fully verifiable clean launch and conduct.",
+    ]),
+  },
+  mindshare: {
+    unknownEvidenceDefault: [4, 5],
+    anchors: bands(10, [
+      "Evidenced manufactured/botted amplification, or essentially no participation at all.",
+      "Weak participation: little activity and no signs of organic engagement.",
+      "Small but organic participation, or participation of unestablished organicity. Unproven organicity sits here — never lower by assumption.",
+      "Growing, recurring organic participation across more than one venue.",
+      "Broad organic mindshare with self-sustaining, recurring cultural spread.",
+    ]),
+  },
+  valuation: {
+    unknownEvidenceDefault: [4, 5],
+    anchors: bands(10, [
+      "Heavily priced in: valuation already reflects the full narrative with no realistic upside room.",
+      "Demanding valuation relative to narrative strength, liquidity and maturity.",
+      "Fair: valuation broadly matches the evidenced narrative, mindshare and maturity.",
+      "Attractive: meaningful upside room relative to what is already priced in.",
+      "Highly asymmetric: strong narrative and participation with valuation still far below what that would justify. Low market cap ALONE never reaches this band.",
+    ]),
+  },
+};
+
+/** Structured reason categories persisted alongside each component score. */
+export const THESIS_COMPONENT_REASON_CODES = [
+  "STRONG_POSITIVE_EVIDENCE",
+  "MODERATE_POSITIVE_EVIDENCE",
+  "MIXED_EVIDENCE",
+  "AFFIRMATIVE_NEGATIVE_EVIDENCE",
+  "CONSERVATIVE_UNKNOWN_EVIDENCE",
+  "NOT_EVALUABLE",
+] as const;
+export type ThesisComponentReasonCode = (typeof THESIS_COMPONENT_REASON_CODES)[number];
+
+export interface ThesisComponentReason {
+  score: number;
+  band: ThesisScoreBand;
+  reasonCode: ThesisComponentReasonCode;
+  reason: string;
+}
+
+export type ThesisComponentReasons = Partial<
+  Record<ThesisV2ComponentKey, ThesisComponentReason>
+>;
+
+/** Band a score falls in for a given component (deterministic, never scored). */
+export function bandForScore(key: ThesisV2ComponentKey, score: number): ThesisScoreBand {
+  const { anchors } = THESIS_COMPONENT_ANCHORS[key];
+  const hit = anchors.find((a) => score >= a.min && score <= a.max);
+  return hit?.band ?? "VERY_WEAK";
+}
+
+
 
 /** Timing concepts that must never contribute Thesis points. */
 export const THESIS_FORBIDDEN_TIMING_KEYS = [
@@ -498,7 +682,10 @@ export interface ValidationIssue {
 
 export interface ValidatedThesisOutput {
   components: ComponentScores;
+  /** thesis_rubric/v2.2 — one persisted reason per scored component. */
+  componentReasons: ThesisComponentReasons;
   thesisScore: number;
+
   oneSentenceThesis: string | null;
   narrativeThesis: string | null;
   sections: ThesisSections;
@@ -582,6 +769,34 @@ export function validateThesisOutput(
   }
   const thesisScore = THESIS_COMPONENTS.reduce((sum, c) => sum + (components[c.key] ?? 0), 0);
 
+  // v2.2: a short, structured reason per component. The band is derived from
+  // the anchors here so it can never disagree with the persisted score.
+  const rawReasons = (obj["componentReasons"] && typeof obj["componentReasons"] === "object"
+    ? obj["componentReasons"]
+    : {}) as Record<string, unknown>;
+  const componentReasons: ThesisComponentReasons = {};
+  for (const c of THESIS_COMPONENTS) {
+    const entry = rawReasons[c.key];
+    const record = (entry && typeof entry === "object" ? entry : {}) as Record<string, unknown>;
+    const text = asString(record["reason"]) ?? asString(entry);
+    const codeRaw = asString(record["reasonCode"])?.toUpperCase() as
+      | ThesisComponentReasonCode
+      | undefined;
+    if (!text) issues.push({ code: "COMPONENT_REASON_MISSING", detail: c.key });
+    if (codeRaw && !THESIS_COMPONENT_REASON_CODES.includes(codeRaw)) {
+      issues.push({ code: "COMPONENT_REASON_CODE_INVALID", detail: `${c.key}=${codeRaw}` });
+    }
+    const score = components[c.key] ?? 0;
+    componentReasons[c.key] = {
+      score,
+      band: bandForScore(c.key, score),
+      reasonCode:
+        codeRaw && THESIS_COMPONENT_REASON_CODES.includes(codeRaw) ? codeRaw : "MIXED_EVIDENCE",
+      reason: text ?? "No reason provided by the model.",
+    };
+  }
+
+
   const sections = {} as ThesisSections;
   const rawSections = (obj["sections"] && typeof obj["sections"] === "object"
     ? obj["sections"]
@@ -649,7 +864,9 @@ export function validateThesisOutput(
 
   return {
     components,
+    componentReasons,
     thesisScore,
+
     oneSentenceThesis: checkAction("oneSentenceThesis", asString(obj["oneSentenceThesis"])),
     narrativeThesis: checkAction("narrativeThesis", asString(obj["narrativeThesis"])),
     sections,
@@ -696,7 +913,17 @@ export interface ThesisPromptInput {
 }
 
 export function buildThesisSystemPrompt(): string {
-  const rubric = THESIS_COMPONENTS.map((c) => `- ${c.key} (${c.label}): 0-${c.weight}`).join("\n");
+  const rubric = THESIS_COMPONENTS.map((c) => {
+    const a = THESIS_COMPONENT_ANCHORS[c.key];
+    const lines = a.anchors
+      .map((b) => `    ${b.band} ${b.min}-${b.max}: ${b.meaning}`)
+      .join("\n");
+    return (
+      `- ${c.key} (${c.label}): 0-${c.weight}\n${lines}\n` +
+      `    UNKNOWN-EVIDENCE DEFAULT (no adverse evidence, facts simply unavailable): ${a.unknownEvidenceDefault[0]}-${a.unknownEvidenceDefault[1]}`
+    );
+  }).join("\n");
+
   return [
     "You are Wingman's Thesis Synthesis analyst for Solana memecoins.",
     "You judge ALREADY-COLLECTED evidence. You are not a search agent: never introduce an external fact that is not present in the Research Packet or the Deep Research dossier.",
@@ -729,14 +956,32 @@ export function buildThesisSystemPrompt(): string {
     "SOURCE AFFILIATION (PROJECT_OWNED, PROJECT_AFFILIATED, COMMUNITY, INDEPENDENT, UNKNOWN) is separate from SOURCE QUALITY (PRIMARY, SECONDARY, UNVERIFIED). COMMUNITY (organic community/social/forum origin) is NOT independent editorial corroboration, and project/affiliated is never independent.",
     "narrativeMaturity: ESTABLISHED | EMERGING | UNDER_THE_RADAR | WEAK_OR_UNPROVEN | UNKNOWN. UNDER_THE_RADAR requires AFFIRMATIVE evidence — list it in narrativeSupportCodes from: IDENTIFIABLE_LORE, PRIMARY_SOURCE_CATALYST, ORGANIC_COMMUNITY_PARTICIPATION, MINDSHARE_GROWTH, RECURRING_PARTICIPATION, DEFENSIBLE_CREATOR_CONNECTION. Absence of coverage alone is UNKNOWN, never UNDER_THE_RADAR.",
     "Explain the choice in narrativeMaturityReasons.",
-
-    "SCORING RUBRIC (score each component independently, integers only)",
+    "",
+    "SCORING RUBRIC thesis_rubric/v2.2 (score each component independently, integers only)",
+    "Use the band anchors below literally. The FULL range of every component is reachable: the EXCEPTIONAL band describes an excellent real memecoin thesis supported by the evidence in front of you, not theoretical perfection. Do not compress every component toward the middle, and do not reserve the top band for something no token could achieve.",
     rubric,
     "Do not output a total: the total is computed as the exact sum of your components.",
+    "",
+    "COMPONENT-SPECIFIC SEMANTICS (v2.2)",
+    "catalystNarrative combines TWO sub-concepts inside its 20 points: (A) NARRATIVE STRENGTH — how compelling, identifiable and culturally relevant the story is; (B) CATALYST STRENGTH — whether a real external trigger is evidenced. The absence of a scheduled catalyst is NOT a weak narrative and must never halve this component. Score narrative strength on its own merits first, then let a credible catalyst ADD strength. A primary-source-verified catalyst (official project/creator announcement) is real and may add strength — label it honestly as primary-source verified, not independently corroborated.",
+    "memeQuality: established lore keeps its quality even when media coverage is thin. Missing coverage lowers Evidence Confidence, not lore quality.",
+    "distribution: UNKNOWN holder structure is NOT verified insider control. Score unknown structure in the AVERAGE band unless the unknown itself makes the thesis impossible to evaluate. Only evidenced insider/entity control may reach the bottom bands.",
+    "liquidity: judge THIS token's depth, liquidity-to-market-cap ratio, turnover and realistic exitability. Never apply generic 'memecoins are risky' reasoning.",
+    "devIntegrity: UNKNOWN or ANONYMOUS is neutral (AVERAGE band). Only evidenced rug history, confirmed malicious behaviour or clearly adverse launch history may reach the bottom bands.",
+    "mindshare: do not score raw follower/post counts alone. Small but organic beats large but manufactured. If organicity cannot be established, stay in the AVERAGE band — never infer bots or fakeness without evidence.",
+    "valuation: measures whether upside is large relative to what is already priced in, weighing market cap, liquidity, narrative strength, maturity and realistic upside room. A low market cap by itself is NOT asymmetry.",
+    "",
+    "MISSING EVIDENCE (reinforced)",
+    "MISSING or UNRESOLVED evidence is never negative thesis evidence. It lowers Evidence Confidence, which you do not compute. A component may stay conservative (its UNKNOWN-EVIDENCE DEFAULT band) when required facts are unavailable, but you must never invent adverse evidence or score as if the unknown were bad.",
+    "",
+    "PER-COMPONENT REASONS (required)",
+    "Emit componentReasons with one entry per component: { reason: one short sentence, reasonCode: STRONG_POSITIVE_EVIDENCE | MODERATE_POSITIVE_EVIDENCE | MIXED_EVIDENCE | AFFIRMATIVE_NEGATIVE_EVIDENCE | CONSERVATIVE_UNKNOWN_EVIDENCE | NOT_EVALUABLE }. Use CONSERVATIVE_UNKNOWN_EVIDENCE whenever the score is held back by missing facts rather than adverse ones.",
     "",
     "ADVERSARIAL STEP (required before scoring)",
     "Challenge the thesis explicitly: is this merely temporary attention? what contradicts the narrative? is the token derivative? is social activity concentrated or manufactured? is the catalyst already priced in? is valuation already demanding? is holder/dev risk understated? what would make this obviously a bad thesis in hindsight?",
     "Report the strongest bear case honestly and set bearCaseSeverity to LOW, MODERATE, HIGH or CRITICAL. Never soften it to protect the score.",
+    "HIGH or CRITICAL bear severity REQUIRES affirmative NEGATIVE evidence items with cited claimRefs/sourceRefs. Lack of coverage, unknown dev, unresolved holder identity, absent catalyst and missing community evidence are MISSING evidence and can never on their own justify HIGH.",
+
     "",
     "INVALIDATION",
     "Give concrete, checkable invalidation conditions tied to structure, attention, holders, liquidity or narrative status. Never write 'price goes down'.",
@@ -745,6 +990,13 @@ export function buildThesisSystemPrompt(): string {
     JSON.stringify(
       {
         components: Object.fromEntries(THESIS_COMPONENTS.map((c) => [c.key, 0])),
+        componentReasons: Object.fromEntries(
+          THESIS_COMPONENTS.map((c) => [
+            c.key,
+            { reason: "string", reasonCode: "MIXED_EVIDENCE" },
+          ]),
+        ),
+
         oneSentenceThesis: "string",
         narrativeThesis: "string",
         sections: {
