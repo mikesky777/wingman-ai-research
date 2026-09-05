@@ -845,10 +845,13 @@ export async function runScannerPipeline(
       );
     }
 
-    // Canonical Research Packets for THIS run. Automatic: a healthy completed
-    // current-policy scan is only a usable AI triage source once its packets
-    // exist. Failure here is diagnostic — the scan stays completed, triage
-    // simply keeps rejecting the run until packets are regenerated.
+    // Canonical Research Packets for THIS run. Automatic on every healthy
+    // completed run: `calibrationMode` is a legacy scanner run flag (it
+    // defaults to true for ordinary production scans and is NOT the
+    // production/calibration discriminator), so it must never suppress packet
+    // generation. Failure here is diagnostic — the scan stays the active
+    // Research cohort and the packet stage reports FAILED/NOT_STARTED.
+
     const researchPackets =
       discoveryHealth.state !== "OK"
         ? NO_PACKET_ATTEMPT
