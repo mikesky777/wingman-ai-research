@@ -2104,7 +2104,10 @@ export type Database = {
           deep_research_run_id: string | null
           diagnostics: Json | null
           evidence_confidence: number | null
+          evidence_confidence_artifact: Json | null
           evidence_confidence_components: Json | null
+          evidence_confidence_raw_score: number | null
+          evidence_confidence_version: string | null
           evidence_gaps: string[]
           evidence_polarity_counts: Json | null
           evidence_semantics_version: string | null
@@ -2178,7 +2181,10 @@ export type Database = {
           deep_research_run_id?: string | null
           diagnostics?: Json | null
           evidence_confidence?: number | null
+          evidence_confidence_artifact?: Json | null
           evidence_confidence_components?: Json | null
+          evidence_confidence_raw_score?: number | null
+          evidence_confidence_version?: string | null
           evidence_gaps?: string[]
           evidence_polarity_counts?: Json | null
           evidence_semantics_version?: string | null
@@ -2252,7 +2258,10 @@ export type Database = {
           deep_research_run_id?: string | null
           diagnostics?: Json | null
           evidence_confidence?: number | null
+          evidence_confidence_artifact?: Json | null
           evidence_confidence_components?: Json | null
+          evidence_confidence_raw_score?: number | null
+          evidence_confidence_version?: string | null
           evidence_gaps?: string[]
           evidence_polarity_counts?: Json | null
           evidence_semantics_version?: string | null
