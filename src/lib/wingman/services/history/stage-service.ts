@@ -170,6 +170,59 @@ export const StageMilestoneService = {
       }
     }
 
+    // Stage-relative outcomes are derived ONLY for stages with a legitimate
+    // frozen baseline. Survivors keep their existing adapter-backed path.
+    const derivesSeries = stage === "AI_SHORTLIST" || stage === "THESIS_CALL";
+    const candidatesByToken = new Map<string, CandidateAppearance[]>();
+    const snapshotsByToken = new Map<string, SnapshotObservation[]>();
+    if (derivesSeries) {
+      for (const rows of candidateChunks) {
+        for (const row of rows) {
+          const id = row["token_id"] as string;
+          const list = candidatesByToken.get(id) ?? [];
+          list.push({
+            scanRunId: "",
+            completedAt: (row["created_at"] as string | null) ?? "",
+            priceUsd: num(row, "price_usd"),
+            marketCap: num(row, "market_cap"),
+            liquidityUsd: num(row, "liquidity_usd"),
+            survivor: false,
+          });
+          candidatesByToken.set(id, list);
+        }
+      }
+      const snapshotChunks = await Promise.all(
+        chunks.map(async (ids) => {
+          try {
+            return await paginate((from, to) =>
+              supabase
+                .from("token_snapshots")
+                .select("token_id, captured_at, price_usd, market_cap, liquidity_usd")
+                .in("token_id", ids)
+                .order("captured_at", { ascending: true })
+                .range(from, to),
+            );
+          } catch {
+            return [] as Row[]; // Snapshot history is optional.
+          }
+        }),
+      );
+      for (const rows of snapshotChunks) {
+        for (const row of rows) {
+          const id = row["token_id"] as string;
+          const list = snapshotsByToken.get(id) ?? [];
+          list.push({
+            capturedAt: (row["captured_at"] as string | null) ?? "",
+            priceUsd: num(row, "price_usd"),
+            marketCap: num(row, "market_cap"),
+            liquidityUsd: num(row, "liquidity_usd"),
+          });
+          snapshotsByToken.set(id, list);
+        }
+      }
+    }
+    const nowIso = new Date().toISOString();
+
     return milestones.map((m) => {
       const tokenId = m["token_id"] as string;
       const token = tokensById.get(tokenId) ?? ({} as Row);
