@@ -14,6 +14,14 @@ import { formatTime } from "@/lib/wingman/format";
 import { MONITORING_STATUS_MEANING } from "@/lib/wingman/services/live/lifecycle";
 import { useLiveLifecycle } from "@/lib/wingman/hooks";
 import { cn } from "@/lib/utils";
+import { useMemo, useState } from "react";
+import { SetupFilterBar } from "./SetupFilterBar";
+import {
+  filterBySetup,
+  matchesSetupFilter,
+  setupLabel,
+  type HistorySetupFilter,
+} from "@/lib/wingman/services/history/setup-filter";
 
 const pct = (v: number | null) => (v == null ? "—" : `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`);
 
@@ -27,12 +35,30 @@ const duration = (ms: number | null) => {
 
 export function LiveLifecycleLedger() {
   const { data, isLoading } = useLiveLifecycle();
-  const calls = data?.calls ?? [];
-  const events = data?.events ?? [];
-  const activations = data?.activations ?? [];
+  const [setup, setSetup] = useState<HistorySetupFilter>("ALL");
+  const allCalls = data?.calls ?? [];
+  const calls = filterBySetup(allCalls, setup);
+
+  // Events and activations inherit the setup frozen on their exact
+  // THESIS_CALL milestone — never a later token state or another cohort.
+  const setupByCall = useMemo(
+    () => new Map(allCalls.map((c) => [c.thesisCallMilestoneId, c.setups])),
+    [allCalls],
+  );
+  const setupByMint = useMemo(
+    () => new Map(allCalls.map((c) => [c.mint, c.setups])),
+    [allCalls],
+  );
+  const events = (data?.events ?? []).filter((e) =>
+    matchesSetupFilter(setupByCall.get(e.thesisCallMilestoneId) ?? null, setup),
+  );
+  const activations = (data?.activations ?? []).filter((a) =>
+    matchesSetupFilter(setupByMint.get(a.mint) ?? null, setup),
+  );
 
   return (
     <div className="space-y-6">
+      <SetupFilterBar value={setup} onChange={setSetup} />
       <Section
         title="Thesis Calls — current monitoring"
         description="A Thesis Call is an immutable historical qualification. Monitoring status controls whether Entry keeps being evaluated; it never rewrites the call."
@@ -78,7 +104,8 @@ export function LiveLifecycleLedger() {
                   </div>
                   <p className="text-[11px] text-muted-foreground">{call.assessment.reason}</p>
                   <p className="font-mono text-[10px] text-muted-foreground">
-                    Called {formatTime(call.calledAt)} · episodes {call.episodes.length}
+                    Setup {setupLabel(call.setups)} · Called {formatTime(call.calledAt)} · episodes{" "}
+                    {call.episodes.length}
                   </p>
                 </div>
               </div>

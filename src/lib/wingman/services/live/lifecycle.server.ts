@@ -14,6 +14,7 @@
  * No trade execution, wallets, signing or order routing exist anywhere here.
  */
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { normalizeSetups } from "../history/setup-filter";
 import {
   LIVE_LIFECYCLE_VERSION,
   assessLiveCall,
@@ -42,6 +43,8 @@ export interface ThesisCallLifecycle {
   thesisCallMilestoneId: string;
   tokenId: string | null;
   mint: string;
+  /** Qualifying setups frozen on the exact THESIS_CALL milestone. */
+  setups: string[] | null;
   symbol: string | null;
   name: string | null;
   calledAt: string;
@@ -120,7 +123,7 @@ function mapEvent(r: Row): LiveLifecycleEvent {
 async function loadContext(): Promise<LoadedContext> {
   const { data: milestoneRows, error } = await supabaseAdmin
     .from("token_stage_milestones")
-    .select("id, token_id, contract_address, first_entered_at")
+    .select("id, token_id, contract_address, first_entered_at, setup_at_entry")
     .eq("stage", "THESIS_CALL")
     .order("first_entered_at", { ascending: false });
   if (error) throw new Error(error.message);
@@ -228,6 +231,7 @@ async function loadContext(): Promise<LoadedContext> {
       thesisCallMilestoneId: milestoneId,
       tokenId,
       mint,
+      setups: normalizeSetups(m["setup_at_entry"] as string | null),
       symbol: (token?.["symbol"] as string | null) ?? null,
       name: (token?.["name"] as string | null) ?? null,
       calledAt,

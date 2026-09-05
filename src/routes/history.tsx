@@ -246,8 +246,8 @@ function StageView({ stage }: { stage: FunnelStage }) {
   const terms = STAGE_TERMS[stage];
   const supportsSeries = stageSupportsPeakMetrics(stage);
 
-  const setupFilters: StageSetupFilter[] =
-    stage === "SURVIVOR" ? ["ALL", "BASE", "REACCEL", "NONE"] : ["ALL", "BASE", "REACCEL"];
+  // `history_setup_filter/v1`: every stage tab exposes the same SETUP filter.
+  const setupFilters: StageSetupFilter[] = ["ALL", "BASE", "REACCEL", "NONE"];
 
   return (
     <div className="space-y-6">
