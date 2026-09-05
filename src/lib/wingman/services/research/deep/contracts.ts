@@ -361,12 +361,16 @@ function asStringArray(value: unknown): string[] {
  *
  * Every claim must be grounded in a known source reference. Unsupported
  * claims are DROPPED, never softened into narrative. VERIFIED requires a
- * mint-verified source; otherwise the claim is demoted to INFERRED.
+ * mint-verified source; otherwise the claim is demoted to INFERRED. Community
+ * lore alone can never reach VERIFIED.
  */
 export function validateModelOutput(
   raw: unknown,
   sources: ResearchSource[],
+  options: { searchHealth?: SearchHealthStatus; researched?: boolean } = {},
 ): ValidatedModelOutput {
+  const searchHealth: SearchHealthStatus = options.searchHealth ?? "READY";
+  const researched = options.researched !== false;
   const issues: ValidationIssue[] = [];
   const byRef = new Map(sources.map((s) => [s.ref, s]));
   const obj = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
