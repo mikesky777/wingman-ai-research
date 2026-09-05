@@ -201,10 +201,12 @@ function StageView({ stage }: { stage: FunnelStage }) {
   const [setupFilter, setSetupFilter] = useState<StageSetupFilter>("ALL");
   const [policy, setPolicy] = useState<PolicyFilter>("CURRENT");
 
-  // Setup Qualified is deliberately NOT policy-filtered: qualifying for a setup
-  // never meant Survivor eligibility, so a policy cohort there would imply a
-  // selection decision that was never made.
-  const policyApplies = stage === "SURVIVOR" || stage === "AI_SHORTLIST" || stage === "THESIS_CALL";
+  // Policy-era filtering is meaningful for stages with real legacy/CURRENT_V1
+  // populations. AI Shortlist / Thesis Calls are newer production stages with no
+  // meaningful legacy era yet, so they show every persisted production record.
+  // Deep Research and Thesis Synthesized are artifact-only tabs and never carry
+  // a policy toggle.
+  const policyApplies = stage === "SETUP_QUALIFIED" || stage === "SURVIVOR";
 
   const cohort = useMemo(
     () =>
