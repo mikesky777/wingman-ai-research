@@ -8,7 +8,6 @@ import { InspectToken } from "@/components/wingman/InspectToken";
 import { TriagePanel } from "@/components/wingman/research/TriagePanel";
 import { ProductionFunnelPanel } from "@/components/wingman/research/ProductionFunnelPanel";
 import { ProductionDeepResearchPanel } from "@/components/wingman/research/ProductionDeepResearchPanel";
-import { DeepResearchPanel } from "@/components/wingman/research/DeepResearchPanel";
 import { ThesisPanel } from "@/components/wingman/research/ThesisPanel";
 import { EntryPanel } from "@/components/wingman/research/EntryPanel";
 
@@ -42,7 +41,7 @@ function ResearchPage() {
   return (
     <AppShell
       title="Research"
-      subtitle="Completed deep-research reports. Ad-hoc research requests arrive in a later version."
+      subtitle="Production pipeline: TRIAGE → DEEP RESEARCH → THESIS → ENTRY. Calibration tools live in Settings → Calibration Lab and never affect anything shown here."
     >
       <div className="space-y-6">
         <ProductionFunnelPanel />
@@ -50,8 +49,6 @@ function ResearchPage() {
         <TriagePanel />
 
         <ProductionDeepResearchPanel />
-
-        <DeepResearchPanel />
 
         <ThesisPanel />
 
