@@ -352,8 +352,15 @@ export async function runDeepResearch(
       results.push(result);
 
     } catch (error) {
-      // Failure isolation: one bad candidate never aborts the batch.
+      // Failure isolation: one bad candidate never aborts the batch. A run row
+      // opened before the failure must not be left dangling as "running".
+      await failDanglingRun(
+        triageRun.id,
+        candidate.mint,
+        error instanceof Error ? error.message.slice(0, 400) : "Unknown error",
+      );
       results.push({
+
         mint: candidate.mint,
         symbol: candidate.symbol,
         status: "failed",
