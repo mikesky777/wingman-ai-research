@@ -237,10 +237,16 @@ export function ThesisPanel({ calibration = false }: { calibration?: boolean } =
                 <dl className="mt-3 grid gap-2 text-[11px] sm:grid-cols-2">
                   <div>
                     <dt className="label-xs">
-                      Strongest catalyst{r.strongestCatalyst ? ` (${r.catalystKind})` : ""}
+                      Strongest catalyst
+                      {r.strongestCatalyst
+                        ? ` (${r.catalystClassification ?? r.catalystKind})`
+                        : ""}
                     </dt>
                     <dd className="text-muted-foreground">
                       {r.strongestCatalyst ?? "No verified catalyst found"}
+                      {r.catalystVerificationBasis ? (
+                        <span className="block text-[10px]">{r.catalystVerificationBasis}</span>
+                      ) : null}
                     </dd>
                   </div>
                   <div>
@@ -251,6 +257,17 @@ export function ThesisPanel({ calibration = false }: { calibration?: boolean } =
                     <dt className="label-xs">Strongest concern</dt>
                     <dd className="text-muted-foreground">{r.strongestConcern ?? "—"}</dd>
                   </div>
+                  {r.narrativeMaturity ? (
+                    <div>
+                      <dt className="label-xs">Narrative maturity</dt>
+                      <dd className="text-muted-foreground">
+                        {r.narrativeMaturity}
+                        {r.narrativeSupportCodes.length
+                          ? ` · ${r.narrativeSupportCodes.join(", ")}`
+                          : ""}
+                      </dd>
+                    </div>
+                  ) : null}
                 </dl>
 
                 {r.blockedReasons.length ? (
@@ -372,6 +389,62 @@ function ThesisDetail({ report }: { report: Report }) {
         </div>
       ) : null}
 
+      {report.evidenceSemanticsVersion ? (
+        <div className="space-y-3">
+          <p className="label-xs">
+            EVIDENCE ({report.evidenceSemanticsVersion})
+            {report.sourceMix ? (
+              <span className="ml-2 font-normal text-muted-foreground">
+                {report.sourceMix.independent} independent · {report.sourceMix.community} community ·{" "}
+                {report.sourceMix.projectOwned + report.sourceMix.projectAffiliated} project ·{" "}
+                {report.sourceMix.unknown} unknown
+              </span>
+            ) : null}
+          </p>
+
+          <EvidenceList
+            label="SUPPORTING (POSITIVE)"
+            items={report.positiveEvidence}
+            tone="text-muted-foreground"
+          />
+          <EvidenceList
+            label="ADVERSE (NEGATIVE — cited)"
+            items={report.negativeEvidence}
+            tone="text-destructive"
+          />
+          <EvidenceList
+            label="NOT ESTABLISHED (MISSING — not bearish)"
+            items={report.missingEvidence}
+            tone="text-muted-foreground"
+          />
+          <EvidenceList
+            label="AMBIGUOUS"
+            items={report.ambiguousEvidence}
+            tone="text-muted-foreground"
+          />
+
+          {report.narrativeMaturityReasons.length ? (
+            <div>
+              <p className="label-xs mb-1">NARRATIVE MATURITY REASONING</p>
+              <ul className="list-disc space-y-1 pl-4 text-xs text-muted-foreground">
+                {report.narrativeMaturityReasons.map((x) => (
+                  <li key={x}>{x}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
+          {report.gateDiagnostics?.independentSourceGateBinding ? (
+            <p className="text-[11px] text-warning">
+              Calibration note: source independence was the only unmet gate (
+              {report.gateDiagnostics.independentSourceCount} independent,{" "}
+              {report.gateDiagnostics.primarySourceCount} primary,{" "}
+              {report.gateDiagnostics.communitySourceCount} community). The gate was still applied.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
       {report.sources.length ? (
         <div>
           <p className="label-xs mb-1">SOURCES</p>
@@ -402,6 +475,41 @@ function ThesisDetail({ report }: { report: Report }) {
           </ul>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+type EvidenceRow = Report["positiveEvidence"][number];
+
+/** Descriptive only: shows what was evidenced, contradicted or simply not found. */
+function EvidenceList({
+  label,
+  items,
+  tone,
+}: {
+  label: string;
+  items: EvidenceRow[];
+  tone: string;
+}) {
+  if (!items.length) return null;
+  return (
+    <div>
+      <p className="label-xs mb-1">{label}</p>
+      <ul className="space-y-1 text-xs">
+        {items.slice(0, 10).map((i, idx) => (
+          <li key={`${label}-${idx}`} className={tone}>
+            {i.statement}
+            <span className="ml-1 text-[10px] text-muted-foreground">
+              [{i.basis}
+              {i.severity ? ` · ${i.severity}` : ""}
+              {i.gapCode ? ` · ${i.gapCode}` : ""}
+              {i.sourceRefs.length ? ` · ${i.sourceRefs.join(", ")}` : ""}
+              {i.claimRefs.length ? ` · ${i.claimRefs.join(", ")}` : ""}
+              {i.affiliation !== "UNKNOWN" ? ` · ${i.affiliation}` : ""}]
+            </span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

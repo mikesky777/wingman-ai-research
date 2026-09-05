@@ -41,6 +41,14 @@ import {
   type ValidationIssue,
 } from "./contracts";
 import {
+  THESIS_EVIDENCE_SEMANTICS_VERSION,
+  buildEvidenceSemantics,
+  buildGateDiagnostics,
+  legacyCatalystKind,
+  type EvidenceSemantics,
+  type GateDiagnostics,
+} from "./evidence-semantics";
+import {
   createLovableThesisProvider,
   parseThesisJson,
   type ThesisProvider,
@@ -317,6 +325,8 @@ interface SynthesizedCandidate {
   market: { marketCap: number | null; priceUsd: number | null; liquidityUsd: number | null };
   setups: string[];
   independentSourceCount: number;
+  /** thesis_evidence/v2.1 semantics. Null when synthesis never reached a model. */
+  semantics: EvidenceSemantics | null;
   validationIssues: ValidationIssue[];
   diagnostics: Record<string, unknown>;
   error: string | null;
@@ -453,6 +463,7 @@ export async function runThesisSynthesis(
         market: { marketCap: null, priceUsd: null, liquidityUsd: null },
         setups: [],
         independentSourceCount: 0,
+        semantics: null,
         validationIssues: [],
         diagnostics: {},
         error: error instanceof Error ? error.message.slice(0, 400) : "Unknown error",
@@ -485,6 +496,28 @@ export async function runThesisSynthesis(
     const qualified = qualifyingMints.has(s.input.mint);
     let thesisCallMilestoneId: string | null = null;
 
+    // Calibration diagnostics only: would this candidate have passed every
+    // gate EXCEPT source independence? The gate itself is untouched.
+    const otherGatesPassed =
+      s.status === "completed" &&
+      s.eligibility.researchEligibleNow &&
+      s.verdict !== null &&
+      OPPORTUNITY_POLICY.allowedVerdicts.includes(s.verdict) &&
+      (s.thesisScore ?? 0) >= OPPORTUNITY_POLICY.minThesisScore &&
+      (s.evidence?.score ?? 0) >= OPPORTUNITY_POLICY.minEvidenceConfidence &&
+      (s.bearSeverity === "LOW" || s.bearSeverity === "MODERATE");
+    const gateDiagnostics = buildGateDiagnostics({
+      independentSourceCount: s.independentSourceCount,
+      primarySourceCount: s.semantics?.sourceMix.primaryQuality ?? 0,
+      communitySourceCount: s.semantics?.sourceMix.community ?? 0,
+      evidenceConfidence: s.evidence?.score ?? 0,
+      searchUnavailable: s.input.searchUnavailable,
+      searchHealth: s.input.searchUnavailable ? "SEARCH_UNAVAILABLE" : "SEARCH_AVAILABLE",
+      minIndependentSources: OPPORTUNITY_POLICY.minIndependentSources,
+      otherGatesPassed,
+      qualified,
+    });
+
     if (qualified && !isCalibration && s.input.tokenId) {
       thesisCallMilestoneId = await recordThesisCall({
         candidate: s,
@@ -501,6 +534,7 @@ export async function runThesisSynthesis(
       provider,
       qualified,
       thesisCallMilestoneId,
+      gateDiagnostics,
     });
 
     results.push({
@@ -583,6 +617,7 @@ async function synthesizeCandidate(args: {
     market: marketSnapshot,
     setups,
     independentSourceCount: input.coverage?.independentSourceCount ?? 0,
+    semantics: null,
     validationIssues: [],
     diagnostics: {},
     error: null,
@@ -641,7 +676,8 @@ async function synthesizeCandidate(args: {
   });
 
   const response = await provider.complete({ system, user });
-  const validated = validateThesisOutput(parseThesisJson(response.text), {
+  const rawOutput = parseThesisJson(response.text);
+  const validated = validateThesisOutput(rawOutput, {
     sourceRefs,
     claimRefs,
   });
@@ -675,6 +711,24 @@ async function synthesizeCandidate(args: {
     criticalUnresolvedIssues: validated.criticalUnresolvedIssues,
   });
 
+  // thesis_evidence/v2.1 — descriptive layer only. It never touches the
+  // rubric, the score, Evidence Confidence, the verdict or the gates.
+  const semantics = buildEvidenceSemantics({
+    raw: rawOutput,
+    knownClaimRefs: claimRefs,
+    sources: (dossier?.sources ?? []).map((s) => ({
+      ref: s.ref,
+      independence: s.independence,
+      sourceType: s.sourceType,
+      reliabilityClass: s.reliabilityClass,
+    })),
+    catalystText: validated.strongestCatalyst,
+    legacyCatalystKind: validated.catalystKind,
+    independentSourceCount: dossier?.coverage?.independentSourceCount ?? 0,
+    searchUnavailable: input.searchUnavailable,
+    knownGaps: [...(packet?.gaps ?? []), ...(dossier?.evidenceGaps ?? [])].slice(0, 12),
+  });
+
   return {
     ...base,
     status: verdict === "INSUFFICIENT_EVIDENCE" ? "insufficient_evidence" : "completed",
@@ -691,7 +745,7 @@ async function synthesizeCandidate(args: {
       strongestBullCase: validated.strongestBullCase,
       strongestBearCase: validated.strongestBearCase,
       strongestCatalyst: validated.strongestCatalyst,
-      catalystKind: validated.catalystKind,
+      catalystKind: legacyCatalystKind(semantics.catalystClassification),
       whyNowMarketSignal: validated.whyNowMarketSignal,
       strongestConcern: validated.strongestConcern,
       catalysts: validated.catalysts,
@@ -700,6 +754,7 @@ async function synthesizeCandidate(args: {
       supportingClaimRefs: validated.supportingClaimRefs,
       supportingSourceRefs: validated.supportingSourceRefs,
     },
+    semantics,
     validationIssues: validated.issues,
     diagnostics: {
       provider: response.diagnostics,
@@ -707,6 +762,8 @@ async function synthesizeCandidate(args: {
       dossierStatus: input.dossierStatus,
       searchUnavailable: input.searchUnavailable,
       inputPolicyVersion: THESIS_INPUT_POLICY_VERSION,
+      evidenceSemanticsVersion: THESIS_EVIDENCE_SEMANTICS_VERSION,
+      evidenceSemanticsIssues: semantics.issues,
       redactedPacketKeys: ["outcomes"],
     },
   };
@@ -818,9 +875,11 @@ async function insertReport(args: {
   provider: ThesisProvider;
   qualified: boolean;
   thesisCallMilestoneId: string | null;
+  gateDiagnostics: GateDiagnostics;
 }): Promise<string> {
   const { candidate: s } = args;
   const c = s.components;
+  const sem = s.semantics;
   const { data, error } = await supabaseAdmin
     .from("thesis_reports")
     .insert({
@@ -854,6 +913,22 @@ async function insertReport(args: {
       strongest_bear_case: s.text.strongestBearCase,
       strongest_catalyst: s.text.strongestCatalyst,
       catalyst_kind: s.text.catalystKind,
+      // thesis_evidence/v2.1 semantics. Additive only: no frozen field changes.
+      evidence_semantics_version: sem?.semanticsVersion ?? null,
+      evidence_polarity_counts: (sem?.counts ?? null) as never,
+      positive_evidence: (sem?.positive ?? null) as never,
+      negative_evidence: (sem?.negative ?? null) as never,
+      missing_evidence: (sem?.missing ?? null) as never,
+      ambiguous_evidence: (sem?.ambiguous ?? null) as never,
+      catalyst_classification: sem?.catalystClassification ?? null,
+      catalyst_verification_basis: sem?.catalystVerificationBasis ?? null,
+      narrative_maturity: sem?.narrativeMaturity ?? null,
+      narrative_maturity_reasons: ({
+        reasons: sem?.narrativeMaturityReasons ?? [],
+        supportCodes: sem?.narrativeSupportCodes ?? [],
+      } ) as never,
+      source_mix: (sem?.sourceMix ?? null) as never,
+      gate_diagnostics: (args.gateDiagnostics ?? null) as never,
       why_now_market_signal: s.text.whyNowMarketSignal,
       strongest_concern: s.text.strongestConcern,
       sections: (s.text.sections ?? null) as never,
@@ -959,6 +1034,19 @@ export interface ThesisReportSummary {
   pairAddress: string | null;
   triageRank: number | null;
   sources: { ref: string; url: string | null; title: string | null; independence: string }[];
+  /** thesis_evidence/v2.1 — null on frozen pre-v2.1 reports. */
+  evidenceSemanticsVersion: string | null;
+  positiveEvidence: EvidenceSemantics["positive"];
+  negativeEvidence: EvidenceSemantics["negative"];
+  missingEvidence: EvidenceSemantics["missing"];
+  ambiguousEvidence: EvidenceSemantics["ambiguous"];
+  catalystClassification: string | null;
+  catalystVerificationBasis: string | null;
+  narrativeMaturity: string | null;
+  narrativeMaturityReasons: string[];
+  narrativeSupportCodes: string[];
+  sourceMix: EvidenceSemantics["sourceMix"] | null;
+  gateDiagnostics: GateDiagnostics | null;
 }
 
 /**
@@ -1100,6 +1188,20 @@ export async function loadThesisReports(
     researchPacketId: (r["research_packet_id"] as string) ?? null,
     triageRunId: (r["triage_run_id"] as string) ?? null,
     sources: sourcesByReport.get((r["deep_research_report_id"] as string) ?? "") ?? [],
+    evidenceSemanticsVersion: (r["evidence_semantics_version"] as string) ?? null,
+    positiveEvidence: (r["positive_evidence"] as EvidenceSemantics["positive"]) ?? [],
+    negativeEvidence: (r["negative_evidence"] as EvidenceSemantics["negative"]) ?? [],
+    missingEvidence: (r["missing_evidence"] as EvidenceSemantics["missing"]) ?? [],
+    ambiguousEvidence: (r["ambiguous_evidence"] as EvidenceSemantics["ambiguous"]) ?? [],
+    catalystClassification: (r["catalyst_classification"] as string) ?? null,
+    catalystVerificationBasis: (r["catalyst_verification_basis"] as string) ?? null,
+    narrativeMaturity: (r["narrative_maturity"] as string) ?? null,
+    narrativeMaturityReasons:
+      ((r["narrative_maturity_reasons"] as { reasons?: string[] } | null)?.reasons) ?? [],
+    narrativeSupportCodes:
+      ((r["narrative_maturity_reasons"] as { supportCodes?: string[] } | null)?.supportCodes) ?? [],
+    sourceMix: (r["source_mix"] as EvidenceSemantics["sourceMix"]) ?? null,
+    gateDiagnostics: (r["gate_diagnostics"] as GateDiagnostics) ?? null,
   }));
 }
 
