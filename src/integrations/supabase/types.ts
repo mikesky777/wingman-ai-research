@@ -2131,6 +2131,7 @@ export type Database = {
           one_sentence_thesis: string | null
           positive_evidence: Json | null
           price_at_synthesis: number | null
+          production_idempotency_key: string | null
           prompt_version: string
           qualified_as_opportunity: boolean
           research_packet_id: string | null
@@ -2209,6 +2210,7 @@ export type Database = {
           one_sentence_thesis?: string | null
           positive_evidence?: Json | null
           price_at_synthesis?: number | null
+          production_idempotency_key?: string | null
           prompt_version: string
           qualified_as_opportunity?: boolean
           research_packet_id?: string | null
@@ -2287,6 +2289,7 @@ export type Database = {
           one_sentence_thesis?: string | null
           positive_evidence?: Json | null
           price_at_synthesis?: number | null
+          production_idempotency_key?: string | null
           prompt_version?: string
           qualified_as_opportunity?: boolean
           research_packet_id?: string | null
