@@ -274,7 +274,8 @@ export function scoreEntry(args: {
   if (extensionVerdict === "RESET") confirmations += 1;
   if (components.volumeFlow >= 1.25) confirmations += 1;
   if (components.riskDefinition >= 1.5) confirmations += 1;
-  if (divergence === "POSITIVE") confirmations += 1;
+  // Divergence stays contextual: it only confirms when order flow is alive.
+  if (divergence === "POSITIVE" && components.volumeFlow >= 0.75) confirmations += 1;
 
   if (context.damageStatus === "UNKNOWN") gaps.push("RECENT_MARKET_DAMAGE_UNKNOWN");
   if (context.researchAgeHours !== null && context.researchAgeHours > 48) {
