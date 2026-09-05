@@ -258,12 +258,16 @@ export async function runDeepResearch(
     return emptyBatch(mode, "NO_DEEP_RESEARCH_CANDIDATES", triageRun.id, triageRun.sourceScanId, provider);
   }
 
-  // Calibration is a DRY RUN over a small deterministic subset chosen by
-  // triage rank only — never by later outcomes.
+  // Subset selection is by persisted AI triage rank only — never by later
+  // outcomes. Calibration is a dry run; production may also be run in
+  // deliberate top-N batches (e.g. the top 3 of a fresh shortlist).
   if (isCalibration) {
     const limit = Math.min(5, Math.max(3, options.limit ?? 3));
     shortlist = shortlist.slice(0, limit);
+  } else if (typeof options.limit === "number" && options.limit > 0) {
+    shortlist = shortlist.slice(0, options.limit);
   }
+
 
   // Freshness / eligibility recheck against the scan the packets came from.
   const candidates = triageRun.sourceScanId ? await loadRunCandidates(triageRun.sourceScanId) : [];
@@ -321,7 +325,26 @@ export async function runDeepResearch(
         isCalibration,
         eligibility,
       });
+      // Eligibility is rechecked AFTER research against fresh market state.
+      // A token that collapses mid-research keeps its report and its
+      // AI_SHORTLIST milestone, but is flagged so nothing downstream (e.g.
+      // Thesis Synthesis) may advance it.
+      if (scanCandidate && result.deepResearchRunId) {
+        const freshMarkets = await loadCurrentMarkets([scanCandidate.tokenId]);
+        const after = assessResearchEligibility({
+          candidate: scanCandidate,
+          currentPriceChange1h: freshMarkets.get(scanCandidate.tokenId)?.priceChange1h ?? null,
+        });
+        await recordEligibilityAfter(result.deepResearchRunId, after);
+        if (!after.researchEligibleNow) {
+          result.blockedReasons = [
+            "CURRENTLY_BLOCKED_AFTER_RESEARCH",
+            ...after.exclusionReasons,
+          ];
+        }
+      }
       results.push(result);
+
     } catch (error) {
       // Failure isolation: one bad candidate never aborts the batch.
       results.push({
@@ -783,7 +806,30 @@ async function insertRun(input: {
   return (data as Row)["id"] as string;
 }
 
+/**
+ * Records the eligibility recheck performed after research finished. Reports,
+ * sources, claims and milestones are never modified.
+ */
+async function recordEligibilityAfter(
+  runId: string,
+  after: { researchEligibleNow: boolean; exclusionReasons: string[] },
+): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from("deep_research_runs")
+    .update({
+      eligibility_after: {
+        ...after,
+        blockedAfterResearch: !after.researchEligibleNow,
+        code: after.researchEligibleNow ? "ELIGIBLE" : "CURRENTLY_BLOCKED_AFTER_RESEARCH",
+        recheckedAt: new Date().toISOString(),
+      } as never,
+    })
+    .eq("id", runId);
+  if (error) throw new Error(error.message);
+}
+
 async function finishRun(
+
   runId: string,
   input: {
     status: string;
