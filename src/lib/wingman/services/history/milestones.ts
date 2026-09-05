@@ -16,6 +16,12 @@
 import type { CohortToken, Stat } from "./cohort";
 import { mean, median, validValues } from "./cohort";
 import { CURRENT_POLICY_EPOCH, SELECTION_POLICY_VERSION, type PolicyEpoch } from "./policy-epochs";
+import {
+  assessMarketValidity,
+  isMetricUsable,
+  type MarketValidityAssessment,
+  type OutcomeMarketValidity,
+} from "../outcomes/market-validity";
 
 export const FUNNEL_STAGES = [
   "SETUP_QUALIFIED",
