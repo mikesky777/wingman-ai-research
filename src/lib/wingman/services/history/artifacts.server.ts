@@ -124,25 +124,235 @@ export async function loadHistoryArtifacts(): Promise<HistoryArtifacts> {
     };
   });
 
-  const thesis: ThesisArtifact[] = thesisRows.map((r) => ({
-    ...identity(r["mint"] as string),
-    symbol: str(r, "symbol") ?? identity(r["mint"] as string).symbol,
-    name: str(r, "name") ?? identity(r["mint"] as string).name,
-    reportId: r["id"] as string,
-    synthesizedAt: str(r, "created_at"),
-    thesisScore: num(r, "thesis_score"),
-    evidenceConfidence: num(r, "evidence_confidence"),
-    verdict: str(r, "verdict"),
-    bearCaseSeverity: str(r, "bear_case_severity"),
-    oneSentenceThesis: str(r, "one_sentence_thesis"),
-    strongestBearCase: str(r, "strongest_bear_case"),
-    qualifiedAsOpportunity: Boolean(r["qualified_as_opportunity"]),
-    thesisPolicyVersion: str(r, "thesis_policy_version"),
-    rubricVersion: str(r, "rubric_version"),
-    promptVersion: str(r, "prompt_version"),
-    modelProvider: str(r, "model_provider"),
-    modelIdentifier: str(r, "model_identifier"),
-  }));
+  const measured = await loadThesisMeasurements(thesisRows);
+
+  const thesis: ThesisArtifact[] = thesisRows.map((r) => {
+    const id = r["id"] as string;
+    const m = measured.get(id) ?? { baseline: null, performance: null };
+    return {
+      ...identity(r["mint"] as string),
+      symbol: str(r, "symbol") ?? identity(r["mint"] as string).symbol,
+      name: str(r, "name") ?? identity(r["mint"] as string).name,
+      reportId: id,
+      synthesizedAt: str(r, "created_at"),
+      thesisScore: num(r, "thesis_score"),
+      evidenceConfidence: num(r, "evidence_confidence"),
+      verdict: str(r, "verdict"),
+      bearCaseSeverity: str(r, "bear_case_severity"),
+      oneSentenceThesis: str(r, "one_sentence_thesis"),
+      strongestBearCase: str(r, "strongest_bear_case"),
+      qualifiedAsOpportunity: Boolean(r["qualified_as_opportunity"]),
+      thesisPolicyVersion: str(r, "thesis_policy_version"),
+      rubricVersion: str(r, "rubric_version"),
+      promptVersion: str(r, "prompt_version"),
+      modelProvider: str(r, "model_provider"),
+      modelIdentifier: str(r, "model_identifier"),
+      sourceScanId: null,
+      triageRunId: str(r, "triage_run_id"),
+      deepResearchRunId: str(r, "deep_research_run_id"),
+      baseline: m.baseline,
+      performance: m.performance,
+    };
+  });
 
   return { deepResearch, thesis };
 }
+
+interface ThesisMeasurement {
+  baseline: ThesisBaseline | null;
+  performance: ThesisPerformance | null;
+}
+
+/**
+ * Resolve one thesis-time baseline per thesis report and derive its
+ * post-synthesis market outcome with the shared `stage_outcome/v1` +
+ * `outcome_market_validity/v1` rules.
+ */
+async function loadThesisMeasurements(
+  thesisRows: Row[],
+): Promise<Map<string, ThesisMeasurement>> {
+  const out = new Map<string, ThesisMeasurement>();
+  if (thesisRows.length === 0) return out;
+
+  const reportIds = thesisRows.map((r) => r["id"] as string);
+  const tokenIds = [
+    ...new Set(thesisRows.map((r) => str(r, "token_id")).filter((v): v is string => !!v)),
+  ];
+
+  // Baselines the thesis run itself froze (prospective path).
+  const persisted = new Map<string, Row>();
+  for (const ids of chunk(reportIds)) {
+    const { data } = await supabaseAdmin
+      .from("thesis_synthesis_baselines")
+      .select(
+        "thesis_report_id, observed_at, market_cap, price_usd, liquidity_usd, volume_24h, market_source, source_pair_address",
+      )
+      .in("thesis_report_id", ids);
+    for (const row of ((data as Row[]) ?? [])) {
+      persisted.set(row["thesis_report_id"] as string, row);
+    }
+  }
+
+  // Persisted market observations for every token involved.
+  const snapshotsByToken = new Map<string, Row[]>();
+  const candidatesByToken = new Map<string, Row[]>();
+  for (const ids of chunk(tokenIds)) {
+    const [snapRes, candRes] = await Promise.all([
+      supabaseAdmin
+        .from("token_snapshots")
+        .select(
+          "token_id, captured_at, price_usd, market_cap, liquidity_usd, volume_24h, price_change_1h, price_change_24h, data_source, source_pair_address",
+        )
+        .in("token_id", ids)
+        .order("captured_at", { ascending: true })
+        .limit(1000),
+      supabaseAdmin
+        .from("scan_candidates")
+        .select("token_id, created_at, price_usd, market_cap, liquidity_usd")
+        .in("token_id", ids)
+        .order("created_at", { ascending: true })
+        .limit(1000),
+    ]);
+    for (const row of ((snapRes.data as Row[]) ?? [])) {
+      const key = row["token_id"] as string;
+      snapshotsByToken.set(key, [...(snapshotsByToken.get(key) ?? []), row]);
+    }
+    for (const row of ((candRes.data as Row[]) ?? [])) {
+      const key = row["token_id"] as string;
+      candidatesByToken.set(key, [...(candidatesByToken.get(key) ?? []), row]);
+    }
+  }
+
+  for (const r of thesisRows) {
+    const reportId = r["id"] as string;
+    const tokenId = str(r, "token_id");
+    const synthesizedAt = str(r, "created_at");
+    const snaps = tokenId ? (snapshotsByToken.get(tokenId) ?? []) : [];
+
+    const baseline = resolveThesisBaseline({
+      persisted: persisted.get(reportId) ?? null,
+      report: r,
+      synthesizedAt,
+      snapshots: snaps,
+    });
+
+    if (!baseline || !synthesizedAt) {
+      out.set(reportId, { baseline: null, performance: null });
+      continue;
+    }
+
+    const snapshotSeries: SnapshotObservation[] = snaps.map((s) => ({
+      capturedAt: str(s, "captured_at") ?? "",
+      priceUsd: num(s, "price_usd"),
+      marketCap: num(s, "market_cap"),
+      liquidityUsd: num(s, "liquidity_usd"),
+    }));
+    const candidateSeries: CandidateAppearance[] = (
+      tokenId ? (candidatesByToken.get(tokenId) ?? []) : []
+    )
+      .filter((c) => !!str(c, "created_at"))
+      .map((c) => ({
+        scanRunId: "",
+        completedAt: str(c, "created_at") as string,
+        priceUsd: num(c, "price_usd"),
+        marketCap: num(c, "market_cap"),
+        liquidityUsd: num(c, "liquidity_usd"),
+        survivor: false,
+      }));
+
+    const outcome = deriveStageOutcome(
+      {
+        enteredAt: baseline.observedAt ?? synthesizedAt,
+        marketCapAtEntry: baseline.marketCap,
+        priceAtEntry: baseline.priceUsd,
+      },
+      { candidates: candidateSeries, snapshots: snapshotSeries },
+    );
+
+    // Newest valid snapshot supplies descriptive live market context only.
+    const latestValid = [...snaps]
+      .reverse()
+      .find((s) =>
+        isMetricUsable(
+          assessMarketValidity({
+            liquidityUsd: num(s, "liquidity_usd"),
+            marketCap: num(s, "market_cap"),
+          }).validity,
+        ),
+      );
+
+    out.set(reportId, {
+      baseline,
+      performance: {
+        sincePct: outcome.sincePct,
+        peakPct: outcome.peakPct,
+        drawdownPct: outcome.drawdownPct,
+        currentMarketCap: outcome.currentMarketCap,
+        currentPriceUsd: outcome.currentPriceUsd,
+        currentLiquidityUsd: latestValid ? num(latestValid, "liquidity_usd") : null,
+        currentVolume24h: latestValid ? num(latestValid, "volume_24h") : null,
+        priceChange1h: latestValid ? num(latestValid, "price_change_1h") : null,
+        priceChange24h: latestValid ? num(latestValid, "price_change_24h") : null,
+        currentObservedAt: outcome.currentObservedAt,
+        observationCount: outcome.observationCount,
+      },
+    });
+  }
+
+  return out;
+}
+
+/**
+ * A thesis baseline is only legitimate when the thesis run froze it, or when
+ * the exact persisted decision-time observation the report was synthesized on
+ * can still be identified. Anything else stays unavailable.
+ */
+function resolveThesisBaseline(args: {
+  persisted: Row | null;
+  report: Row;
+  synthesizedAt: string | null;
+  snapshots: Row[];
+}): ThesisBaseline | null {
+  const { persisted, report, synthesizedAt, snapshots } = args;
+
+  if (persisted) {
+    return {
+      origin: "CAPTURED_AT_SYNTHESIS",
+      observedAt: str(persisted, "observed_at"),
+      marketCap: num(persisted, "market_cap"),
+      priceUsd: num(persisted, "price_usd"),
+      liquidityUsd: num(persisted, "liquidity_usd"),
+      volume24h: num(persisted, "volume_24h"),
+      pairAddress: str(persisted, "source_pair_address"),
+      source: str(persisted, "market_source"),
+    };
+  }
+
+  const marketCapAtSynthesis = num(report, "market_cap_at_synthesis");
+  if (!synthesizedAt || marketCapAtSynthesis === null) return null;
+  const synthesizedTs = Date.parse(synthesizedAt);
+  if (Number.isNaN(synthesizedTs)) return null;
+
+  // Newest observation at or before synthesis — never a later print.
+  const priorSnapshot = [...snapshots]
+    .filter((s) => {
+      const at = Date.parse(str(s, "captured_at") ?? "");
+      return !Number.isNaN(at) && at <= synthesizedTs;
+    })
+    .pop();
+  if (!priorSnapshot) return null;
+  // It must be the exact print the thesis was synthesized on.
+  if (!sameMarketCap(num(priorSnapshot, "market_cap"), marketCapAtSynthesis)) return null;
+
+  return {
+    origin: "RESOLVED_DECISION_TIME",
+    observedAt: str(priorSnapshot, "captured_at"),
+    marketCap: marketCapAtSynthesis,
+    priceUsd: num(report, "price_at_synthesis") ?? num(priorSnapshot, "price_usd"),
+    liquidityUsd: num(report, "liquidity_at_synthesis") ?? num(priorSnapshot, "liquidity_usd"),
+    volume24h: num(priorSnapshot, "volume_24h"),
+    pairAddress: str(priorSnapshot, "source_pair_address"),
+    source: str(priorSnapshot, "data_source"),
+  };
+}
+
