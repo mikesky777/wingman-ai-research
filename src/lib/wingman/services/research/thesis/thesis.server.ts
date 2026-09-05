@@ -325,6 +325,8 @@ interface SynthesizedCandidate {
   market: { marketCap: number | null; priceUsd: number | null; liquidityUsd: number | null };
   setups: string[];
   independentSourceCount: number;
+  /** thesis_evidence/v2.1 semantics. Null when synthesis never reached a model. */
+  semantics: EvidenceSemantics | null;
   validationIssues: ValidationIssue[];
   diagnostics: Record<string, unknown>;
   error: string | null;
