@@ -12,6 +12,7 @@
  * Calibration runs are dry runs: flagged, history-free, THESIS_CALL-free.
  */
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { assertThesisInputProvenance } from "../cohort";
 import { recordAiStageMilestone } from "../../history/milestones.server";
 import { assessResearchEligibility } from "../packet";
 import { loadCurrentMarkets, loadRunCandidates, type LoadedCandidate } from "../packet.server";
@@ -53,6 +54,7 @@ export type ThesisRunCode =
   | "OK"
   | "NO_DEEP_RESEARCH_REPORTS"
   | "NO_ELIGIBLE_CANDIDATES"
+  | "THESIS_INPUT_PROVENANCE_MISMATCH"
   | "MISSING_API_KEY";
 
 export interface ThesisCandidateResult {
