@@ -31,6 +31,7 @@ export function TriagePanel({ calibration = false }: { calibration?: boolean } =
   const queryClient = useQueryClient();
   const fetchLatest = useServerFn(getLatestTriage);
   const startRun = useServerFn(runTriage);
+  const fetchAvailability = useServerFn(getTriageAvailability);
   const generatePackets = useServerFn(generateResearchPacketsForRun);
   const [lastCode, setLastCode] = useState<string | null>(null);
   // Production is the default view. A later calibration run must never replace
