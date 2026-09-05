@@ -42,6 +42,22 @@ const chunk = <T,>(items: T[], size = 100): T[][] => {
   return out;
 };
 
+/** Data API caps a response at 1000 rows; every read here is paginated. */
+async function paginate(
+  query: (from: number, to: number) => PromiseLike<{ data: unknown; error: unknown }>,
+): Promise<Row[]> {
+  const page = 1000;
+  const out: Row[] = [];
+  for (let from = 0; ; from += page) {
+    const { data, error } = await query(from, from + page - 1);
+    if (error) break;
+    const rows = ((data as Row[]) ?? []);
+    out.push(...rows);
+    if (rows.length < page) break;
+  }
+  return out;
+}
+
 /** Same market cap within float noise counts as the same persisted print. */
 const sameMarketCap = (a: number | null, b: number | null): boolean =>
   a !== null && b !== null && Math.abs(a - b) <= Math.max(1e-6, Math.abs(a) * 1e-9);
@@ -197,27 +213,31 @@ async function loadThesisMeasurements(
   const snapshotsByToken = new Map<string, Row[]>();
   const candidatesByToken = new Map<string, Row[]>();
   for (const ids of chunk(tokenIds)) {
-    const [snapRes, candRes] = await Promise.all([
-      supabaseAdmin
-        .from("token_snapshots")
-        .select(
-          "token_id, captured_at, price_usd, market_cap, liquidity_usd, volume_24h, price_change_1h, price_change_24h, data_source, source_pair_address",
-        )
-        .in("token_id", ids)
-        .order("captured_at", { ascending: true })
-        .limit(1000),
-      supabaseAdmin
-        .from("scan_candidates")
-        .select("token_id, created_at, price_usd, market_cap, liquidity_usd")
-        .in("token_id", ids)
-        .order("created_at", { ascending: true })
-        .limit(1000),
+    const [snapRows, candRows] = await Promise.all([
+      paginate((from, to) =>
+        supabaseAdmin
+          .from("token_snapshots")
+          .select(
+            "token_id, captured_at, price_usd, market_cap, liquidity_usd, volume_24h, price_change_1h, price_change_24h, data_source, source_pair_address",
+          )
+          .in("token_id", ids)
+          .order("captured_at", { ascending: true })
+          .range(from, to),
+      ),
+      paginate((from, to) =>
+        supabaseAdmin
+          .from("scan_candidates")
+          .select("token_id, created_at, price_usd, market_cap, liquidity_usd")
+          .in("token_id", ids)
+          .order("created_at", { ascending: true })
+          .range(from, to),
+      ),
     ]);
-    for (const row of ((snapRes.data as Row[]) ?? [])) {
+    for (const row of snapRows) {
       const key = row["token_id"] as string;
       snapshotsByToken.set(key, [...(snapshotsByToken.get(key) ?? []), row]);
     }
-    for (const row of ((candRes.data as Row[]) ?? [])) {
+    for (const row of candRows) {
       const key = row["token_id"] as string;
       candidatesByToken.set(key, [...(candidatesByToken.get(key) ?? []), row]);
     }
