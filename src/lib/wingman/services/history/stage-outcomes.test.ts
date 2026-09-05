@@ -53,6 +53,6 @@ describe("stage outcomes", () => {
     expect(stageSupportsPeakMetrics("SURVIVOR")).toBe(true);
     expect(stageSupportsPeakMetrics("AI_SHORTLIST")).toBe(true);
     expect(stageSupportsPeakMetrics("THESIS_CALL")).toBe(true);
-    expect(stageSupportsPeakMetrics("SETUP_QUALIFIED")).toBe(false);
+    expect(stageSupportsPeakMetrics("SETUP_QUALIFIED")).toBe(true);
   });
 });
