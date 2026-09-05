@@ -906,11 +906,35 @@ async function recordThesisCall(args: {
   return data ? ((data as Row)["id"] as string) : null;
 }
 
+/**
+ * Production idempotency keys already claimed by a persisted production
+ * thesis artifact. Read before any model spend.
+ */
+async function loadClaimedProductionKeys(keys: string[]): Promise<Set<string>> {
+  const claimed = new Set<string>();
+  if (keys.length === 0) return claimed;
+  for (let i = 0; i < keys.length; i += 100) {
+    const { data } = await supabaseAdmin
+      .from("thesis_reports")
+      .select("production_idempotency_key")
+      .in("production_idempotency_key", keys.slice(i, i + 100));
+    for (const row of ((data as Row[]) ?? [])) {
+      const key = row["production_idempotency_key"];
+      if (typeof key === "string") claimed.add(key);
+    }
+  }
+  return claimed;
+}
+
+/**
+ * Opens a synthesis run. Production returns `null` when another production
+ * run for the same cohort is already in flight (partial unique index).
+ */
 async function insertRun(input: {
   isCalibration: boolean;
   provider: ThesisProvider;
   inputs: ThesisInputCandidate[];
-}): Promise<string> {
+}): Promise<string | null> {
   const { data, error } = await supabaseAdmin
     .from("thesis_synthesis_runs")
     .insert({
