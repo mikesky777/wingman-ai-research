@@ -48,12 +48,29 @@ export interface EntryScoreResult {
   whatWouldBreakEntry: string[];
   evidenceGaps: string[];
   notes: string[];
+  /** v1.1: resolution the score was computed under. */
+  resolution: TimingResolution;
+  /** v1.1: candle-grade fields ignored because the evidence is coarse. */
+  unsupportedFeatures: string[];
 }
 
 const MIN_PRACTICAL_LIQUIDITY = 15_000;
 const COMFORTABLE_LIQUIDITY = 60_000;
 
-export function classifyStructure(f: TimingFeatures): StructureVerdict {
+/**
+ * v1.1: at COARSE resolution only broad trajectory / broad deterioration may
+ * be claimed. Candle-grade structure (higher low, reclaim, compression,
+ * consolidation-bar counting, lower-high sequences) carries zero weight.
+ */
+export function classifyStructure(
+  f: TimingFeatures,
+  resolution: TimingResolution = "HIGH",
+): StructureVerdict {
+  if (!supportsCandleGradeClaims(resolution)) {
+    if (f.drawdownFromHighPct <= -70) return "DETERIORATING";
+    if (f.drawdownFromHighPct <= -40) return "DETERIORATING";
+    return "NEUTRAL";
+  }
   if (f.lowerHighs && f.drawdownFromHighPct <= -35) return "BROKEN";
   if (f.drawdownFromHighPct <= -55 && !f.higherLow) return "BROKEN";
   if (f.lowerHighs) return "DETERIORATING";
@@ -68,16 +85,28 @@ export function classifyStructure(f: TimingFeatures): StructureVerdict {
   return "NEUTRAL";
 }
 
-export function classifyExtension(f: TimingFeatures, context: EntryContext): ExtensionVerdict {
+/** COARSE evidence may still support APPROXIMATE extension (distance from base). */
+export function classifyExtension(
+  f: TimingFeatures,
+  context: EntryContext,
+  resolution: TimingResolution = "HIGH",
+): ExtensionVerdict {
+  const highRes = supportsCandleGradeClaims(resolution);
   const change1h = context.priceChange1h;
-  if (f.verticalExpansion || (typeof change1h === "number" && change1h >= 60 && f.barsSinceHigh <= 1)) {
+  if (
+    (highRes && f.verticalExpansion) ||
+    (typeof change1h === "number" && change1h >= 60 && f.barsSinceHigh <= 1)
+  ) {
     return "PARABOLIC";
   }
   if (f.distanceFromBasePct >= 120 && f.barsSinceHigh <= 2) return "PARABOLIC";
-  if (f.distanceFromBasePct >= 60 && f.consolidationBars < 3) return "STRETCHED";
+  if (f.distanceFromBasePct >= 60 && (!highRes || f.consolidationBars < 3)) return "STRETCHED";
   if (
     f.distanceFromBasePct <= 25 ||
-    (f.retracementDepthPct !== null && f.retracementDepthPct >= 30 && f.retracementDepthPct <= 70)
+    (highRes &&
+      f.retracementDepthPct !== null &&
+      f.retracementDepthPct >= 30 &&
+      f.retracementDepthPct <= 70)
   ) {
     return "RESET";
   }
@@ -88,15 +117,24 @@ export function scoreEntry(args: {
   features: TimingFeatures;
   context: EntryContext;
   divergence: DivergenceState;
+  /** v1.1 resolution firewall. Defaults to HIGH (candle-derived features). */
+  resolution?: TimingResolution;
 }): EntryScoreResult {
   const { features: f, context, divergence } = args;
+  const resolution: TimingResolution = args.resolution ?? "HIGH";
+  const highRes = supportsCandleGradeClaims(resolution);
+  const unsupportedFeatures = highRes
+    ? []
+    : CANDLE_GRADE_FEATURES.map((k) => `${k}:${COARSE_UNSUPPORTED_REASON}`);
   const notes: string[] = [];
   const gaps: string[] = [...f.gaps];
   const improve: string[] = [];
   const breaks: string[] = [];
+  if (!highRes) gaps.push("CANDLE_GRADE_FEATURES_UNSUPPORTED_AT_COARSE_RESOLUTION");
 
-  const structureVerdict = classifyStructure(f);
-  const extensionVerdict = classifyExtension(f, context);
+  const structureVerdict = classifyStructure(f, resolution);
+  const extensionVerdict = classifyExtension(f, context, resolution);
+
 
   // ---- Structure 0–3 -------------------------------------------------
   let structure = 1;
