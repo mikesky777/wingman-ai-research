@@ -711,6 +711,10 @@ export interface TriageRunSummary {
 
 export interface PersistedTriageDecision {
   mint: string;
+  /** Token identity from the exact persisted Research Packet the triage read. */
+  symbol: string | null;
+  name: string | null;
+  pairAddress: string | null;
   candidateSource: string | null;
   setup: string | null;
   decision: string;
