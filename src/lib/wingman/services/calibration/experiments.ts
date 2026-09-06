@@ -699,6 +699,9 @@ export function buildGateFunnel(
   variantKey: VariantKey,
 ): GateFunnel {
   const controlByKey = new Map(controlRows.map((r) => [r.eventKey, r]));
+  // The gate this challenger is allowed to change. Everything else is a mask.
+  const changedGate = changedGateForRule(rule) ?? "INDEPENDENT_ORIGINS";
+  const otherKeys = OTHER_GATE_KEYS.filter((k) => k !== changedGate);
   const passCounts = Object.fromEntries(OTHER_GATE_KEYS.map((k) => [k, 0])) as Record<
     OtherGateKey,
     number
@@ -712,13 +715,13 @@ export function buildGateFunnel(
   for (const row of challengerRows) {
     const control = controlByKey.get(row.eventKey);
     if (!control) continue;
-    const controlBlocked = control.failedGates.includes("INDEPENDENT_ORIGINS");
-    const challengerBlocked = row.failedGates.includes("INDEPENDENT_ORIGINS");
+    const controlBlocked = control.failedGates.includes(changedGate);
+    const challengerBlocked = row.failedGates.includes(changedGate);
     if (controlBlocked === challengerBlocked) continue;
     changed += 1;
 
-    const others = row.failedGates.filter((g) => g !== "INDEPENDENT_ORIGINS");
-    for (const key of OTHER_GATE_KEYS) if (!others.includes(key)) passCounts[key] += 1;
+    const others = row.failedGates.filter((g) => g !== changedGate);
+    for (const key of otherKeys) if (!others.includes(key)) passCounts[key] += 1;
     if (others.length === 0) {
       exposure += 1;
     } else {
@@ -726,6 +729,7 @@ export function buildGateFunnel(
       for (const g of others) maskCounts[g] = (maskCounts[g] ?? 0) + 1;
     }
   }
+
 
   const primaryMask =
     Object.entries(maskCounts).sort(
