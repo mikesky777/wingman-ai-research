@@ -38,10 +38,25 @@ const statusTone: Record<DeepResearchUiStatus, string> = {
   FAILED: "border-negative/40 bg-negative/10 text-negative",
 };
 
+// Deferral is an operational spend state, never a failed or bearish thesis.
+const STATUS_LABEL: Record<DeepResearchUiStatus, string> = {
+  COMPLETED: "RESEARCH COMPLETE",
+  PARTIAL: "RESEARCH COMPLETE · PARTIAL",
+  SEARCH_LIMITED: "RESEARCH INCOMPLETE",
+  INSUFFICIENT_EXTERNAL_EVIDENCE: "RESEARCH INCOMPLETE",
+  RUNNING: "RESEARCH RUNNING",
+  NOT_STARTED: "READY FOR DEEP RESEARCH",
+  DEFERRED_RECENT_RESEARCH: "DEFERRED · RECENTLY RESEARCHED",
+  DEFERRED_BUDGET: "DEFERRED · BUDGET",
+  BLOCKED: "BLOCKED",
+  FAILED: "FAILED",
+};
+
 const FILTERS: { key: DeepResearchFilter; label: string }[] = [
   { key: "ALL", label: "All shortlist" },
   { key: "COMPLETED", label: "Completed" },
   { key: "PENDING", label: "Pending" },
+  { key: "DEFERRED", label: "Deferred" },
   { key: "BLOCKED_FAILED", label: "Blocked / failed" },
 ];
 
@@ -264,7 +279,9 @@ export function ProductionDeepResearchPanel() {
                 ? counts.completed
                 : f.key === "PENDING"
                   ? counts.pending
-                  : counts.blockedOrFailed;
+                  : f.key === "DEFERRED"
+                    ? counts.deferred
+                    : counts.blockedOrFailed;
           return (
             <Button
               key={f.key}
@@ -319,7 +336,7 @@ export function ProductionDeepResearchPanel() {
                   </div>
                   <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
                     <Badge variant="outline" className={statusTone[c.status]}>
-                      {c.status === "FAILED" && c.failureCode ? c.failureCode : c.status}
+                      {c.status === "FAILED" && c.failureCode ? c.failureCode : STATUS_LABEL[c.status]}
                     </Badge>
                     {c.status === "COMPLETED" || c.status === "PARTIAL" ? (
                       <>
@@ -343,6 +360,13 @@ export function ProductionDeepResearchPanel() {
                     ) : null}
                   </div>
                 </div>
+                {c.spend && c.status.startsWith("DEFERRED") ? (
+                  <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+                    {c.status === "DEFERRED_BUDGET"
+                      ? `Deep Research budget for this cohort is used up (${c.spend.budgetState ?? "budget"}). Not a research failure — this occurrence stays recorded.`
+                      : `Researched ${c.spend.priorResearchAgeMinutes ?? "—"} min ago in cohort ${(c.spend.priorScanRunId ?? "—").slice(0, 8)} · ${c.spend.spendDecisionReason} · next eligible ${c.spend.nextEligibleAt ? relativeTime(c.spend.nextEligibleAt) : "—"} · material-change override: ${c.spend.materialChangeOverride ? "yes" : "no"}`}
+                  </p>
+                ) : null}
                 {open && c.reportId ? (
                   <div className="mt-3">
                     <ReportBody reportId={c.reportId} />
