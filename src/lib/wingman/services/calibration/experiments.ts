@@ -279,7 +279,14 @@ export function evaluateChallenger(
   input: ExperimentFrozenInput,
   policy: OpportunityPolicy = OPPORTUNITY_POLICY,
 ): VariantDecisionResult {
-  const failed = sharedGateFailures(input, policy);
+  // Only the single declared rule may differ. For the score-gate challenger
+  // that is exactly one number; every other gate keeps production semantics.
+  const effectivePolicy: OpportunityPolicy =
+    rule === "THESIS_SCORE_MIN_65"
+      ? { ...policy, minThesisScore: CHALLENGER_THESIS_SCORE_MIN }
+      : policy;
+
+  const failed = sharedGateFailures(input, effectivePolicy);
   const gate = evaluateIndependentOriginGate(input, policy);
   let independence: "PASS" | "FAIL" | "NOT_EVALUABLE" = gate.status;
 
@@ -303,6 +310,7 @@ export function evaluateChallenger(
   }
 
   if (independence !== "PASS") failed.push("INDEPENDENT_ORIGINS");
+
 
   const decision: ChallengerDecision =
     failed.length === 0
