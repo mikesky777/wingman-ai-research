@@ -484,6 +484,10 @@ export async function runDeepResearch(
         }
       }
       results.push(result);
+      await markSpendExecuted(
+        spendClaimByMint.get(candidate.mint)?.id ?? null,
+        result.deepResearchRunId,
+      );
 
     } catch (error) {
       // Failure isolation: one bad candidate never aborts the batch. A run row
