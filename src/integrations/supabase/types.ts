@@ -1354,6 +1354,192 @@ export type Database = {
           },
         ]
       }
+      research_spend_decisions: {
+        Row: {
+          budget_scan_limit: number | null
+          budget_scan_used: number | null
+          budget_state: string | null
+          budget_window_limit: number | null
+          budget_window_used: number | null
+          chain: string
+          cooldown_minutes: number | null
+          cooldown_remaining_minutes: number | null
+          created_at: string
+          deep_research_run_id: string | null
+          diagnostics: Json | null
+          executed: boolean
+          id: string
+          is_calibration: boolean
+          material_change_override: boolean
+          material_change_reason_codes: string[]
+          mint: string
+          next_eligible_at: string | null
+          policy_version: string
+          prior_research_age_minutes: number | null
+          prior_research_at: string | null
+          prior_research_report_id: string | null
+          prior_research_run_id: string | null
+          prior_research_status: string | null
+          prior_research_version: string | null
+          prior_scan_run_id: string | null
+          prior_search_health: string | null
+          prior_triage_run_id: string | null
+          quant_rank: number | null
+          recurrence_number: number | null
+          recurrence_state: string | null
+          research_packet_id: string | null
+          scan_run_id: string | null
+          spend_decision: string
+          spend_decision_reason: string
+          token_id: string | null
+          triage_decision_id: string | null
+          triage_rank: number | null
+          triage_run_id: string
+          updated_at: string
+        }
+        Insert: {
+          budget_scan_limit?: number | null
+          budget_scan_used?: number | null
+          budget_state?: string | null
+          budget_window_limit?: number | null
+          budget_window_used?: number | null
+          chain?: string
+          cooldown_minutes?: number | null
+          cooldown_remaining_minutes?: number | null
+          created_at?: string
+          deep_research_run_id?: string | null
+          diagnostics?: Json | null
+          executed?: boolean
+          id?: string
+          is_calibration?: boolean
+          material_change_override?: boolean
+          material_change_reason_codes?: string[]
+          mint: string
+          next_eligible_at?: string | null
+          policy_version: string
+          prior_research_age_minutes?: number | null
+          prior_research_at?: string | null
+          prior_research_report_id?: string | null
+          prior_research_run_id?: string | null
+          prior_research_status?: string | null
+          prior_research_version?: string | null
+          prior_scan_run_id?: string | null
+          prior_search_health?: string | null
+          prior_triage_run_id?: string | null
+          quant_rank?: number | null
+          recurrence_number?: number | null
+          recurrence_state?: string | null
+          research_packet_id?: string | null
+          scan_run_id?: string | null
+          spend_decision: string
+          spend_decision_reason: string
+          token_id?: string | null
+          triage_decision_id?: string | null
+          triage_rank?: number | null
+          triage_run_id: string
+          updated_at?: string
+        }
+        Update: {
+          budget_scan_limit?: number | null
+          budget_scan_used?: number | null
+          budget_state?: string | null
+          budget_window_limit?: number | null
+          budget_window_used?: number | null
+          chain?: string
+          cooldown_minutes?: number | null
+          cooldown_remaining_minutes?: number | null
+          created_at?: string
+          deep_research_run_id?: string | null
+          diagnostics?: Json | null
+          executed?: boolean
+          id?: string
+          is_calibration?: boolean
+          material_change_override?: boolean
+          material_change_reason_codes?: string[]
+          mint?: string
+          next_eligible_at?: string | null
+          policy_version?: string
+          prior_research_age_minutes?: number | null
+          prior_research_at?: string | null
+          prior_research_report_id?: string | null
+          prior_research_run_id?: string | null
+          prior_research_status?: string | null
+          prior_research_version?: string | null
+          prior_scan_run_id?: string | null
+          prior_search_health?: string | null
+          prior_triage_run_id?: string | null
+          quant_rank?: number | null
+          recurrence_number?: number | null
+          recurrence_state?: string | null
+          research_packet_id?: string | null
+          scan_run_id?: string | null
+          spend_decision?: string
+          spend_decision_reason?: string
+          token_id?: string | null
+          triage_decision_id?: string | null
+          triage_rank?: number | null
+          triage_run_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_spend_decisions_deep_research_run_id_fkey"
+            columns: ["deep_research_run_id"]
+            isOneToOne: false
+            referencedRelation: "deep_research_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "research_spend_decisions_prior_research_report_id_fkey"
+            columns: ["prior_research_report_id"]
+            isOneToOne: false
+            referencedRelation: "deep_research_reports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "research_spend_decisions_prior_research_run_id_fkey"
+            columns: ["prior_research_run_id"]
+            isOneToOne: false
+            referencedRelation: "deep_research_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "research_spend_decisions_research_packet_id_fkey"
+            columns: ["research_packet_id"]
+            isOneToOne: false
+            referencedRelation: "research_packets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "research_spend_decisions_scan_run_id_fkey"
+            columns: ["scan_run_id"]
+            isOneToOne: false
+            referencedRelation: "scan_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "research_spend_decisions_token_id_fkey"
+            columns: ["token_id"]
+            isOneToOne: false
+            referencedRelation: "tokens"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "research_spend_decisions_triage_decision_id_fkey"
+            columns: ["triage_decision_id"]
+            isOneToOne: false
+            referencedRelation: "ai_triage_decisions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "research_spend_decisions_triage_run_id_fkey"
+            columns: ["triage_run_id"]
+            isOneToOne: false
+            referencedRelation: "ai_triage_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       scan_candidates: {
         Row: {
           activity_state: string | null
