@@ -295,7 +295,11 @@ export async function runExperiment(experimentId: string): Promise<RunExperiment
     input_contract_version: string;
   }
   const rows: ResultInsert[] = [];
-  for (const entry of population) {
+  // Incompatible frozen artifacts are counted, never evaluated: current
+  // semantics are not reconstructed backwards into an older decision.
+  const compatible = population.filter((p) => p.compatibility === "COMPATIBLE");
+  for (const entry of compatible) {
+
     const control = evaluateControl(entry.input);
     const productionDecision = control.decision as ProductionDecision;
     for (const variant of variants) {
