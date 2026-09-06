@@ -142,7 +142,7 @@ describe("counterfactual source labels", () => {
 
 describe("input policy version", () => {
   it("names exactly what the model was allowed to see", () => {
-    expect(inputPolicyVersionFor(null)).toBe("ai_triage_input/v1_no_outcomes");
+    expect(inputPolicyVersionFor(null)).toBe("ai_triage_input/v2_allowlist_no_outcomes");
     expect(inputPolicyVersionFor({ blindSource: true })).toContain("+blind_source");
     expect(inputPolicyVersionFor({ neutralSetup: true })).toContain("+neutral_setup");
     expect(inputPolicyVersionFor({ sourceLabelOverrides: { a: "SURVIVOR" } })).toContain("+source_label_swap");
