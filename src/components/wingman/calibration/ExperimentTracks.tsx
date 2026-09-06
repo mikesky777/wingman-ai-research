@@ -25,6 +25,7 @@ import {
   loadCalibrationExperiment,
   runCalibrationExperiment,
   setCalibrationPromotionState,
+  activateCalibrationShadow,
 } from "@/lib/wingman/experiments.functions";
 import {
   DEFAULT_HORIZON_KEY,
@@ -33,13 +34,18 @@ import {
 } from "@/lib/wingman/services/calibration/observatory";
 import {
   EXPERIMENT_TYPE_LABEL,
+  GATE_LABEL,
+  INTERPRETATION_NOTE,
+  OTHER_GATE_KEYS,
   PROMOTION_NOTE,
   RETROSPECTIVE_DISCLAIMER,
   buildDecisionDiffs,
+  buildGateFunnel,
   computeSelectionOverlap,
   coverageForVariant,
   evaluateVariantOutcomes,
   groupResultsByMint,
+  interpretExperiment,
   type ExperimentResultRow,
   type ExperimentSpec,
   type VariantKey,
@@ -156,6 +162,7 @@ function ExperimentDetail({
   const loadEvents = useServerFn(loadObservatory);
   const run = useServerFn(runCalibrationExperiment);
   const promote = useServerFn(setCalibrationPromotionState);
+  const activateShadow = useServerFn(activateCalibrationShadow);
 
   const [horizon, setHorizon] = useState(DEFAULT_HORIZON_KEY);
   const [variantKey, setVariantKey] = useState<VariantKey>("CHALLENGER_A");
@@ -175,7 +182,7 @@ function ExperimentDetail({
     mutationFn: () => run({ data: { experimentId } }),
     onSuccess: (r) => {
       toast.success(
-        `Experiment evaluated — ${r.populationN} frozen decisions, ${r.uniqueMints} unique mints`,
+        `Experiment evaluated — ${r.populationN} compatible frozen decisions, ${r.uniqueMints} unique mints, ${r.incompatibleN} excluded as NOT_EVALUABLE_FOR_EXPERIMENT_VERSION`,
       );
       void queryClient.invalidateQueries({ queryKey: ["calibration-experiment", experimentId] });
       void queryClient.invalidateQueries({ queryKey: ["calibration-experiments"] });
