@@ -261,8 +261,8 @@ export async function runOutcomeSampler(
 
       base.batchesSent += 1;
 
-      const observed = errorCode
-        ? []
+      const observed: { refreshed: string[]; persisted: number } = errorCode
+        ? { refreshed: [], persisted: 0 }
         : await persistBatchObservations(batch, pairs, stateByMint, nowIso, run.id);
 
       base.observationsPersisted += observed.persisted;
