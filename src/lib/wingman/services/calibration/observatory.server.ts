@@ -12,7 +12,7 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { loadHistoryArtifacts } from "../history/artifacts.server";
 import { normalizeSetups } from "../history/setup-filter";
-import { getSamplerHealth } from "../outcomes/sampler.server";
+import { OUTCOME_TRACKING_WINDOW_MS } from "../outcomes/sampler";
 import {
   OBSERVATORY_VERSION,
   measureAllHorizons,
@@ -158,7 +158,7 @@ export async function loadObservatoryDataset(): Promise<ObservatoryDataset> {
         .order("occurred_at", { ascending: false })
         .range(from, to),
     ),
-    getSamplerHealth(),
+    loadSamplerHealth(),
   ]);
 
   // Identity for milestone rows.
@@ -308,7 +308,6 @@ export async function loadObservatoryDataset(): Promise<ObservatoryDataset> {
       setups: a.setups,
       canonical: a.canonicalWithinCohortMint,
       recurrenceNumber: a.recurrenceNumberAcrossProductionCohorts,
-      msSincePriorCanonicalSynthesisPlaceholder: undefined,
       msSincePriorCanonicalEvent: a.timeSincePriorCanonicalSynthesisMs,
       baseline,
       horizons: measure(a.mint, baseline),
