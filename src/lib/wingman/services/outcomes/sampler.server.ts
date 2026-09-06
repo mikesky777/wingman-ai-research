@@ -225,15 +225,17 @@ export async function runOutcomeSampler(
 
   try {
     await syncTrackingFromBaselines(nowIso);
+    // Re-read the clock: rows created by the sync above are eligible now.
+    const selectionNow = options.nowIso ?? new Date().toISOString();
     const states = await loadTrackingStates();
-    const tracked = states.filter((state) => isTracked(state, nowIso));
+    const tracked = states.filter((state) => isTracked(state, selectionNow));
     const restrict = options.mints ? new Set(options.mints.map((m) => m.trim())) : null;
     const eligible = restrict
       ? tracked.filter((state) => restrict.has(state.contractAddress))
       : tracked;
 
     const maxBatches = Math.max(1, Math.min(options.maxBatches ?? SAMPLER_MAX_BATCHES_PER_RUN, SAMPLER_MAX_BATCHES_PER_RUN));
-    const due = selectDueMints(eligible, nowIso, maxBatches * SAMPLER_BATCH_SIZE).filter(
+    const due = selectDueMints(eligible, selectionNow, maxBatches * SAMPLER_BATCH_SIZE).filter(
       isValidSolanaAddress,
     );
 
