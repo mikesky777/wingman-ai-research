@@ -30,11 +30,18 @@ const SAFE_MESSAGES: Record<ExternalDataErrorCode, string> = {
 
 export class ExternalDataError extends Error {
   readonly code: ExternalDataErrorCode;
+  /** Provider-supplied cooldown (seconds) when the response carried one. */
+  readonly retryAfterSeconds: number | null;
 
-  constructor(code: ExternalDataErrorCode, message?: string) {
+  constructor(
+    code: ExternalDataErrorCode,
+    message?: string,
+    retryAfterSeconds: number | null = null,
+  ) {
     super(message ?? SAFE_MESSAGES[code]);
     this.name = "ExternalDataError";
     this.code = code;
+    this.retryAfterSeconds = retryAfterSeconds;
   }
 }
 
