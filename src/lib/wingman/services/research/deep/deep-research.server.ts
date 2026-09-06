@@ -61,6 +61,18 @@ import {
   classifyResearchFailure,
   type ResearchFailureType,
 } from "./failure";
+import {
+  claimSpendDecisions,
+  markSpendExecuted,
+  packetFactsFromPacket,
+  type SpendClaim,
+} from "../spend/spend.server";
+import {
+  RESEARCH_SPEND_POLICY_VERSION,
+  type ResearchSpendConfig,
+  type SpendDecisionRecord,
+  type SpendPacketFacts,
+} from "../spend/spend-policy";
 
 type Row = Record<string, unknown>;
 
