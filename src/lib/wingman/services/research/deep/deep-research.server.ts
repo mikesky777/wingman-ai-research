@@ -1386,3 +1386,24 @@ async function loadAttemptedMints(triageRunId: string): Promise<Set<string>> {
   if (error) throw new Error(error.message);
   return new Set(((data as Row[]) ?? []).map((r) => r["mint"] as string));
 }
+
+/**
+ * Deterministic packet facts of the CURRENT cohort, used only to detect the
+ * enumerated research-relevant material changes of research_spend_policy/v1.
+ */
+async function loadCohortPacketFacts(
+  scanRunId: string | null,
+  mints: readonly string[],
+): Promise<Map<string, SpendPacketFacts | null>> {
+  const out = new Map<string, SpendPacketFacts | null>();
+  if (!scanRunId || mints.length === 0) return out;
+  const { data } = await supabaseAdmin
+    .from("research_packets")
+    .select("contract_address, packet")
+    .eq("scan_run_id", scanRunId)
+    .in("contract_address", [...mints]);
+  for (const row of (data as Record<string, unknown>[]) ?? []) {
+    out.set(row["contract_address"] as string, packetFactsFromPacket(row["packet"]));
+  }
+  return out;
+}
