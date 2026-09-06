@@ -24,7 +24,9 @@ export interface AiTriageProvider {
   complete(request: AiTriageProviderRequest): Promise<AiTriageProviderResponse>;
 }
 
-export const DEFAULT_TRIAGE_MODEL = "google/gemini-3.7-flash";
+import { TRIAGE_MODEL } from "../ai/models";
+
+export const DEFAULT_TRIAGE_MODEL = TRIAGE_MODEL;
 
 /** Lovable AI Gateway implementation. */
 export function createLovableTriageProvider(options: {
