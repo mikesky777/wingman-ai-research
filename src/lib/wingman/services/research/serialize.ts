@@ -11,7 +11,13 @@
  * no information are omitted entirely so the model cannot mistake absence for
  * a zero.
  */
-import { RESEARCH_COMPACT_VERSION, type Fact, type ResearchPacket } from "./types";
+import {
+  RESEARCH_COMPACT_VERSION,
+  type Fact,
+  type MarketSnapshot,
+  type ResearchPacket,
+} from "./types";
+
 
 type Json = string | number | boolean | null | Json[] | { [k: string]: Json };
 
