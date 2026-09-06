@@ -103,6 +103,7 @@ export function serializeCompact(packet: ResearchPacket): Record<string, Json> {
       damage_state: p.marketDamage.derivedState,
     }),
     mkt: prune({
+      snapshot: p.market.snapshotUsed,
       price: v(p.market.price),
       mc: round(v(p.market.marketCap) as number | null, 0),
       liq: round(v(p.market.liquidityUsd) as number | null, 0),
@@ -120,6 +121,10 @@ export function serializeCompact(packet: ResearchPacket): Record<string, Json> {
       at: p.market.observedAt,
       stale: p.market.stale,
     }),
+    mkt_policy: p.market.snapshotVersion ?? null,
+    mkt_scan: p.market.scanFrozen ? snapshot(p.market.scanFrozen) : null,
+    mkt_refresh: p.market.packetRefresh ? snapshot(p.market.packetRefresh) : null,
+
     universe: prune({
       status: p.universe.status,
       cat: p.universe.category,
