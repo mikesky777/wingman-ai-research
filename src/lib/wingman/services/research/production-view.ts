@@ -15,6 +15,8 @@ export type DeepResearchUiStatus =
   /** Settled, but external search failed: partial evidence, not a full dossier. */
   | "SEARCH_LIMITED"
   | "BLOCKED"
+  /** Operationally blocked by pre_deep_research_tradability/v1. Not evidence. */
+  | "BLOCKED_TRADABILITY"
   | "FAILED"
   /** Operational spend control deferred this occurrence. Never negative evidence. */
   | "DEFERRED_RECENT_RESEARCH"
@@ -44,6 +46,13 @@ export interface DeepResearchRunInput {
   /** Structured execution-failure code, e.g. FAILED_AI_CREDIT_LIMIT. */
   failureCode?: string | null;
   retryable?: boolean | null;
+  /** Operational reason code persisted on a blocked run's diagnostics. */
+  blockedReasonCode?: string | null;
+  /** Human-facing operational statement for a tradability block. */
+  blockedStatement?: string | null;
+  /** Current liquidity observed by the tradability check, when it ran. */
+  tradabilityLiquidityUsd?: number | null;
+  tradabilityCheckedAt?: string | null;
 }
 
 /** research_spend_policy/v1 decision persisted for this cohort × exact mint. */
@@ -75,6 +84,10 @@ export interface ProductionShortlistEntry extends ShortlistDecisionInput {
   researchedAt: string | null;
   failureCode: string | null;
   retryable: boolean;
+  blockedReasonCode: string | null;
+  blockedStatement: string | null;
+  tradabilityLiquidityUsd: number | null;
+  tradabilityCheckedAt: string | null;
   spend: SpendDecisionInput | null;
 }
 
@@ -85,6 +98,7 @@ export interface ProductionShortlistEntry extends ShortlistDecisionInput {
 export function mapDeepResearchStatus(
   runStatus: string | null | undefined,
   reportStatus: string | null | undefined,
+  blockedReasonCode?: string | null,
 ): DeepResearchUiStatus {
   if (!runStatus) return "NOT_STARTED";
   switch (runStatus) {
@@ -93,6 +107,13 @@ export function mapDeepResearchStatus(
     case "failed":
       return "FAILED";
     case "blocked":
+      if (
+        blockedReasonCode === "CURRENT_LIQUIDITY_BELOW_MINIMUM" ||
+        blockedReasonCode === "CURRENT_TRADABILITY_NOT_EVALUABLE"
+      ) {
+        return "BLOCKED_TRADABILITY";
+      }
+      return "BLOCKED";
     case "blocked_before_deep_research":
     case "currently_blocked_after_research":
       return "BLOCKED";
@@ -150,7 +171,11 @@ export function buildProductionShortlist(
     .map((d) => {
       const run = byMint.get(d.mint);
       const spend = spendByMint.get(d.mint) ?? null;
-      let status = mapDeepResearchStatus(run?.runStatus ?? null, run?.reportStatus ?? null);
+      let status = mapDeepResearchStatus(
+        run?.runStatus ?? null,
+        run?.reportStatus ?? null,
+        run?.blockedReasonCode ?? null,
+      );
       // Deferral only describes an occurrence that produced no run of its own.
       // A prior cohort's dossier is NEVER borrowed into this cohort.
       if (status === "NOT_STARTED" && spend) {
@@ -169,6 +194,10 @@ export function buildProductionShortlist(
         researchedAt: run?.researchedAt ?? null,
         failureCode: run?.failureCode ?? null,
         retryable: run?.retryable === true,
+        blockedReasonCode: run?.blockedReasonCode ?? null,
+        blockedStatement: run?.blockedStatement ?? null,
+        tradabilityLiquidityUsd: run?.tradabilityLiquidityUsd ?? null,
+        tradabilityCheckedAt: run?.tradabilityCheckedAt ?? null,
       };
     });
 }
@@ -191,7 +220,11 @@ export function countShortlistStatuses(
   for (const e of entries) {
     if (e.status === "COMPLETED" || e.status === "PARTIAL" || e.status === "INSUFFICIENT_EXTERNAL_EVIDENCE") {
       completed += 1;
-    } else if (e.status === "BLOCKED" || e.status === "FAILED") {
+    } else if (
+      e.status === "BLOCKED" ||
+      e.status === "BLOCKED_TRADABILITY" ||
+      e.status === "FAILED"
+    ) {
       blockedOrFailed += 1;
     } else if (
       e.status === "DEFERRED_RECENT_RESEARCH" ||
@@ -231,7 +264,12 @@ export function filterShortlist(
         (e) => e.status === "DEFERRED_RECENT_RESEARCH" || e.status === "DEFERRED_BUDGET",
       );
     case "BLOCKED_FAILED":
-      return entries.filter((e) => e.status === "BLOCKED" || e.status === "FAILED");
+      return entries.filter(
+        (e) =>
+          e.status === "BLOCKED" ||
+          e.status === "BLOCKED_TRADABILITY" ||
+          e.status === "FAILED",
+      );
     default:
       return entries.slice();
   }
