@@ -16,6 +16,7 @@ import { Route as ScannerRouteImport } from './routes/scanner'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as WatchlistRouteImport } from './routes/watchlist'
 import { Route as SettingsIndexRouteImport } from './routes/settings.index'
+import { Route as SettingsCalibrationRouteImport } from './routes/settings.calibration'
 import { Route as TokenTokenIdRouteImport } from './routes/token.$tokenId'
 import { Route as ApiPublicOutcomeSamplerRouteImport } from './routes/api/public/outcome-sampler'
 import { Route as ApiPublicThesisBenchmarkRouteImport } from './routes/api/public/thesis-benchmark'
@@ -56,6 +57,11 @@ const SettingsIndexRoute = SettingsIndexRouteImport.update({
   path: '/',
   getParentRoute: () => SettingsRoute,
 } as any)
+const SettingsCalibrationRoute = SettingsCalibrationRouteImport.update({
+  id: '/calibration',
+  path: '/calibration',
+  getParentRoute: () => SettingsRoute,
+} as any)
 const TokenTokenIdRoute = TokenTokenIdRouteImport.update({
   id: '/token/$tokenId',
   path: '/token/$tokenId',
@@ -86,6 +92,7 @@ export interface FileRoutesByFullPath {
   '/scanner': typeof ScannerRoute
   '/settings': typeof SettingsRouteWithChildren
   '/watchlist': typeof WatchlistRoute
+  '/settings/calibration': typeof SettingsCalibrationRoute
   '/token/$tokenId': typeof TokenTokenIdRoute
   '/settings/': typeof SettingsIndexRoute
   '/api/public/outcome-sampler': typeof ApiPublicOutcomeSamplerRoute
@@ -98,6 +105,7 @@ export interface FileRoutesByTo {
   '/research': typeof ResearchRoute
   '/scanner': typeof ScannerRoute
   '/watchlist': typeof WatchlistRoute
+  '/settings/calibration': typeof SettingsCalibrationRoute
   '/token/$tokenId': typeof TokenTokenIdRoute
   '/settings': typeof SettingsIndexRoute
   '/api/public/outcome-sampler': typeof ApiPublicOutcomeSamplerRoute
@@ -112,6 +120,7 @@ export interface FileRoutesById {
   '/scanner': typeof ScannerRoute
   '/settings': typeof SettingsRouteWithChildren
   '/watchlist': typeof WatchlistRoute
+  '/settings/calibration': typeof SettingsCalibrationRoute
   '/token/$tokenId': typeof TokenTokenIdRoute
   '/settings/': typeof SettingsIndexRoute
   '/api/public/outcome-sampler': typeof ApiPublicOutcomeSamplerRoute
@@ -127,6 +136,7 @@ export interface FileRouteTypes {
     | '/scanner'
     | '/settings'
     | '/watchlist'
+    | '/settings/calibration'
     | '/token/$tokenId'
     | '/settings/'
     | '/api/public/outcome-sampler'
@@ -139,6 +149,7 @@ export interface FileRouteTypes {
     | '/research'
     | '/scanner'
     | '/watchlist'
+    | '/settings/calibration'
     | '/token/$tokenId'
     | '/settings'
     | '/api/public/outcome-sampler'
@@ -152,6 +163,7 @@ export interface FileRouteTypes {
     | '/scanner'
     | '/settings'
     | '/watchlist'
+    | '/settings/calibration'
     | '/token/$tokenId'
     | '/settings/'
     | '/api/public/outcome-sampler'
@@ -223,6 +235,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsIndexRouteImport
       parentRoute: typeof SettingsRoute
     }
+    '/settings/calibration': {
+      id: '/settings/calibration'
+      path: '/calibration'
+      fullPath: '/settings/calibration'
+      preLoaderRoute: typeof SettingsCalibrationRouteImport
+      parentRoute: typeof SettingsRoute
+    }
     '/token/$tokenId': {
       id: '/token/$tokenId'
       path: '/token/$tokenId'
@@ -255,10 +274,12 @@ declare module '@tanstack/react-router' {
 }
 
 interface SettingsRouteChildren {
+  SettingsCalibrationRoute: typeof SettingsCalibrationRoute
   SettingsIndexRoute: typeof SettingsIndexRoute
 }
 
 const SettingsRouteChildren: SettingsRouteChildren = {
+  SettingsCalibrationRoute: SettingsCalibrationRoute,
   SettingsIndexRoute: SettingsIndexRoute,
 }
 
