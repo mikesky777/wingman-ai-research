@@ -61,6 +61,18 @@ import {
   classifyResearchFailure,
   type ResearchFailureType,
 } from "./failure";
+import {
+  claimSpendDecisions,
+  markSpendExecuted,
+  packetFactsFromPacket,
+  type SpendClaim,
+} from "../spend/spend.server";
+import {
+  RESEARCH_SPEND_POLICY_VERSION,
+  type ResearchSpendConfig,
+  type SpendDecisionRecord,
+  type SpendPacketFacts,
+} from "../spend/spend-policy";
 
 type Row = Record<string, unknown>;
 
@@ -148,6 +160,12 @@ export interface DeepResearchBatchResult {
   milestonesCreated: 0;
   /** Retry batch: shortlist ranks skipped because they already have an outcome. */
   skippedWithOutcome: number;
+  /** research_spend_policy version applied to this production batch. */
+  spendPolicyVersion: string;
+  /** Operational deferrals — NOT SKIP, NOT negative evidence. */
+  deferredRecentResearch: number;
+  deferredBudget: number;
+  spendDecisions: SpendDecisionRecord[];
   candidates: DeepResearchCandidateResult[];
 }
 
@@ -177,6 +195,14 @@ export interface RunDeepResearchOptions {
    */
   requireActiveCohort?: boolean;
 
+  /**
+   * Authorised repair path ONLY. Manual retry never bypasses cooldown/budget
+   * unless this is explicitly set by an operator repair flow.
+   */
+  spendControl?: boolean;
+  spendConfig?: ResearchSpendConfig;
+  /** Injected clock for deterministic tests. */
+  now?: Date;
 
   budget?: Partial<ResearchBudget>;
   provider?: DeepResearchProvider;
@@ -346,6 +372,48 @@ export async function runDeepResearch(
   const byMint = new Map(candidates.filter((c) => c.contractAddress).map((c) => [c.contractAddress as string, c]));
   const markets = await loadCurrentMarkets(candidates.map((c) => c.tokenId));
 
+  // research_spend_policy/v1 — operational spend control between AI Triage and
+  // Deep Research. Deferral is NEVER a Triage decision and NEVER negative
+  // evidence; the Triage decision, packet and recurrence data are untouched.
+  const spendDecisions: SpendDecisionRecord[] = [];
+  const spendClaimByMint = new Map<string, SpendClaim>();
+  if (!isCalibration && options.spendControl !== false) {
+    const packetFacts = await loadCohortPacketFacts(
+      triageRun.sourceScanId,
+      shortlist.map((c) => c.mint),
+    );
+    const claims = await claimSpendDecisions({
+      triageRunId: triageRun.id,
+      scanRunId: triageRun.sourceScanId,
+      ...(options.spendConfig ? { config: options.spendConfig } : {}),
+      ...(options.now ? { now: options.now } : {}),
+      candidates: shortlist.map((c) => {
+        const sc = byMint.get(c.mint) ?? null;
+        return {
+          mint: c.mint,
+          tokenId: c.tokenId,
+          triageDecisionId: c.decisionId,
+          researchPacketId: c.researchPacketId,
+          triageRank: c.triageRank,
+          quantRank: sc?.globalRank ?? null,
+          recurrenceState: sc?.recurrenceState ?? null,
+          recurrenceNumber: sc?.scansSeenCount ?? null,
+          packetFacts: packetFacts.get(c.mint) ?? null,
+        };
+      }),
+    });
+    for (const claim of claims) {
+      spendDecisions.push(claim.record);
+      spendClaimByMint.set(claim.record.mint, claim);
+    }
+    const granted = new Set(
+      claims
+        .filter((c) => c.claimed && c.record.spendDecision === "RUN_DEEP_RESEARCH")
+        .map((c) => c.record.mint),
+    );
+    shortlist = shortlist.filter((c) => granted.has(c.mint));
+  }
+
   const results: DeepResearchCandidateResult[] = [];
 
   for (const candidate of shortlist) {
@@ -416,6 +484,10 @@ export async function runDeepResearch(
         }
       }
       results.push(result);
+      await markSpendExecuted(
+        spendClaimByMint.get(candidate.mint)?.id ?? null,
+        result.deepResearchRunId,
+      );
 
     } catch (error) {
       // Failure isolation: one bad candidate never aborts the batch. A run row
@@ -474,6 +546,12 @@ export async function runDeepResearch(
     failed: results.filter((r) => r.status === "failed").length,
     milestonesCreated: 0,
     skippedWithOutcome,
+    spendPolicyVersion: RESEARCH_SPEND_POLICY_VERSION,
+    deferredRecentResearch: spendDecisions.filter(
+      (d) => d.spendDecision === "DEFERRED_RECENT_RESEARCH",
+    ).length,
+    deferredBudget: spendDecisions.filter((d) => d.spendDecision === "DEFERRED_BUDGET").length,
+    spendDecisions,
     candidates: results,
   };
 }
@@ -880,6 +958,10 @@ function emptyBatch(
     failed: 0,
     milestonesCreated: 0,
     skippedWithOutcome: 0,
+    spendPolicyVersion: RESEARCH_SPEND_POLICY_VERSION,
+    deferredRecentResearch: 0,
+    deferredBudget: 0,
+    spendDecisions: [],
     candidates: [],
   };
 }
@@ -1303,4 +1385,25 @@ async function loadAttemptedMints(triageRunId: string): Promise<Set<string>> {
     .eq("is_calibration", false);
   if (error) throw new Error(error.message);
   return new Set(((data as Row[]) ?? []).map((r) => r["mint"] as string));
+}
+
+/**
+ * Deterministic packet facts of the CURRENT cohort, used only to detect the
+ * enumerated research-relevant material changes of research_spend_policy/v1.
+ */
+async function loadCohortPacketFacts(
+  scanRunId: string | null,
+  mints: readonly string[],
+): Promise<Map<string, SpendPacketFacts | null>> {
+  const out = new Map<string, SpendPacketFacts | null>();
+  if (!scanRunId || mints.length === 0) return out;
+  const { data } = await supabaseAdmin
+    .from("research_packets")
+    .select("contract_address, packet")
+    .eq("scan_run_id", scanRunId)
+    .in("contract_address", [...mints]);
+  for (const row of (data as Record<string, unknown>[]) ?? []) {
+    out.set(row["contract_address"] as string, packetFactsFromPacket(row["packet"]));
+  }
+  return out;
 }

@@ -116,7 +116,7 @@ describe("buildProductionShortlist", () => {
       { mint: "m4", runStatus: "failed", reportId: null, reportStatus: null, narrativeResolved: null, sourceCount: null, independentSourceCount: null, coveragePct: null, researchedAt: null },
     ]);
     const counts = countShortlistStatuses(list);
-    expect(counts).toEqual({ total: 12, completed: 3, pending: 8, blockedOrFailed: 1 });
+    expect(counts).toEqual({ total: 12, completed: 3, pending: 8, deferred: 0, blockedOrFailed: 1 });
     expect(filterShortlist(list, "COMPLETED")).toHaveLength(3);
     expect(filterShortlist(list, "PENDING")).toHaveLength(8);
     expect(filterShortlist(list, "BLOCKED_FAILED")).toHaveLength(1);
