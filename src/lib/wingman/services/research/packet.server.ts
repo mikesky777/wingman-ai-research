@@ -521,12 +521,24 @@ export async function generateResearchPackets(options: {
       generated_at: generatedAt,
     }));
     for (const chunk of chunkIds(rows, 100)) {
-      // Append-only: never an upsert, so historical packets stay immutable.
-      const { error } = await supabaseAdmin.from("research_packets").insert(chunk as never);
+      // research_packet_idempotency/v1: one production scan × exact mint = at
+      // most one canonical packet, enforced by the (scan_run_id,
+      // contract_address) unique index. A repeat Generate/retry — and a
+      // concurrent attempt — resolves to the EXISTING canonical row instead of
+      // creating a second one. `ignoreDuplicates` never rewrites a stored
+      // packet, so historical packets stay immutable.
+      const { error } = await supabaseAdmin
+        .from("research_packets")
+        .upsert(chunk as never, {
+          onConflict: "scan_run_id,contract_address",
+          ignoreDuplicates: true,
+        });
       if (error) throw new Error(`Could not persist research packets: ${error.message}`);
-      persistedCount += chunk.length;
     }
+    // Report the canonical cohort size, never the number of rows attempted.
+    persistedCount = await canonicalPacketCount(run.id);
   }
+
 
   const sizes = packets.map((p) => p.compactBytes);
   return {
