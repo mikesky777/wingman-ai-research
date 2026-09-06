@@ -415,3 +415,51 @@ function newestObservation(byMint: Map<string, ObservatoryObservation[]>): strin
   }
   return newest;
 }
+
+/**
+ * Operational collection diagnostics, read straight from persisted sampler
+ * rows. Deliberately not imported from the sampler runtime so the Observatory
+ * cannot reach a market-data provider even transitively.
+ */
+async function loadSamplerHealth(): Promise<{
+  lastRunAt: string | null;
+  lastSuccessfulRunAt: string | null;
+  oldestStaleObservationAt: string | null;
+  mintsTracked: number;
+  mintsDue: number;
+  mintsRefreshed: number;
+  mintsDelayed: number;
+  batchesSent: number;
+  rateLimitedCount: number;
+  providerErrorCount: number;
+}> {
+  const { data } = await supabaseAdmin
+    .from("outcome_sampler_runs")
+    .select(
+      "started_at, finished_at, status, mints_due, mints_refreshed, mints_delayed, batches_sent, rate_limited_count, provider_error_count, oldest_stale_observation_at",
+    )
+    .order("started_at", { ascending: false })
+    .limit(20);
+  const rows = ((data as Row[]) ?? []);
+  const last = rows[0] ?? ({} as Row);
+
+  const cutoff = new Date(Date.now() - OUTCOME_TRACKING_WINDOW_MS).toISOString();
+  const { count } = await supabaseAdmin
+    .from("outcome_tracking")
+    .select("id", { count: "exact", head: true })
+    .gte("latest_baseline_at", cutoff);
+
+  return {
+    lastRunAt: str(last, "started_at"),
+    lastSuccessfulRunAt:
+      (rows.find((r) => r["status"] === "COMPLETED")?.["finished_at"] as string | null) ?? null,
+    oldestStaleObservationAt: str(last, "oldest_stale_observation_at"),
+    mintsTracked: count ?? 0,
+    mintsDue: num(last, "mints_due") ?? 0,
+    mintsRefreshed: num(last, "mints_refreshed") ?? 0,
+    mintsDelayed: num(last, "mints_delayed") ?? 0,
+    batchesSent: num(last, "batches_sent") ?? 0,
+    rateLimitedCount: num(last, "rate_limited_count") ?? 0,
+    providerErrorCount: num(last, "provider_error_count") ?? 0,
+  };
+}
