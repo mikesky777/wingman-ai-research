@@ -987,6 +987,62 @@ export type Database = {
           },
         ]
       }
+      market_observation_attempts: {
+        Row: {
+          batch_id: string
+          batch_index: number
+          completed_at: string | null
+          contract_addresses: string[]
+          created_at: string
+          error_code: string | null
+          id: string
+          observation_count: number
+          provider: string
+          requested_at: string
+          retry_after_seconds: number | null
+          run_id: string | null
+          success: boolean
+        }
+        Insert: {
+          batch_id: string
+          batch_index?: number
+          completed_at?: string | null
+          contract_addresses?: string[]
+          created_at?: string
+          error_code?: string | null
+          id?: string
+          observation_count?: number
+          provider?: string
+          requested_at?: string
+          retry_after_seconds?: number | null
+          run_id?: string | null
+          success?: boolean
+        }
+        Update: {
+          batch_id?: string
+          batch_index?: number
+          completed_at?: string | null
+          contract_addresses?: string[]
+          created_at?: string
+          error_code?: string | null
+          id?: string
+          observation_count?: number
+          provider?: string
+          requested_at?: string
+          retry_after_seconds?: number | null
+          run_id?: string | null
+          success?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "market_observation_attempts_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "outcome_sampler_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       opportunities: {
         Row: {
           created_at: string
@@ -1128,6 +1184,152 @@ export type Database = {
           },
           {
             foreignKeyName: "opportunity_outcomes_token_id_fkey"
+            columns: ["token_id"]
+            isOneToOne: false
+            referencedRelation: "tokens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      outcome_sampler_runs: {
+        Row: {
+          batches_sent: number
+          created_at: string
+          error: string | null
+          finished_at: string | null
+          id: string
+          lease_expires_at: string
+          mints_delayed: number
+          mints_due: number
+          mints_refreshed: number
+          mints_tracked: number
+          observations_persisted: number
+          oldest_stale_observation_at: string | null
+          provider_error_count: number
+          rate_limited_count: number
+          sampler_version: string
+          started_at: string
+          status: string
+          trigger_source: string
+          window_key: string
+        }
+        Insert: {
+          batches_sent?: number
+          created_at?: string
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          lease_expires_at?: string
+          mints_delayed?: number
+          mints_due?: number
+          mints_refreshed?: number
+          mints_tracked?: number
+          observations_persisted?: number
+          oldest_stale_observation_at?: string | null
+          provider_error_count?: number
+          rate_limited_count?: number
+          sampler_version?: string
+          started_at?: string
+          status?: string
+          trigger_source?: string
+          window_key: string
+        }
+        Update: {
+          batches_sent?: number
+          created_at?: string
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          lease_expires_at?: string
+          mints_delayed?: number
+          mints_due?: number
+          mints_refreshed?: number
+          mints_tracked?: number
+          observations_persisted?: number
+          oldest_stale_observation_at?: string | null
+          provider_error_count?: number
+          rate_limited_count?: number
+          sampler_version?: string
+          started_at?: string
+          status?: string
+          trigger_source?: string
+          window_key?: string
+        }
+        Relationships: []
+      }
+      outcome_tracking: {
+        Row: {
+          baseline_event_count: number
+          chain: string
+          consecutive_failures: number
+          contract_address: string
+          coverage_status: string
+          created_at: string
+          earliest_baseline_at: string | null
+          id: string
+          last_attempt_at: string | null
+          last_error_code: string | null
+          last_observed_at: string | null
+          last_retry_after_seconds: number | null
+          last_run_id: string | null
+          last_success_at: string | null
+          latest_baseline_at: string | null
+          next_eligible_at: string
+          priority_requested_at: string | null
+          provider_health: string
+          token_id: string | null
+          tracking_version: string
+          updated_at: string
+        }
+        Insert: {
+          baseline_event_count?: number
+          chain?: string
+          consecutive_failures?: number
+          contract_address: string
+          coverage_status?: string
+          created_at?: string
+          earliest_baseline_at?: string | null
+          id?: string
+          last_attempt_at?: string | null
+          last_error_code?: string | null
+          last_observed_at?: string | null
+          last_retry_after_seconds?: number | null
+          last_run_id?: string | null
+          last_success_at?: string | null
+          latest_baseline_at?: string | null
+          next_eligible_at?: string
+          priority_requested_at?: string | null
+          provider_health?: string
+          token_id?: string | null
+          tracking_version?: string
+          updated_at?: string
+        }
+        Update: {
+          baseline_event_count?: number
+          chain?: string
+          consecutive_failures?: number
+          contract_address?: string
+          coverage_status?: string
+          created_at?: string
+          earliest_baseline_at?: string | null
+          id?: string
+          last_attempt_at?: string | null
+          last_error_code?: string | null
+          last_observed_at?: string | null
+          last_retry_after_seconds?: number | null
+          last_run_id?: string | null
+          last_success_at?: string | null
+          latest_baseline_at?: string | null
+          next_eligible_at?: string
+          priority_requested_at?: string | null
+          provider_health?: string
+          token_id?: string | null
+          tracking_version?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outcome_tracking_token_id_fkey"
             columns: ["token_id"]
             isOneToOne: false
             referencedRelation: "tokens"
