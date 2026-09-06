@@ -197,12 +197,16 @@ export type Database = {
           event_key: string
           experiment_id: string
           failed_gates: string[]
+          final_decision_difference: boolean | null
           frozen_input: Json
           id: string
           input_contract_version: string
+          masked_by_other_gates: boolean | null
+          masking_gate_list: string[] | null
           mint: string
           production_decision: string
           source_stage: string
+          treatment_exposure: string | null
           updated_at: string
           variant_key: string
         }
@@ -217,12 +221,16 @@ export type Database = {
           event_key: string
           experiment_id: string
           failed_gates?: string[]
+          final_decision_difference?: boolean | null
           frozen_input?: Json
           id?: string
           input_contract_version?: string
+          masked_by_other_gates?: boolean | null
+          masking_gate_list?: string[] | null
           mint: string
           production_decision: string
           source_stage: string
+          treatment_exposure?: string | null
           updated_at?: string
           variant_key: string
         }
@@ -237,12 +245,16 @@ export type Database = {
           event_key?: string
           experiment_id?: string
           failed_gates?: string[]
+          final_decision_difference?: boolean | null
           frozen_input?: Json
           id?: string
           input_contract_version?: string
+          masked_by_other_gates?: boolean | null
+          masking_gate_list?: string[] | null
           mint?: string
           production_decision?: string
           source_stage?: string
+          treatment_exposure?: string | null
           updated_at?: string
           variant_key?: string
         }
