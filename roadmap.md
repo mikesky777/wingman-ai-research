@@ -8,3 +8,6 @@
 - [ ] Outcome/debrief analysis surfaces: false positives, false negatives, missed runners, selection timing, setup and recurrence outcomes.
 - [x] AI Thesis Synthesis v1 (`thesis_synthesis/v1`): component scores, Evidence Confidence, verdict, opportunity policy, THESIS_CALL. Outcomes never feed scoring.
 - [ ] Entry State, then bankroll sizing bands and structural-risk multipliers (deferred until thesis calibration is signed off).
+
+## Outcome collection
+- [x] Phase 1H `outcome_sampler/v1`: scheduled 5-minute market-observation sampler, centralized DexScreener rate-limit controller, staleness-driven selection, coverage states, History reads persisted data only.
