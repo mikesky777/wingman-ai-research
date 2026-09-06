@@ -185,6 +185,143 @@ export type Database = {
           },
         ]
       }
+      calibration_experiment_results: {
+        Row: {
+          challenger_decision: string
+          cohort_id: string | null
+          created_at: string
+          decided_at: string
+          decision_at: string | null
+          differing_rule: string | null
+          differs: boolean
+          event_key: string
+          experiment_id: string
+          failed_gates: string[]
+          frozen_input: Json
+          id: string
+          input_contract_version: string
+          mint: string
+          production_decision: string
+          source_stage: string
+          updated_at: string
+          variant_key: string
+        }
+        Insert: {
+          challenger_decision: string
+          cohort_id?: string | null
+          created_at?: string
+          decided_at?: string
+          decision_at?: string | null
+          differing_rule?: string | null
+          differs?: boolean
+          event_key: string
+          experiment_id: string
+          failed_gates?: string[]
+          frozen_input?: Json
+          id?: string
+          input_contract_version?: string
+          mint: string
+          production_decision: string
+          source_stage: string
+          updated_at?: string
+          variant_key: string
+        }
+        Update: {
+          challenger_decision?: string
+          cohort_id?: string | null
+          created_at?: string
+          decided_at?: string
+          decision_at?: string | null
+          differing_rule?: string | null
+          differs?: boolean
+          event_key?: string
+          experiment_id?: string
+          failed_gates?: string[]
+          frozen_input?: Json
+          id?: string
+          input_contract_version?: string
+          mint?: string
+          production_decision?: string
+          source_stage?: string
+          updated_at?: string
+          variant_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calibration_experiment_results_experiment_id_fkey"
+            columns: ["experiment_id"]
+            isOneToOne: false
+            referencedRelation: "calibration_experiments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      calibration_experiments: {
+        Row: {
+          challenger_variants: Json
+          control_policy: Json
+          created_at: string
+          evaluation_horizons: string[]
+          experiment_type: string
+          experiment_version: string
+          hypothesis: string
+          id: string
+          last_evaluated_at: string | null
+          name: string
+          population_definition: Json
+          population_semantics: string
+          predeclared: boolean
+          promotion_state: string
+          shadow_start_at: string | null
+          source_policy_filters: Json
+          source_stage: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          challenger_variants?: Json
+          control_policy?: Json
+          created_at?: string
+          evaluation_horizons?: string[]
+          experiment_type: string
+          experiment_version?: string
+          hypothesis: string
+          id?: string
+          last_evaluated_at?: string | null
+          name: string
+          population_definition?: Json
+          population_semantics?: string
+          predeclared?: boolean
+          promotion_state?: string
+          shadow_start_at?: string | null
+          source_policy_filters?: Json
+          source_stage: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          challenger_variants?: Json
+          control_policy?: Json
+          created_at?: string
+          evaluation_horizons?: string[]
+          experiment_type?: string
+          experiment_version?: string
+          hypothesis?: string
+          id?: string
+          last_evaluated_at?: string | null
+          name?: string
+          population_definition?: Json
+          population_semantics?: string
+          predeclared?: boolean
+          promotion_state?: string
+          shadow_start_at?: string | null
+          source_policy_filters?: Json
+          source_stage?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       deep_research_claims: {
         Row: {
           claim: string
