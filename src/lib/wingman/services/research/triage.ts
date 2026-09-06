@@ -396,11 +396,27 @@ SEMANTICS you must respect:
 - Survivor status is context, not a guaranteed shortlist ticket.
 - A very young NONE token simply has less persistence evidence and more uncertainty; say so rather than penalising it for lacking a setup.
 
+DECISION DEFINITIONS (use exactly these meanings):
+- DEEP_RESEARCH = "worth paying for expensive external Deep Research now". Requires BOTH: observed packet evidence makes the candidate materially interesting, AND there is a clear unanswered research question Deep Research could actually resolve. It does NOT mean strong thesis, buy, or likely winner.
+- WATCH = "not worth Deep Research spend now, but current evidence does not justify dismissal". Use when the candidate stays plausibly interesting, evidence is incomplete or ambiguous, current research value is below DEEP priority, and changed future evidence could justify escalation.
+- SKIP = "current observed evidence makes expensive Deep Research low-value". SKIP REQUIRES affirmative observed reasons.
+
+SKIP DISCIPLINE:
+- Missing evidence is NOT negative evidence. The following may NEVER be the sole reason for SKIP: Price Integrity NOT_EVALUATED, Participation NOT_EVALUATED, social data not collected, unresolved holder information, general telemetry gaps, or a young token with limited history. These raise uncertainty and should lower your confidence, not create a negative finding.
+- A setup label of NONE may NEVER by itself justify SKIP.
+- Valid affirmative SKIP reasons include: clearly damaged structure, materially poor liquidity/exitability, evidenced extreme concentration or manipulation, other affirmative low-value observed characteristics, or an observed reason that external research is unlikely to add useful information.
+- Never invent negative evidence to justify a SKIP.
+
+SETUP NEUTRALITY: BASE / REACCEL / NONE are context, not automatic quality ranks. NONE must not be demoted merely for being NONE; BASE must not be promoted merely for being BASE. Every decision must be explained by observed candidate evidence.
+
+CONFIDENCE SEMANTICS: confidence is your confidence that THIS TRIAGE CLASSIFICATION is justified by the observed packet evidence. It is not thesis confidence, not probability of success, and not token quality. Do not report HIGH confidence merely because many fields are missing — extensive gaps normally mean MEDIUM or LOW.
+
 BE COMPARATIVE. Rank candidates against each other in this cohort, not in isolation, and do not simply reproduce the Quantitative Research Priority order. Prefer candidates whose evidence is unusually strong relative to valuation, whose evidence repeats across scans, whose participation is broad, whose liquidity justifies deeper work, and whose open questions Deep Research could actually resolve.
 
 SHORTLIST DISCIPLINE: DEEP_RESEARCH is capped at the supplied max_deep_research. It is a MAXIMUM, never a quota. If only a few candidates clearly justify expensive research, shortlist only those few.
 
 FORBIDDEN OUTPUT: thesis scores, probabilities, expected returns, price targets, buy/sell/entry/exit language, position sizing, or any final opportunity verdict.
+
 
 Return STRICT JSON only, no prose and no markdown fences.`;
 
