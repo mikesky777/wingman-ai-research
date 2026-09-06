@@ -49,13 +49,139 @@ export const THESIS_PROMPT_VERSION = "thesis_synthesis_prompt/v2.2";
 
 export const NO_VERIFIED_CATALYST = "No verified catalyst found";
 /**
- * Input policy. Realized post-cutoff performance (outcomes) is stripped from
- * everything the synthesizer sees, exactly as in triage.
+ * Input policy. v2 is DENY-BY-DEFAULT, matching
+ * `ai_triage_input/v2_allowlist_no_outcomes`: the model payload is PROJECTED
+ * from an explicit allowlist schema instead of being redacted after
+ * serialization. Any field added to a Research Packet later (realized returns,
+ * since-call / since-thesis performance, peaks, drawdowns, outcome
+ * observations, Entry results, Live state, later evaluation labels) is
+ * structurally unable to reach the Thesis model unless it is added to the
+ * schema below.
  */
-export const THESIS_INPUT_POLICY_VERSION = "thesis_synthesis_input/v1_no_outcomes";
+export const THESIS_INPUT_POLICY_VERSION = "thesis_synthesis_input/v2_allowlist_no_outcomes";
 
-/** Compact-packet keys removed before the model ever sees a candidate. */
+/**
+ * Diagnostic list of compact packet keys known to carry post-decision
+ * information. Audit display only — enforcement is the allowlist.
+ */
 export const THESIS_REDACTED_PACKET_KEYS = ["outcomes"] as const;
+
+/** true = pass the value through as-is; object = recurse into allowed subkeys. */
+type ThesisFieldRule = true | { [key: string]: ThesisFieldRule };
+
+/** The ONLY fields that may ever reach the Thesis model payload. */
+export const THESIS_INPUT_SCHEMA: Record<string, ThesisFieldRule> = {
+  sv: true,
+  pv: true,
+  src: true,
+  id: {
+    chain: true,
+    mint: true,
+    sym: true,
+    name: true,
+    pair: true,
+    dex: true,
+    age_min: true,
+    age_basis: true,
+  },
+  scan: {
+    id: true,
+    at: true,
+    prio: true,
+    rank: true,
+    setups: true,
+    survivor: true,
+    route: true,
+    recurrence: true,
+    seen: true,
+    consec: true,
+    first_seen: true,
+  },
+  elig: { now: true, excl: true, call: true, cur: true, damage_state: true },
+  mkt: {
+    snapshot: true,
+    price: true,
+    mc: true,
+    liq: true,
+    v1h: true,
+    v24h: true,
+    turn24h: true,
+    vl24h: true,
+    t1h: true,
+    t24h: true,
+    buys24h: true,
+    sells24h: true,
+    chg1h: true,
+    chg24h: true,
+    src: true,
+    at: true,
+    stale: true,
+  },
+  mkt_scan: {
+    snapshot: true,
+    price: true,
+    mc: true,
+    liq: true,
+    v1h: true,
+    v24h: true,
+    t1h: true,
+    t24h: true,
+    buys24h: true,
+    sells24h: true,
+    chg1h: true,
+    chg24h: true,
+    src: true,
+    at: true,
+  },
+  mkt_refresh: {
+    snapshot: true,
+    price: true,
+    mc: true,
+    liq: true,
+    v1h: true,
+    v24h: true,
+    t1h: true,
+    t24h: true,
+    buys24h: true,
+    sells24h: true,
+    chg1h: true,
+    chg24h: true,
+    src: true,
+    at: true,
+    stale: true,
+  },
+  universe: { status: true, cat: true, reason: true },
+  struct: {
+    status: true,
+    pv: true,
+    mint_auth: true,
+    freeze_auth: true,
+    dex_market: true,
+    reasons: true,
+  },
+  price_integrity: {
+    status: true,
+    pv: true,
+    signals: true,
+    reasons: true,
+    features: true,
+    coverage: true,
+  },
+  participation: {
+    status: true,
+    pv: true,
+    breadth: true,
+    repetition: true,
+    divergence: true,
+    wallets: true,
+    tpw: true,
+    peak_div: true,
+    reasons: true,
+  },
+  holders: { count: true, top10: true, top20: true, cohorts: true, creator: true },
+  gaps: true,
+};
+
 
 /**
  * v2 rubric — 100 points, zero of which may come from current candle
