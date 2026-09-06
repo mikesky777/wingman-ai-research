@@ -29,7 +29,9 @@ import {
   type DeepResearchRunInput,
   type ProductionShortlistEntry,
   type ShortlistStatusCounts,
+  type SpendDecisionInput,
 } from "./production-view";
+import { loadSpendDecisionsForCohort } from "./spend/spend.server";
 
 type Row = Record<string, unknown>;
 
@@ -195,7 +197,28 @@ async function loadProductionFunnelCore(): Promise<ProductionFunnel> {
     };
   });
 
-  const shortlist = buildProductionShortlist(triage.decisions, attempts);
+  // research_spend_policy/v1 decisions for THIS cohort only. They never
+  // attach a previous cohort's dossier to a current occurrence.
+  const spendMap = await loadSpendDecisionsForCohort(triage.id);
+  const spendInputs: SpendDecisionInput[] = [...spendMap.values()].map((s) => ({
+    mint: s.mint,
+    spendDecision: s.spendDecision,
+    spendDecisionReason: s.spendDecisionReason,
+    policyVersion: s.policyVersion,
+    priorResearchReportId: s.priorResearchReportId,
+    priorResearchAt: s.priorResearchAt,
+    priorResearchAgeMinutes: s.priorResearchAgeMinutes,
+    priorScanRunId: s.priorScanRunId,
+    priorTriageRunId: s.priorTriageRunId,
+    cooldownRemainingMinutes: s.cooldownRemainingMinutes,
+    nextEligibleAt: s.nextEligibleAt,
+    materialChangeOverride: s.materialChangeOverride,
+    materialChangeReasonCodes: s.materialChangeReasonCodes,
+    budgetState: s.budgetState,
+    executed: s.executed,
+  }));
+
+  const shortlist = buildProductionShortlist(triage.decisions, attempts, spendInputs);
   const deepResearch = countShortlistStatuses(shortlist);
 
   // Thesis / entry / sizing: exact active-cohort provenance only.
