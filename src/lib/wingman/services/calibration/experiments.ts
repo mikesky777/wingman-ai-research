@@ -522,3 +522,207 @@ export const RETROSPECTIVE_DISCLAIMER =
 
 export const PROMOTION_NOTE =
   "Promotion to production is a separate deliberate, versioned action outside Calibration. Nothing here can change production policy.";
+
+/* ------------------------------------------------------------------ *
+ * Phase 2B.1 — historical semantics compatibility
+ * ------------------------------------------------------------------ */
+
+export type ExperimentCompatibility =
+  | "COMPATIBLE"
+  | "NOT_EVALUABLE_FOR_EXPERIMENT_VERSION";
+
+export interface CompatibilityVerdict {
+  status: ExperimentCompatibility;
+  reason: string | null;
+}
+
+/**
+ * A retrospective challenger may only evaluate an artifact whose FROZEN
+ * content already contained the semantics the rule needs. Current semantics
+ * are never reconstructed backwards into an older artifact.
+ */
+export function classifyExperimentCompatibility(
+  input: ExperimentFrozenInput,
+  rules: ChallengerRule[],
+): CompatibilityVerdict {
+  const needsOrigins = rules.some(
+    (r) =>
+      r === "INDEPENDENT_ORIGIN_GATE_REMOVED" || r === "INDEPENDENT_ORIGIN_GATE_HYBRID",
+  );
+  if (needsOrigins) {
+    const origins = input.distinctIndependentEvidenceOrigins;
+    if (typeof origins !== "number" || !Number.isFinite(origins)) {
+      return {
+        status: "NOT_EVALUABLE_FOR_EXPERIMENT_VERSION",
+        reason: "MISSING_FROZEN_DISTINCT_INDEPENDENT_EVIDENCE_ORIGINS",
+      };
+    }
+  }
+  return { status: "COMPATIBLE", reason: null };
+}
+
+/* ------------------------------------------------------------------ *
+ * Phase 2B.1 — gate masking decomposition + informativeness
+ * ------------------------------------------------------------------ */
+
+export const OTHER_GATE_KEYS = [
+  "THESIS_SCORE",
+  "EVIDENCE_CONFIDENCE",
+  "VERDICT",
+  "BEAR_SEVERITY",
+  "OPERATIONAL_ELIGIBILITY",
+] as const;
+export type OtherGateKey = (typeof OTHER_GATE_KEYS)[number];
+
+export const GATE_LABEL: Record<string, string> = {
+  THESIS_SCORE: "Thesis Score >=70",
+  EVIDENCE_CONFIDENCE: "Evidence Confidence >=60",
+  VERDICT: "Verdict allowed",
+  BEAR_SEVERITY: "Bear severity <=MODERATE",
+  OPERATIONAL_ELIGIBILITY: "Operationally eligible",
+  INDEPENDENT_ORIGINS: "Distinct independent origins >=2",
+};
+
+export interface GateFunnel {
+  variantKey: VariantKey;
+  rule: ChallengerRule;
+  /** Compatible frozen events in the experiment denominator. */
+  eligibleFrozenEvents: number;
+  /** Events where the challenger's independence verdict differs from control. */
+  changedRuleCandidates: number;
+  /** Changed-rule events that pass every other gate — the rule can decide. */
+  treatmentExposure: number;
+  /** Changed-rule events blocked anyway by a different gate. */
+  maskedByOtherGates: number;
+  /** Among changed-rule events, how many pass each other gate. */
+  passCounts: Record<OtherGateKey, number>;
+  /** Among masked events, how often each other gate is the blocker. */
+  maskCounts: Record<string, number>;
+  primaryMask: string | null;
+  finalShadowCalls: number;
+  decisionDifferences: number;
+}
+
+export function buildGateFunnel(
+  controlRows: ExperimentResultRow[],
+  challengerRows: ExperimentResultRow[],
+  rule: ChallengerRule,
+  variantKey: VariantKey,
+): GateFunnel {
+  const controlByKey = new Map(controlRows.map((r) => [r.eventKey, r]));
+  const passCounts = Object.fromEntries(OTHER_GATE_KEYS.map((k) => [k, 0])) as Record<
+    OtherGateKey,
+    number
+  >;
+  const maskCounts: Record<string, number> = {};
+
+  let changed = 0;
+  let exposure = 0;
+  let masked = 0;
+
+  for (const row of challengerRows) {
+    const control = controlByKey.get(row.eventKey);
+    if (!control) continue;
+    const controlBlocked = control.failedGates.includes("INDEPENDENT_ORIGINS");
+    const challengerBlocked = row.failedGates.includes("INDEPENDENT_ORIGINS");
+    if (controlBlocked === challengerBlocked) continue;
+    changed += 1;
+
+    const others = row.failedGates.filter((g) => g !== "INDEPENDENT_ORIGINS");
+    for (const key of OTHER_GATE_KEYS) if (!others.includes(key)) passCounts[key] += 1;
+    if (others.length === 0) {
+      exposure += 1;
+    } else {
+      masked += 1;
+      for (const g of others) maskCounts[g] = (maskCounts[g] ?? 0) + 1;
+    }
+  }
+
+  const primaryMask =
+    Object.entries(maskCounts).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] ??
+    null;
+
+  return {
+    variantKey,
+    rule,
+    eligibleFrozenEvents: controlRows.length,
+    changedRuleCandidates: changed,
+    treatmentExposure: exposure,
+    maskedByOtherGates: masked,
+    passCounts,
+    maskCounts,
+    primaryMask,
+    finalShadowCalls: challengerRows.filter((r) => isCallDecision(r.challengerDecision)).length,
+    decisionDifferences: challengerRows.filter((r) => r.differs).length,
+  };
+}
+
+export type InterpretationState =
+  | "INFORMATIVE"
+  | "NO_TREATMENT_EXPOSURE"
+  | "MASKED_BY_OTHER_GATES"
+  | "INSUFFICIENT_COMPATIBLE_DATA"
+  | "INSUFFICIENT_OUTCOME_COVERAGE";
+
+/** Minimum compatible frozen events before a replay says anything at all. */
+export const MIN_COMPATIBLE_EVENTS = 5;
+
+export interface ExperimentInterpretation {
+  state: InterpretationState;
+  primaryMask: string | null;
+  /** Plain diagnostic sentence. Never a performance claim. */
+  detail: string;
+}
+
+/**
+ * Calibration diagnostics only. These states describe whether the experiment
+ * could observe anything — never whether a rule is good or bad.
+ */
+export function interpretExperiment(args: {
+  funnel: GateFunnel;
+  compatibleEvents: number;
+  measuredOutcomes: number;
+}): ExperimentInterpretation {
+  const { funnel, compatibleEvents, measuredOutcomes } = args;
+  const mask = funnel.primaryMask;
+  const maskLabel = mask ? (GATE_LABEL[mask] ?? mask) : null;
+
+  if (compatibleEvents < MIN_COMPATIBLE_EVENTS) {
+    return {
+      state: "INSUFFICIENT_COMPATIBLE_DATA",
+      primaryMask: mask,
+      detail: `Only ${compatibleEvents} frozen events carry the semantics this challenger needs.`,
+    };
+  }
+  if (funnel.changedRuleCandidates === 0) {
+    return {
+      state: "NO_TREATMENT_EXPOSURE",
+      primaryMask: mask,
+      detail: "The challenger rule never changed its own gate verdict on this population.",
+    };
+  }
+  if (funnel.treatmentExposure === 0) {
+    return {
+      state: "MASKED_BY_OTHER_GATES",
+      primaryMask: mask,
+      detail: `The rule changed on ${funnel.changedRuleCandidates} events, but every one was blocked anyway${
+        maskLabel ? ` — most often by ${maskLabel}` : ""
+      }. No treatment exposure.`,
+    };
+  }
+  if (funnel.decisionDifferences > 0 && measuredOutcomes === 0) {
+    return {
+      state: "INSUFFICIENT_OUTCOME_COVERAGE",
+      primaryMask: mask,
+      detail: `${funnel.decisionDifferences} decision differences exist, but no persisted outcome observations cover them yet.`,
+    };
+  }
+  return {
+    state: "INFORMATIVE",
+    primaryMask: mask,
+    detail: `${funnel.treatmentExposure} events were exposed to the changed rule and ${funnel.decisionDifferences} final decisions differ.`,
+  };
+}
+
+export const INTERPRETATION_NOTE =
+  "Interpretation states are calibration diagnostics describing whether an experiment could observe anything. They are not performance labels and do not say a rule is useful or useless.";
