@@ -15,15 +15,27 @@ export const listCalibrationExperiments = createServerFn({ method: "GET" }).hand
 export const loadCalibrationExperiment = createServerFn({ method: "GET" })
   .inputValidator((data) => z.object({ experimentId: z.string().uuid() }).parse(data))
   .handler(async ({ data }) => {
-    const { getExperiment, loadExperimentResults } = await import(
+    const { getExperiment, loadExperimentResults, auditExperimentCompatibility } = await import(
       "./services/calibration/experiments.server"
     );
-    const [spec, results] = await Promise.all([
+    const [spec, results, compatibility] = await Promise.all([
       getExperiment(data.experimentId),
       loadExperimentResults(data.experimentId),
+      auditExperimentCompatibility(data.experimentId).catch(() => null),
     ]);
-    return { spec, results };
+    return { spec, results, compatibility };
   });
+
+/** Creates a prospective shadow twin activated now. No historical backfill. */
+export const activateCalibrationShadow = createServerFn({ method: "POST" })
+  .inputValidator((data) => z.object({ experimentId: z.string().uuid() }).parse(data))
+  .handler(async ({ data }) => {
+    const { activateProspectiveShadow } = await import(
+      "./services/calibration/experiments.server"
+    );
+    return activateProspectiveShadow(data.experimentId);
+  });
+
 
 /** Explicit human action. Experiments never run themselves. */
 export const runCalibrationExperiment = createServerFn({ method: "POST" })
