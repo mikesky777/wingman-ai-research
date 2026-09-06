@@ -21,7 +21,9 @@ export interface DeepResearchProvider {
   complete(request: DeepResearchProviderRequest): Promise<DeepResearchProviderResponse>;
 }
 
-export const DEFAULT_DEEP_RESEARCH_MODEL = "google/gemini-3.7-flash";
+import { DEEP_RESEARCH_MODEL } from "../../ai/models";
+
+export const DEFAULT_DEEP_RESEARCH_MODEL = DEEP_RESEARCH_MODEL;
 
 export function createLovableDeepResearchProvider(options: {
   apiKey: string;

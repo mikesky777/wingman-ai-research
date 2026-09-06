@@ -21,7 +21,9 @@ export interface ThesisProvider {
   complete(request: ThesisProviderRequest): Promise<ThesisProviderResponse>;
 }
 
-export const DEFAULT_THESIS_MODEL = "google/gemini-3.7-flash";
+import { THESIS_MODEL } from "../../ai/models";
+
+export const DEFAULT_THESIS_MODEL = THESIS_MODEL;
 
 export function createLovableThesisProvider(options: {
   apiKey: string;

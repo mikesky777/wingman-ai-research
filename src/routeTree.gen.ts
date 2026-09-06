@@ -15,6 +15,8 @@ import { Route as ResearchRouteImport } from './routes/research'
 import { Route as ScannerRouteImport } from './routes/scanner'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as WatchlistRouteImport } from './routes/watchlist'
+import { Route as SettingsIndexRouteImport } from './routes/settings.index'
+import { Route as SettingsCalibrationRouteImport } from './routes/settings.calibration'
 import { Route as TokenTokenIdRouteImport } from './routes/token.$tokenId'
 import { Route as ApiPublicOutcomeSamplerRouteImport } from './routes/api/public/outcome-sampler'
 import { Route as ApiPublicThesisBenchmarkRouteImport } from './routes/api/public/thesis-benchmark'
@@ -50,6 +52,16 @@ const WatchlistRoute = WatchlistRouteImport.update({
   path: '/watchlist',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsIndexRoute = SettingsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsCalibrationRoute = SettingsCalibrationRouteImport.update({
+  id: '/calibration',
+  path: '/calibration',
+  getParentRoute: () => SettingsRoute,
+} as any)
 const TokenTokenIdRoute = TokenTokenIdRouteImport.update({
   id: '/token/$tokenId',
   path: '/token/$tokenId',
@@ -78,9 +90,11 @@ export interface FileRoutesByFullPath {
   '/history': typeof HistoryRoute
   '/research': typeof ResearchRoute
   '/scanner': typeof ScannerRoute
-  '/settings': typeof SettingsRoute
+  '/settings': typeof SettingsRouteWithChildren
   '/watchlist': typeof WatchlistRoute
+  '/settings/calibration': typeof SettingsCalibrationRoute
   '/token/$tokenId': typeof TokenTokenIdRoute
+  '/settings/': typeof SettingsIndexRoute
   '/api/public/outcome-sampler': typeof ApiPublicOutcomeSamplerRoute
   '/api/public/thesis-benchmark': typeof ApiPublicThesisBenchmarkRoute
   '/api/public/thesis-v2-calibration': typeof ApiPublicThesisV2CalibrationRoute
@@ -90,9 +104,10 @@ export interface FileRoutesByTo {
   '/history': typeof HistoryRoute
   '/research': typeof ResearchRoute
   '/scanner': typeof ScannerRoute
-  '/settings': typeof SettingsRoute
   '/watchlist': typeof WatchlistRoute
+  '/settings/calibration': typeof SettingsCalibrationRoute
   '/token/$tokenId': typeof TokenTokenIdRoute
+  '/settings': typeof SettingsIndexRoute
   '/api/public/outcome-sampler': typeof ApiPublicOutcomeSamplerRoute
   '/api/public/thesis-benchmark': typeof ApiPublicThesisBenchmarkRoute
   '/api/public/thesis-v2-calibration': typeof ApiPublicThesisV2CalibrationRoute
@@ -103,9 +118,11 @@ export interface FileRoutesById {
   '/history': typeof HistoryRoute
   '/research': typeof ResearchRoute
   '/scanner': typeof ScannerRoute
-  '/settings': typeof SettingsRoute
+  '/settings': typeof SettingsRouteWithChildren
   '/watchlist': typeof WatchlistRoute
+  '/settings/calibration': typeof SettingsCalibrationRoute
   '/token/$tokenId': typeof TokenTokenIdRoute
+  '/settings/': typeof SettingsIndexRoute
   '/api/public/outcome-sampler': typeof ApiPublicOutcomeSamplerRoute
   '/api/public/thesis-benchmark': typeof ApiPublicThesisBenchmarkRoute
   '/api/public/thesis-v2-calibration': typeof ApiPublicThesisV2CalibrationRoute
@@ -119,7 +136,9 @@ export interface FileRouteTypes {
     | '/scanner'
     | '/settings'
     | '/watchlist'
+    | '/settings/calibration'
     | '/token/$tokenId'
+    | '/settings/'
     | '/api/public/outcome-sampler'
     | '/api/public/thesis-benchmark'
     | '/api/public/thesis-v2-calibration'
@@ -129,9 +148,10 @@ export interface FileRouteTypes {
     | '/history'
     | '/research'
     | '/scanner'
-    | '/settings'
     | '/watchlist'
+    | '/settings/calibration'
     | '/token/$tokenId'
+    | '/settings'
     | '/api/public/outcome-sampler'
     | '/api/public/thesis-benchmark'
     | '/api/public/thesis-v2-calibration'
@@ -143,7 +163,9 @@ export interface FileRouteTypes {
     | '/scanner'
     | '/settings'
     | '/watchlist'
+    | '/settings/calibration'
     | '/token/$tokenId'
+    | '/settings/'
     | '/api/public/outcome-sampler'
     | '/api/public/thesis-benchmark'
     | '/api/public/thesis-v2-calibration'
@@ -154,7 +176,7 @@ export interface RootRouteChildren {
   HistoryRoute: typeof HistoryRoute
   ResearchRoute: typeof ResearchRoute
   ScannerRoute: typeof ScannerRoute
-  SettingsRoute: typeof SettingsRoute
+  SettingsRoute: typeof SettingsRouteWithChildren
   WatchlistRoute: typeof WatchlistRoute
   TokenTokenIdRoute: typeof TokenTokenIdRoute
   ApiPublicOutcomeSamplerRoute: typeof ApiPublicOutcomeSamplerRoute
@@ -206,6 +228,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WatchlistRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings/': {
+      id: '/settings/'
+      path: '/'
+      fullPath: '/settings/'
+      preLoaderRoute: typeof SettingsIndexRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/calibration': {
+      id: '/settings/calibration'
+      path: '/calibration'
+      fullPath: '/settings/calibration'
+      preLoaderRoute: typeof SettingsCalibrationRouteImport
+      parentRoute: typeof SettingsRoute
+    }
     '/token/$tokenId': {
       id: '/token/$tokenId'
       path: '/token/$tokenId'
@@ -237,12 +273,26 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface SettingsRouteChildren {
+  SettingsCalibrationRoute: typeof SettingsCalibrationRoute
+  SettingsIndexRoute: typeof SettingsIndexRoute
+}
+
+const SettingsRouteChildren: SettingsRouteChildren = {
+  SettingsCalibrationRoute: SettingsCalibrationRoute,
+  SettingsIndexRoute: SettingsIndexRoute,
+}
+
+const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
+  SettingsRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   HistoryRoute: HistoryRoute,
   ResearchRoute: ResearchRoute,
   ScannerRoute: ScannerRoute,
-  SettingsRoute: SettingsRoute,
+  SettingsRoute: SettingsRouteWithChildren,
   WatchlistRoute: WatchlistRoute,
   TokenTokenIdRoute: TokenTokenIdRoute,
   ApiPublicOutcomeSamplerRoute: ApiPublicOutcomeSamplerRoute,
