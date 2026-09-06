@@ -444,7 +444,12 @@ async function markFailures(
         next_eligible_at: nextEligibleAfterFailure(failures, retryAfterSeconds, nowIso),
         consecutive_failures: failures,
         coverage_status: coverageStatusFor(merged, nowIso),
-        provider_health: errorCode === "RATE_LIMITED" ? "RATE_LIMITED" : "UNAVAILABLE",
+        provider_health:
+          errorCode === "RATE_LIMITED"
+            ? "RATE_LIMITED"
+            : errorCode === "NO_ELIGIBLE_PAIR"
+              ? "HEALTHY"
+              : "UNAVAILABLE",
         last_error_code: errorCode,
         last_retry_after_seconds: retryAfterSeconds,
         last_run_id: runId,

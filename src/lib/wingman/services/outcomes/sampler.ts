@@ -171,6 +171,9 @@ export function coverageStatusFor(
 
   if (state.consecutiveFailures > 0) {
     if (state.lastErrorCode === "RATE_LIMITED") return "PROVIDER_RATE_LIMITED";
+    // The provider is healthy but has no indexed pool: availability unknown,
+    // NOT a statement that the token failed or lost liquidity.
+    if (state.lastErrorCode === "NO_ELIGIBLE_PAIR") return "UNKNOWN";
     if (state.lastErrorCode) return "PROVIDER_UNAVAILABLE";
   }
   if (success === null) return "UNKNOWN";
