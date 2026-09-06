@@ -339,6 +339,28 @@ export async function runExperiment(experimentId: string): Promise<RunExperiment
       .upsert(batch, { onConflict: "experiment_id,variant_key,event_key" });
   }
 
+  // Calibration hygiene: drop rows for events that are no longer part of the
+  // compatible denominator. Only calibration rows are touched.
+  const keptKeys = new Set(rows.map((r) => r.event_key));
+  const { data: stored } = await supabaseAdmin
+    .from("calibration_experiment_results")
+    .select("event_key")
+    .eq("experiment_id", experimentId);
+  const stale = [
+    ...new Set(
+      ((stored as Row[]) ?? [])
+        .map((r) => r["event_key"] as string)
+        .filter((k) => !keptKeys.has(k)),
+    ),
+  ];
+  for (const batch of chunk(stale, 100)) {
+    await supabaseAdmin
+      .from("calibration_experiment_results")
+      .delete()
+      .eq("experiment_id", experimentId)
+      .in("event_key", batch);
+  }
+
   await supabaseAdmin
     .from("calibration_experiments")
     .update({ status: "COMPLETE", last_evaluated_at: new Date().toISOString() })
