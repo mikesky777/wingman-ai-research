@@ -180,6 +180,17 @@ async function loadProductionFunnelCore(): Promise<ProductionFunnel> {
       (r["status"] as string) === "failed"
         ? classifyResearchFailure((r["error"] as string) ?? null)
         : null;
+    const diag =
+      (r["diagnostics"] as
+        | {
+            reason?: string;
+            reasonCode?: string;
+            statement?: string;
+            liquidityUsd?: number | null;
+            checkedAt?: string | null;
+          }
+        | null
+        | undefined) ?? null;
     const dossier =
       (rep?.["dossier"] as { coverage?: { independentSourceCount?: number } } | undefined) ?? null;
     return {
@@ -194,6 +205,10 @@ async function loadProductionFunnelCore(): Promise<ProductionFunnel> {
       researchedAt: (rep?.["created_at"] as string) ?? (r["started_at"] as string) ?? null,
       failureCode: failure ? failure.code : null,
       retryable: failure ? failure.retryable : null,
+      blockedReasonCode: diag?.reasonCode ?? null,
+      blockedStatement: diag?.statement ?? null,
+      tradabilityLiquidityUsd: diag?.liquidityUsd ?? null,
+      tradabilityCheckedAt: diag?.checkedAt ?? null,
     };
   });
 
