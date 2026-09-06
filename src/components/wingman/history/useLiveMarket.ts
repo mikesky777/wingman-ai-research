@@ -1,12 +1,19 @@
 /**
- * History live market overlay hook.
+ * History market overlay hook.
  *
- * Display-only: values here never rewrite persisted outcomes or scan rows.
- * Polling is visibility-aware, overlap-protected and batched by the server.
+ * Display-only, and now PROVIDER-FREE: the periodic refresh reads persisted
+ * market observations collected by the independent scheduled sampler. Opening
+ * or closing History no longer starts or stops data collection.
+ *
+ * "Refresh now" enqueues a prioritized sampler pass through the centralized
+ * rate-limit controller instead of fanning out provider requests per row.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { refreshHistoryLiveMarkets } from "@/lib/wingman/history.functions";
+import {
+  readMarketObservations,
+  requestOutcomeSample,
+} from "@/lib/wingman/outcome-sampler.functions";
 import {
   LIVE_REFRESH_INTERVAL_MS,
   createLiveRunner,
@@ -16,9 +23,12 @@ import {
   type LiveMarketValues,
   type LiveRefreshDiagnostics,
 } from "@/lib/wingman/services/history/live-market";
+import type { CoverageStatus } from "@/lib/wingman/services/outcomes/sampler";
 
 export interface LiveMarketState {
   values: Record<string, LiveMarketValues>;
+  /** Observation availability per exact mint. Never a market judgement. */
+  coverage: Record<string, CoverageStatus>;
   lastRefreshedAt: string | null;
   isRefreshing: boolean;
   error: string | null;
@@ -27,8 +37,10 @@ export interface LiveMarketState {
 }
 
 export function useLiveMarket(addresses: string[], enabled: boolean): LiveMarketState {
-  const call = useServerFn(refreshHistoryLiveMarkets);
+  const read = useServerFn(readMarketObservations);
+  const requestSample = useServerFn(requestOutcomeSample);
   const [values, setValues] = useState<Record<string, LiveMarketValues>>({});
+  const [coverage, setCoverage] = useState<Record<string, CoverageStatus>>({});
   const [lastRefreshedAt, setLastRefreshedAt] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,32 +50,39 @@ export function useLiveMarket(addresses: string[], enabled: boolean): LiveMarket
   const addressRef = useRef<string[]>([]);
   addressRef.current = key ? key.split(",") : [];
 
-  const run = useCallback(async () => {
+  const load = useCallback(async () => {
     if (addressRef.current.length === 0) return;
     setIsRefreshing(true);
     try {
-      const result = await call({ data: { addresses: addressRef.current } });
-      // Provider failure keeps whatever values the UI already has.
+      const result = await read({ data: { addresses: addressRef.current } });
+      // Persisted-only read: previous values are never cleared by a failure.
       setValues((prev) => mergeLiveValues(prev, result.values));
-      setError(result.ok ? null : result.message);
-      setLastRefreshedAt(result.observedAt);
-      setDiagnostics((prev) => mergeDiagnostics(prev, result.diagnostics));
+      setCoverage(result.coverage);
+      setLastRefreshedAt(result.observedAt ?? result.readAt);
+      setError(null);
+      setDiagnostics((prev) =>
+        mergeDiagnostics(prev, {
+          batches: 0,
+          providerRequests: 0,
+          addressesRefreshed: result.values.length,
+        }),
+      );
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Live refresh failed — previous values kept.");
+      setError(e instanceof Error ? e.message : "Could not read stored observations.");
     } finally {
       setIsRefreshing(false);
     }
-  }, [call]);
+  }, [read]);
 
   const runner = useMemo(
     () =>
       createLiveRunner({
         isVisible: () => typeof document === "undefined" || !document.hidden,
-        run,
+        run: load,
         onSkippedHidden: () =>
           setDiagnostics((prev) => mergeDiagnostics(prev, { skippedHidden: 1 })),
       }),
-    [run],
+    [load],
   );
 
   useEffect(() => {
@@ -74,8 +93,26 @@ export function useLiveMarket(addresses: string[], enabled: boolean): LiveMarket
   }, [enabled, key, runner]);
 
   const refreshNow = useCallback(() => {
-    void runner.manual();
-  }, [runner]);
+    void (async () => {
+      setIsRefreshing(true);
+      try {
+        const result = await requestSample({ data: { addresses: addressRef.current } });
+        setDiagnostics((prev) =>
+          mergeDiagnostics(prev, {
+            batches: result.run.batchesSent,
+            providerRequests: result.run.batchesSent,
+            persistedObservations: result.run.observationsPersisted,
+            persistenceSkippedRecent: result.run.mintsDelayed,
+          }),
+        );
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Refresh request failed — stored values kept.");
+      } finally {
+        setIsRefreshing(false);
+      }
+      await runner.manual();
+    })();
+  }, [requestSample, runner]);
 
-  return { values, lastRefreshedAt, isRefreshing, error, diagnostics, refreshNow };
+  return { values, coverage, lastRefreshedAt, isRefreshing, error, diagnostics, refreshNow };
 }
