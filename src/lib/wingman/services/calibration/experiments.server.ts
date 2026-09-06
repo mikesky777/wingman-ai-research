@@ -24,6 +24,7 @@ import {
   isWithinShadowWindow,
   type ChallengerRule,
   type ExperimentFrozenInput,
+  type JsonRecord,
   type ExperimentResultRow,
   type ExperimentSpec,
   type ExperimentVariantSpec,
@@ -38,10 +39,8 @@ const num = (row: Row, key: string): number | null => {
   const v = row[key];
   return typeof v === "number" && Number.isFinite(v) ? v : null;
 };
-const obj = (value: unknown): Record<string, unknown> =>
-  value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
+const obj = (value: unknown): JsonRecord =>
+  value && typeof value === "object" && !Array.isArray(value) ? (value as JsonRecord) : {};
 
 const chunk = <T,>(items: T[], size = 100): T[][] => {
   const out: T[][] = [];
@@ -226,7 +225,23 @@ export async function runExperiment(experimentId: string): Promise<RunExperiment
     ...spec.challengerVariants.map((v) => ({ key: v.key, rule: v.differsBy })),
   ];
 
-  const rows: Row[] = [];
+  interface ResultInsert {
+    experiment_id: string;
+    variant_key: string;
+    source_stage: string;
+    event_key: string;
+    mint: string;
+    cohort_id: string | null;
+    decision_at: string | null;
+    production_decision: string;
+    challenger_decision: string;
+    differs: boolean;
+    differing_rule: string | null;
+    failed_gates: string[];
+    frozen_input: JsonRecord;
+    input_contract_version: string;
+  }
+  const rows: ResultInsert[] = [];
   for (const entry of population) {
     const control = evaluateControl(entry.input);
     const productionDecision = control.decision as ProductionDecision;
@@ -251,7 +266,7 @@ export async function runExperiment(experimentId: string): Promise<RunExperiment
           (result.decision === "SHADOW_CALL") !== (productionDecision === "CALL"),
         differing_rule: variant.key === "CONTROL" ? null : variant.rule,
         failed_gates: result.failedGates,
-        frozen_input: entry.input as unknown as Record<string, unknown>,
+        frozen_input: entry.input as unknown as JsonRecord,
         input_contract_version: EXPERIMENT_INPUT_CONTRACT,
       });
     }

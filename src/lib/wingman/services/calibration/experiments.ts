@@ -28,6 +28,9 @@ import {
 import type { ObservatoryEvent, HorizonMeasurement } from "./observatory";
 import { coverageFor, summarizeObservatory, type ObservatoryKpis } from "./observatory";
 
+export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+export type JsonRecord = { [key: string]: JsonValue };
+
 export const EXPERIMENT_VERSION = "calibration_experiment/v1";
 export const EXPERIMENT_INPUT_CONTRACT = "experiment_input/v1_allowlist_no_outcomes";
 
@@ -76,10 +79,10 @@ export interface ExperimentSpec {
   experimentType: ExperimentType;
   status: ExperimentStatus;
   sourceStage: ExperimentSourceStage;
-  sourcePolicyFilters: Record<string, unknown>;
-  populationDefinition: Record<string, unknown>;
+  sourcePolicyFilters: JsonRecord;
+  populationDefinition: JsonRecord;
   populationSemantics: string;
-  controlPolicy: Record<string, unknown>;
+  controlPolicy: JsonRecord;
   challengerVariants: ExperimentVariantSpec[];
   evaluationHorizons: string[];
   predeclared: boolean;
