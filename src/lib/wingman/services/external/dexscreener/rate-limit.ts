@@ -18,6 +18,8 @@ export const DEX_MAX_CONCURRENCY = 1;
 
 export interface RateLimitControllerOptions {
   minIntervalMs?: number;
+  /** Disabled only under test, so suites do not wait on real cooldowns. */
+  enabled?: boolean;
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
 }
@@ -34,7 +36,8 @@ export interface RateLimitController {
 export function createRateLimitController(
   options: RateLimitControllerOptions = {},
 ): RateLimitController {
-  const minInterval = options.minIntervalMs ?? DEX_MIN_REQUEST_INTERVAL_MS;
+  const enabled = options.enabled ?? true;
+  const minInterval = enabled ? (options.minIntervalMs ?? DEX_MIN_REQUEST_INTERVAL_MS) : 0;
   const now = options.now ?? (() => Date.now());
   const sleep =
     options.sleep ?? ((wait: number) => new Promise<void>((resolve) => setTimeout(resolve, wait)));
@@ -54,6 +57,7 @@ export function createRateLimitController(
   return {
     waitMs,
     penalize(retryAfterSeconds, fallbackMs = 30_000) {
+      if (!enabled) return;
       const cooldown =
         retryAfterSeconds && retryAfterSeconds > 0 ? retryAfterSeconds * 1000 : fallbackMs;
       nextAllowedAt = Math.max(nextAllowedAt, now() + cooldown);
@@ -71,4 +75,6 @@ export function createRateLimitController(
 }
 
 /** Process-wide controller shared by every DexScreener caller. */
-export const dexRateLimiter = createRateLimitController();
+export const dexRateLimiter = createRateLimitController({
+  enabled: process.env["NODE_ENV"] !== "test",
+});
