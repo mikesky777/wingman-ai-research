@@ -19,10 +19,12 @@ import {
   EXPERIMENT_INPUT_CONTRACT,
   EXPERIMENT_VERSION,
   buildFrozenDecisionInput,
+  classifyExperimentCompatibility,
   evaluateControl,
   evaluateVariant,
   isWithinShadowWindow,
   type ChallengerRule,
+  type ExperimentCompatibility,
   type ExperimentFrozenInput,
   type JsonRecord,
   type ExperimentResultRow,
@@ -31,6 +33,7 @@ import {
   type ProductionDecision,
   type VariantKey,
 } from "./experiments";
+
 
 type Row = Record<string, unknown>;
 
@@ -106,7 +109,11 @@ export interface FrozenPopulationEntry {
   input: ExperimentFrozenInput;
   /** Exactly what production persisted for this artifact. */
   productionQualifiedAsOpportunity: boolean;
+  /** Whether this frozen artifact carries the semantics the experiment needs. */
+  compatibility: ExperimentCompatibility;
+  incompatibleReason: string | null;
 }
+
 
 /**
  * The frozen eligible population for the Thesis Call gate family: canonical
