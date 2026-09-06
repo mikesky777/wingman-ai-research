@@ -275,6 +275,15 @@ function ExperimentDetail({
     spec.challengerVariants.find((v) => v.key === variantKey)?.differsBy ?? "NONE";
   const funnel = buildGateFunnel(controlRows, challengerRows, activeRule, variantKey);
   const challengerEvaluation = evaluations.find((e) => e.variantKey === variantKey) ?? null;
+  // Persisted treatment-exposure diagnostics, with a funnel fallback for rows
+  // stored before Phase 2C.1.
+  const treatmentCandidates =
+    challengerRows.filter((r) => r.treatmentExposure === "SCORE_TREATMENT_CANDIDATE").length ||
+    funnel.changedRuleCandidates;
+  const maskedCandidates =
+    challengerRows.filter(
+      (r) => r.treatmentExposure === "SCORE_TREATMENT_CANDIDATE" && r.maskedByOtherGates,
+    ).length || funnel.maskedByOtherGates;
   const interpretation = interpretExperiment({
     funnel,
     compatibleEvents: compatibility?.compatibleEvents ?? controlRows.length,
@@ -496,13 +505,44 @@ function ExperimentDetail({
               value={spec.shadowStartAt ? formatDate(spec.shadowStartAt) : "—"}
             />
             <StatTile label="Eligible events observed" value={funnel.eligibleFrozenEvents} />
+            <StatTile
+              label="Treatment candidates"
+              value={treatmentCandidates}
+              detail={
+                activeRule === "THESIS_SCORE_MIN_65"
+                  ? "Thesis Score 65–69"
+                  : "Challenger rule verdict differs"
+              }
+            />
+            <StatTile
+              label="Masked by other gates"
+              value={maskedCandidates}
+              detail={
+                funnel.primaryMask
+                  ? `Primary masking gate: ${GATE_LABEL[funnel.primaryMask] ?? funnel.primaryMask}`
+                  : "No masking observed"
+              }
+            />
             <StatTile label="Decision differences" value={funnel.decisionDifferences} />
+            <StatTile label="Unique mints" value={mintGroups.length} />
             <StatTile
               label="Outcome coverage"
               value={challengerEvaluation?.kpis.measuredN ?? 0}
               detail="Persisted observations only"
             />
+            <StatTile
+              label="Provider requests"
+              value={0}
+              detail="Persisted observations only"
+              tone="positive"
+            />
           </div>
+          {activeRule === "THESIS_SCORE_MIN_65" ? (
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              Tests only the Thesis Score threshold. All other production gates remain unchanged.
+            </p>
+          ) : null}
+          <p className="mt-2 text-[11px] text-muted-foreground">{interpretation.detail}</p>
           <p className="mt-2 text-[11px] text-muted-foreground">{INTERPRETATION_NOTE}</p>
         </Section>
       )}
