@@ -10,6 +10,7 @@
  * for the same token twice).
  */
 import { ExternalDataError } from "./errors";
+import { dexRateLimiter } from "./rate-limit";
 
 const BASE_URL = "https://api.dexscreener.com";
 const DEFAULT_TIMEOUT_MS = 8_000;
