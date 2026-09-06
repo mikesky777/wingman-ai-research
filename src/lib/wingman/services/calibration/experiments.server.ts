@@ -394,3 +394,59 @@ export async function setPromotionState(
     .update({ promotion_state: promotionState })
     .eq("id", experimentId);
 }
+
+/* ------------------------------------------------------------------ *
+ * Prospective shadow activation — no historical backfill
+ * ------------------------------------------------------------------ */
+
+/**
+ * Creates a PROSPECTIVE_SHADOW twin of an existing retrospective experiment,
+ * activated at `now`. Events decided before activation are structurally
+ * excluded by `isWithinShadowWindow`, so no backfill is possible.
+ */
+export async function activateProspectiveShadow(
+  experimentId: string,
+): Promise<{ experimentId: string; shadowStartAt: string; created: boolean }> {
+  const source = await getExperiment(experimentId);
+  if (!source) throw new Error("EXPERIMENT_NOT_FOUND");
+
+  const name = `${source.name} — Prospective Shadow`;
+  const { data: existing } = await supabaseAdmin
+    .from("calibration_experiments")
+    .select("id, shadow_start_at")
+    .eq("name", name)
+    .maybeSingle();
+  if (existing) {
+    return {
+      experimentId: (existing as Row)["id"] as string,
+      shadowStartAt: ((existing as Row)["shadow_start_at"] as string | null) ?? "",
+      created: false,
+    };
+  }
+
+  const shadowStartAt = new Date().toISOString();
+  const { data, error } = await supabaseAdmin
+    .from("calibration_experiments")
+    .insert({
+      name,
+      hypothesis: source.hypothesis,
+      experiment_version: EXPERIMENT_VERSION,
+      experiment_type: "PROSPECTIVE_SHADOW",
+      status: "RUNNING",
+      source_stage: source.sourceStage,
+      source_policy_filters: source.sourcePolicyFilters,
+      population_definition: source.populationDefinition,
+      population_semantics: source.populationSemantics,
+      control_policy: source.controlPolicy,
+      challenger_variants: source.challengerVariants as unknown as JsonRecord[],
+      evaluation_horizons: source.evaluationHorizons,
+      predeclared: true,
+      shadow_start_at: shadowStartAt,
+      promotion_state: "NONE",
+    })
+    .select("id")
+    .single();
+  if (error) throw new Error(error.message);
+
+  return { experimentId: (data as Row)["id"] as string, shadowStartAt, created: true };
+}
