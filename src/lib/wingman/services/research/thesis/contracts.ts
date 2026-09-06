@@ -851,17 +851,40 @@ export function selectOpportunities(
     .slice(0, policy.maxOpportunities);
 }
 
-/** Strip post-cutoff realized outcomes from the compact packet. */
-export function redactCompactForThesis(
-  compact: Record<string, unknown>,
+function projectThesisInput(
+  value: Record<string, unknown>,
+  schema: Record<string, ThesisFieldRule>,
 ): Record<string, unknown> {
   const out: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(compact)) {
-    if ((THESIS_REDACTED_PACKET_KEYS as readonly string[]).includes(key)) continue;
-    out[key] = value;
+  for (const [key, rule] of Object.entries(schema)) {
+    if (!(key in value)) continue;
+    const raw = value[key];
+    if (raw === undefined) continue;
+    if (rule === true) {
+      out[key] = raw;
+      continue;
+    }
+    if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+      out[key] = projectThesisInput(raw as Record<string, unknown>, rule);
+    }
   }
   return out;
 }
+
+/**
+ * Deny-by-default construction of the Thesis model payload: only fields in
+ * `THESIS_INPUT_SCHEMA` can ever be serialized. Outcome / performance / Entry /
+ * Live fields are structurally unreachable, not deleted after the fact.
+ */
+export function buildThesisModelInput(
+  compact: Record<string, unknown>,
+): Record<string, unknown> {
+  return projectThesisInput(compact, THESIS_INPUT_SCHEMA);
+}
+
+/** Back-compat alias for existing call sites. */
+export const redactCompactForThesis = buildThesisModelInput;
+
 
 export interface ValidationIssue {
   code: string;
