@@ -15,7 +15,10 @@ export type DeepResearchUiStatus =
   /** Settled, but external search failed: partial evidence, not a full dossier. */
   | "SEARCH_LIMITED"
   | "BLOCKED"
-  | "FAILED";
+  | "FAILED"
+  /** Operational spend control deferred this occurrence. Never negative evidence. */
+  | "DEFERRED_RECENT_RESEARCH"
+  | "DEFERRED_BUDGET";
 
 export interface ShortlistDecisionInput {
   mint: string;
@@ -43,6 +46,25 @@ export interface DeepResearchRunInput {
   retryable?: boolean | null;
 }
 
+/** research_spend_policy/v1 decision persisted for this cohort × exact mint. */
+export interface SpendDecisionInput {
+  mint: string;
+  spendDecision: string;
+  spendDecisionReason: string;
+  policyVersion: string;
+  priorResearchReportId: string | null;
+  priorResearchAt: string | null;
+  priorResearchAgeMinutes: number | null;
+  priorScanRunId: string | null;
+  priorTriageRunId: string | null;
+  cooldownRemainingMinutes: number | null;
+  nextEligibleAt: string | null;
+  materialChangeOverride: boolean;
+  materialChangeReasonCodes: string[];
+  budgetState: string | null;
+  executed: boolean;
+}
+
 export interface ProductionShortlistEntry extends ShortlistDecisionInput {
   status: DeepResearchUiStatus;
   reportId: string | null;
@@ -53,6 +75,7 @@ export interface ProductionShortlistEntry extends ShortlistDecisionInput {
   researchedAt: string | null;
   failureCode: string | null;
   retryable: boolean;
+  spend: SpendDecisionInput | null;
 }
 
 /**
@@ -101,7 +124,9 @@ export function mapDeepResearchStatus(
 export function buildProductionShortlist(
   decisions: readonly ShortlistDecisionInput[],
   runs: readonly DeepResearchRunInput[],
+  spendDecisions: readonly SpendDecisionInput[] = [],
 ): ProductionShortlistEntry[] {
+  const spendByMint = new Map(spendDecisions.map((s) => [s.mint, s]));
   const byMint = new Map<string, DeepResearchRunInput>();
   for (const r of runs) {
     const existing = byMint.get(r.mint);
@@ -124,9 +149,18 @@ export function buildProductionShortlist(
     .sort((a, b) => (a.triageRank ?? 9999) - (b.triageRank ?? 9999))
     .map((d) => {
       const run = byMint.get(d.mint);
+      const spend = spendByMint.get(d.mint) ?? null;
+      let status = mapDeepResearchStatus(run?.runStatus ?? null, run?.reportStatus ?? null);
+      // Deferral only describes an occurrence that produced no run of its own.
+      // A prior cohort's dossier is NEVER borrowed into this cohort.
+      if (status === "NOT_STARTED" && spend) {
+        if (spend.spendDecision === "DEFERRED_RECENT_RESEARCH") status = "DEFERRED_RECENT_RESEARCH";
+        else if (spend.spendDecision === "DEFERRED_BUDGET") status = "DEFERRED_BUDGET";
+      }
       return {
         ...d,
-        status: mapDeepResearchStatus(run?.runStatus ?? null, run?.reportStatus ?? null),
+        status,
+        spend,
         reportId: run?.reportId ?? null,
         narrativeResolved: run?.narrativeResolved ?? null,
         sourceCount: run?.sourceCount ?? null,
@@ -143,6 +177,7 @@ export interface ShortlistStatusCounts {
   total: number;
   completed: number;
   pending: number;
+  deferred: number;
   blockedOrFailed: number;
 }
 
@@ -151,20 +186,31 @@ export function countShortlistStatuses(
 ): ShortlistStatusCounts {
   let completed = 0;
   let pending = 0;
+  let deferred = 0;
   let blockedOrFailed = 0;
   for (const e of entries) {
     if (e.status === "COMPLETED" || e.status === "PARTIAL" || e.status === "INSUFFICIENT_EXTERNAL_EVIDENCE") {
       completed += 1;
     } else if (e.status === "BLOCKED" || e.status === "FAILED") {
       blockedOrFailed += 1;
+    } else if (
+      e.status === "DEFERRED_RECENT_RESEARCH" ||
+      e.status === "DEFERRED_BUDGET"
+    ) {
+      deferred += 1;
     } else {
       pending += 1;
     }
   }
-  return { total: entries.length, completed, pending, blockedOrFailed };
+  return { total: entries.length, completed, pending, deferred, blockedOrFailed };
 }
 
-export type DeepResearchFilter = "ALL" | "COMPLETED" | "PENDING" | "BLOCKED_FAILED";
+export type DeepResearchFilter =
+  | "ALL"
+  | "COMPLETED"
+  | "PENDING"
+  | "DEFERRED"
+  | "BLOCKED_FAILED";
 
 export function filterShortlist(
   entries: readonly ProductionShortlistEntry[],
@@ -180,6 +226,10 @@ export function filterShortlist(
       );
     case "PENDING":
       return entries.filter((e) => e.status === "NOT_STARTED" || e.status === "RUNNING");
+    case "DEFERRED":
+      return entries.filter(
+        (e) => e.status === "DEFERRED_RECENT_RESEARCH" || e.status === "DEFERRED_BUDGET",
+      );
     case "BLOCKED_FAILED":
       return entries.filter((e) => e.status === "BLOCKED" || e.status === "FAILED");
     default:
