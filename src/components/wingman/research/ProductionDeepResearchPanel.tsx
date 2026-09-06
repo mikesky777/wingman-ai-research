@@ -31,6 +31,8 @@ const statusTone: Record<DeepResearchUiStatus, string> = {
   SEARCH_LIMITED: "border-warning/40 bg-warning/10 text-warning",
   INSUFFICIENT_EXTERNAL_EVIDENCE: "border-warning/40 bg-warning/10 text-warning",
   RUNNING: "border-border-strong bg-surface text-foreground",
+  DEFERRED_RECENT_RESEARCH: "border-border-strong bg-surface text-muted-foreground",
+  DEFERRED_BUDGET: "border-border-strong bg-surface text-muted-foreground",
   NOT_STARTED: "border-border bg-surface text-muted-foreground",
   BLOCKED: "border-negative/40 bg-negative/10 text-negative",
   FAILED: "border-negative/40 bg-negative/10 text-negative",

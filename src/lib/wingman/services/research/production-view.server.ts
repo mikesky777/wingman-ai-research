@@ -122,7 +122,7 @@ function emptyFunnel(cohort: ActiveResearchCohort | null): ProductionFunnel {
     triageRunId: null,
     thesisSynthesisRunId: null,
     shortlist: [],
-    deepResearch: { total: 0, completed: 0, pending: 0, blockedOrFailed: 0 },
+    deepResearch: { total: 0, completed: 0, pending: 0, deferred: 0, blockedOrFailed: 0 },
     cohortShortlistCount: 0,
     thesisReportCount: 0,
     thesisCallCount: 0,
@@ -199,7 +199,7 @@ async function loadProductionFunnelCore(): Promise<ProductionFunnel> {
 
   // research_spend_policy/v1 decisions for THIS cohort only. They never
   // attach a previous cohort's dossier to a current occurrence.
-  const spendMap = await loadSpendDecisionsForCohort(triage.id);
+  const spendMap = await loadSpendDecisionsForCohort(triage.run.id);
   const spendInputs: SpendDecisionInput[] = [...spendMap.values()].map((s) => ({
     mint: s.mint,
     spendDecision: s.spendDecision,
