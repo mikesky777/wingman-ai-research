@@ -954,6 +954,10 @@ function emptyBatch(
     failed: 0,
     milestonesCreated: 0,
     skippedWithOutcome: 0,
+    spendPolicyVersion: RESEARCH_SPEND_POLICY_VERSION,
+    deferredRecentResearch: 0,
+    deferredBudget: 0,
+    spendDecisions: [],
     candidates: [],
   };
 }
