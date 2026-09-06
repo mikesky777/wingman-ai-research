@@ -54,6 +54,21 @@ export async function dexRequest<T>(path: string, options: DexRequestOptions = {
 }
 
 async function execute<T>(path: string, timeoutMs: number): Promise<T> {
+  // Every DexScreener request is paced by ONE process-wide controller.
+  return dexRateLimiter.schedule(() => performRequest<T>(path, timeoutMs));
+}
+
+function parseRetryAfter(response: Response): number | null {
+  const header = response.headers?.get?.("retry-after");
+  if (!header) return null;
+  const seconds = Number(header);
+  if (Number.isFinite(seconds) && seconds >= 0) return seconds;
+  const at = Date.parse(header);
+  if (Number.isNaN(at)) return null;
+  return Math.max(0, Math.round((at - Date.now()) / 1000));
+}
+
+async function performRequest<T>(path: string, timeoutMs: number): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -64,6 +79,7 @@ async function execute<T>(path: string, timeoutMs: number): Promise<T> {
       signal: controller.signal,
     });
   } catch (error) {
+    dexRateLimiter.penalize(null, 5_000);
     if (error instanceof Error && error.name === "AbortError") {
       throw new ExternalDataError("PROVIDER_TIMEOUT");
     }
@@ -72,7 +88,11 @@ async function execute<T>(path: string, timeoutMs: number): Promise<T> {
     clearTimeout(timer);
   }
 
-  if (response.status === 429) throw new ExternalDataError("RATE_LIMITED");
+  if (response.status === 429) {
+    const retryAfter = parseRetryAfter(response);
+    dexRateLimiter.penalize(retryAfter);
+    throw new ExternalDataError("RATE_LIMITED", undefined, retryAfter);
+  }
   if (response.status === 404) throw new ExternalDataError("TOKEN_NOT_FOUND");
   if (!response.ok) throw new ExternalDataError("PROVIDER_UNAVAILABLE");
 
