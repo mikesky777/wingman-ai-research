@@ -160,6 +160,12 @@ export interface DeepResearchBatchResult {
   milestonesCreated: 0;
   /** Retry batch: shortlist ranks skipped because they already have an outcome. */
   skippedWithOutcome: number;
+  /** research_spend_policy version applied to this production batch. */
+  spendPolicyVersion: string;
+  /** Operational deferrals — NOT SKIP, NOT negative evidence. */
+  deferredRecentResearch: number;
+  deferredBudget: number;
+  spendDecisions: SpendDecisionRecord[];
   candidates: DeepResearchCandidateResult[];
 }
 
@@ -189,6 +195,14 @@ export interface RunDeepResearchOptions {
    */
   requireActiveCohort?: boolean;
 
+  /**
+   * Authorised repair path ONLY. Manual retry never bypasses cooldown/budget
+   * unless this is explicitly set by an operator repair flow.
+   */
+  spendControl?: boolean;
+  spendConfig?: ResearchSpendConfig;
+  /** Injected clock for deterministic tests. */
+  now?: Date;
 
   budget?: Partial<ResearchBudget>;
   provider?: DeepResearchProvider;
