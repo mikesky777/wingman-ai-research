@@ -13,19 +13,129 @@
 import type { CandidateSource } from "./types";
 
 export const TRIAGE_POLICY_VERSION = "ai_triage/v1";
-export const TRIAGE_PROMPT_VERSION = "ai_triage_prompt/v1.2";
+export const TRIAGE_PROMPT_VERSION = "ai_triage_prompt/v1.3";
 
 /**
- * Input-serialization policy for triage. Stage 2 must never see information
- * that only exists BECAUSE of what happened after its own evidence snapshot,
- * otherwise calibration against historical packets rewards hindsight instead
- * of judgement. Realized outcome performance stays in the full Research
- * Packet for audit; it is stripped from the model input here.
+ * Input contract for triage. Stage 2 must never see information that only
+ * exists BECAUSE of what happened after its own evidence snapshot, otherwise
+ * calibration against historical packets rewards hindsight instead of
+ * judgement.
+ *
+ * v2 is DENY-BY-DEFAULT: the model payload is PROJECTED from an explicit
+ * allowlist schema instead of being redacted after serialization. Any field
+ * added to a Research Packet later (including realized outcomes, peaks,
+ * drawdowns, thesis results, calls, entry or live state) is structurally
+ * unable to reach the model unless it is added to the schema below.
  */
-export const TRIAGE_INPUT_POLICY_VERSION = "ai_triage_input/v1_no_outcomes";
+export const TRIAGE_INPUT_POLICY_VERSION = "ai_triage_input/v2_allowlist_no_outcomes";
 
-/** Compact packet keys removed before the model ever sees a candidate. */
+/**
+ * Diagnostic list of compact packet keys that are known to carry post-decision
+ * information. Kept for audit display only — enforcement is the allowlist.
+ */
 export const TRIAGE_REDACTED_KEYS = ["outcomes"] as const;
+
+/** true = pass the value through as-is; object = recurse into allowed subkeys. */
+type TriageFieldRule = true | { [key: string]: TriageFieldRule };
+
+/** The ONLY fields that may ever reach the triage model payload. */
+export const TRIAGE_INPUT_SCHEMA: Record<string, TriageFieldRule> = {
+  sv: true,
+  pv: true,
+  src: true,
+  id: {
+    chain: true,
+    mint: true,
+    sym: true,
+    name: true,
+    pair: true,
+    dex: true,
+    age_min: true,
+    age_basis: true,
+  },
+  scan: {
+    id: true,
+    at: true,
+    prio: true,
+    rank: true,
+    setups: true,
+    survivor: true,
+    route: true,
+    recurrence: true,
+    seen: true,
+    consec: true,
+    first_seen: true,
+  },
+  elig: { now: true, excl: true, call: true, cur: true, damage_state: true },
+  mkt: {
+    price: true,
+    mc: true,
+    liq: true,
+    v1h: true,
+    v24h: true,
+    turn24h: true,
+    vl24h: true,
+    t1h: true,
+    t24h: true,
+    buys24h: true,
+    sells24h: true,
+    chg1h: true,
+    chg24h: true,
+    src: true,
+    at: true,
+    stale: true,
+  },
+  universe: { status: true, cat: true, reason: true },
+  struct: {
+    status: true,
+    pv: true,
+    mint_auth: true,
+    freeze_auth: true,
+    dex_market: true,
+    reasons: true,
+  },
+  price_integrity: {
+    status: true,
+    pv: true,
+    signals: true,
+    reasons: true,
+    features: true,
+    coverage: true,
+  },
+  participation: {
+    status: true,
+    pv: true,
+    breadth: true,
+    repetition: true,
+    divergence: true,
+    wallets: true,
+    tpw: true,
+    peak_div: true,
+    reasons: true,
+  },
+  holders: { count: true, top10: true, top20: true, cohorts: true, creator: true },
+  gaps: true,
+};
+
+function project(
+  value: Record<string, unknown>,
+  schema: Record<string, TriageFieldRule>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, rule] of Object.entries(schema)) {
+    if (!(key in value)) continue;
+    const raw = value[key];
+    if (raw === undefined) continue;
+    if (rule === true) {
+      out[key] = raw;
+      continue;
+    }
+    if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+      out[key] = project(raw as Record<string, unknown>, rule);
+    }
+  }
+  return out;
+}
 
 /**
  * CALIBRATION-ONLY input ablations. These exist to test whether the model is
@@ -55,16 +165,19 @@ export function inputPolicyVersionFor(ablation?: TriageInputAblation | null): st
 
 const RECOGNIZED_SETUPS = ["BASE", "REACCEL"];
 
-/** Pure, deterministic: strip post-snapshot outcome information (+ optional ablations). */
+/**
+ * Pure, deterministic construction of the triage model input: allowlist
+ * projection first (deny-by-default), then optional calibration ablations.
+ */
 export function redactCompactForTriage(
   compact: Record<string, unknown>,
   ablation?: TriageInputAblation | null,
   /** Counterfactual source label for this candidate, evidence untouched. */
   sourceOverride?: CandidateSource | null,
 ): Record<string, unknown> {
+  const projected = project(compact, TRIAGE_INPUT_SCHEMA);
   const out: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(compact)) {
-    if ((TRIAGE_REDACTED_KEYS as readonly string[]).includes(key)) continue;
+  for (const [key, value] of Object.entries(projected)) {
     if (ablation?.blindSource && key === "src") continue;
     out[key] = value;
   }
@@ -90,6 +203,10 @@ export function redactCompactForTriage(
   }
   return out;
 }
+
+/** Alias making the deny-by-default nature explicit at call sites. */
+export const buildTriageModelInput = redactCompactForTriage;
+
 
 
 /** Deterministic seeded ordering, for presentation-order stability testing. */
