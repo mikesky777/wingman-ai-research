@@ -28,12 +28,24 @@ export interface ProviderHealthReport {
 const configured = (name: string): boolean => Boolean(process.env[name]);
 
 async function latest(table: string, column: string): Promise<string | null> {
-  const { data } = await supabaseAdmin
+  const client = supabaseAdmin as unknown as {
+    from: (t: string) => {
+      select: (c: string) => {
+        order: (
+          c: string,
+          o: { ascending: boolean; nullsFirst?: boolean },
+        ) => {
+          limit: (n: number) => Promise<{ data: Record<string, unknown>[] | null }>;
+        };
+      };
+    };
+  };
+  const { data } = await client
     .from(table)
     .select(column)
     .order(column, { ascending: false, nullsFirst: false })
     .limit(1);
-  const row = (data?.[0] ?? null) as Record<string, unknown> | null;
+  const row = data?.[0] ?? null;
   return (row?.[column] as string | null) ?? null;
 }
 
