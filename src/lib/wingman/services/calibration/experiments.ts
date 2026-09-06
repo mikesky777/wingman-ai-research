@@ -586,8 +586,69 @@ export function classifyExperimentCompatibility(
       };
     }
   }
+  // The score-gate challenger only differs on one number, but its shadow
+  // decision still replays EVERY production gate — so every gate input must be
+  // frozen in the artifact. Missing semantics are excluded, never reconstructed.
+  if (rules.includes("THESIS_SCORE_MIN_65")) {
+    if (typeof input.thesisScore !== "number" || !Number.isFinite(input.thesisScore)) {
+      return {
+        status: "NOT_EVALUABLE_FOR_EXPERIMENT_VERSION",
+        reason: "MISSING_FROZEN_THESIS_SCORE",
+      };
+    }
+    if (
+      typeof input.evidenceConfidence !== "number" ||
+      !Number.isFinite(input.evidenceConfidence)
+    ) {
+      return {
+        status: "NOT_EVALUABLE_FOR_EXPERIMENT_VERSION",
+        reason: "MISSING_FROZEN_EVIDENCE_CONFIDENCE",
+      };
+    }
+    if (!input.verdict) {
+      return {
+        status: "NOT_EVALUABLE_FOR_EXPERIMENT_VERSION",
+        reason: "MISSING_FROZEN_VERDICT",
+      };
+    }
+    if (!input.bearSeverity) {
+      return {
+        status: "NOT_EVALUABLE_FOR_EXPERIMENT_VERSION",
+        reason: "MISSING_FROZEN_BEAR_SEVERITY",
+      };
+    }
+    const origins = input.distinctIndependentEvidenceOrigins;
+    if (typeof origins !== "number" || !Number.isFinite(origins)) {
+      return {
+        status: "NOT_EVALUABLE_FOR_EXPERIMENT_VERSION",
+        reason: "MISSING_FROZEN_DISTINCT_INDEPENDENT_EVIDENCE_ORIGINS",
+      };
+    }
+  }
   return { status: "COMPATIBLE", reason: null };
 }
+
+/* ------------------------------------------------------------------ *
+ * Phase 2C.1 — Thesis Score treatment exposure
+ * ------------------------------------------------------------------ */
+
+export type ScoreTreatmentExposure = "NO_SCORE_RULE_DIFFERENCE" | "SCORE_TREATMENT_CANDIDATE";
+
+/**
+ * A frozen decision is a score-gate treatment candidate only when its score
+ * sits strictly inside the 65–69 band that the challenger changes.
+ */
+export function classifyScoreTreatment(
+  input: ExperimentFrozenInput,
+  policy: OpportunityPolicy = OPPORTUNITY_POLICY,
+): ScoreTreatmentExposure {
+  const score = input.thesisScore;
+  if (typeof score !== "number" || !Number.isFinite(score)) return "NO_SCORE_RULE_DIFFERENCE";
+  return score >= CHALLENGER_THESIS_SCORE_MIN && score < policy.minThesisScore
+    ? "SCORE_TREATMENT_CANDIDATE"
+    : "NO_SCORE_RULE_DIFFERENCE";
+}
+
 
 /* ------------------------------------------------------------------ *
  * Phase 2B.1 — gate masking decomposition + informativeness
