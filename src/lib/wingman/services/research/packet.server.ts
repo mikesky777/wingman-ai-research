@@ -328,24 +328,62 @@ export interface ResearchPacketRunResult {
   maxCompactBytes: number;
 }
 
-/** Packet counts per scan run — the packet half of ai_scan_source/v1. */
+/**
+ * Canonical packet counts per scan run — the packet half of ai_scan_source/v1.
+ *
+ * Counts DISTINCT scan × exact mint, never raw rows, so a future integrity
+ * violation can never be inflated into readiness. Any raw-vs-canonical gap is
+ * surfaced by `packetIntegrityByRun`, not silently hidden.
+ */
 export async function packetCountsByRun(runIds: string[]): Promise<Map<string, number>> {
-  const out = new Map<string, number>();
+  const integrity = await packetIntegrityByRun(runIds);
+  return new Map([...integrity].map(([id, v]) => [id, v.canonical]));
+}
+
+export interface PacketRunIntegrity {
+  /** Distinct (scan_run_id, contract_address) packets. */
+  canonical: number;
+  /** Raw stored rows. Equal to `canonical` when the invariant holds. */
+  raw: number;
+  duplicateRows: number;
+}
+
+/** Raw vs canonical packet counts per run, so violations stay visible. */
+export async function packetIntegrityByRun(
+  runIds: string[],
+): Promise<Map<string, PacketRunIntegrity>> {
+  const seen = new Map<string, Set<string>>();
+  const rawCounts = new Map<string, number>();
   for (const ids of chunkIds(runIds)) {
     const rows = await fetchAllPages((from, to) =>
       supabaseAdmin
         .from("research_packets")
-        .select("scan_run_id")
+        .select("scan_run_id, contract_address")
         .in("scan_run_id", ids)
         .range(from, to),
     );
     for (const r of rows) {
       const id = r["scan_run_id"] as string;
-      out.set(id, (out.get(id) ?? 0) + 1);
+      const mint = (r["contract_address"] as string | null) ?? "";
+      rawCounts.set(id, (rawCounts.get(id) ?? 0) + 1);
+      const set = seen.get(id) ?? new Set<string>();
+      set.add(mint);
+      seen.set(id, set);
     }
+  }
+  const out = new Map<string, PacketRunIntegrity>();
+  for (const [id, raw] of rawCounts) {
+    const canonical = seen.get(id)?.size ?? 0;
+    out.set(id, { canonical, raw, duplicateRows: raw - canonical });
   }
   return out;
 }
+
+/** Canonical (distinct exact mint) packet count for one scan run. */
+export async function canonicalPacketCount(scanRunId: string): Promise<number> {
+  return (await packetCountsByRun([scanRunId])).get(scanRunId) ?? 0;
+}
+
 
 /**
  * Transient Data API auth/clock errors ("JWT issued at future" from a brief
