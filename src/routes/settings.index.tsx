@@ -72,9 +72,9 @@ function SettingsPage() {
               state, and never changes production policy.
             </p>
             <Button asChild size="sm" variant="outline" className="mt-3">
-              <Link to="/settings/calibration">
+              <Link to="/calibration">
                 <FlaskConical className="size-3.5" />
-                Open Calibration Lab
+                Open Calibration
               </Link>
             </Button>
           </Section>

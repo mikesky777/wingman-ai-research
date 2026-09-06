@@ -129,7 +129,7 @@ export function AppShell({
           </div>
           <nav className="flex gap-1 overflow-x-auto border-t border-border px-3 py-2 md:hidden">
             {NAV.map(({ to, label }) => {
-              const active = to === "/" ? pathname === "/" : pathname.startsWith(to);
+              const active = isNavActive(to, pathname);
               return (
                 <Link
                   key={to}
