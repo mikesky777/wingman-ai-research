@@ -11,11 +11,14 @@ import {
   EXPERIMENT_TYPE_LABEL,
   buildDecisionDiffs,
   buildFrozenDecisionInput,
+  buildGateFunnel,
+  classifyExperimentCompatibility,
   computeSelectionOverlap,
   evaluateChallenger,
   evaluateControl,
   evaluateVariantOutcomes,
   groupResultsByMint,
+  interpretExperiment,
   isWithinShadowWindow,
   type ExperimentFrozenInput,
   type ExperimentResultRow,
@@ -300,5 +303,111 @@ describe("promotion discipline", () => {
     const row = resultRow({ challengerDecision: "SHADOW_CALL", variantKey: "CHALLENGER_A" });
     expect(row.challengerDecision).toBe("SHADOW_CALL");
     expect(row.sourceStage).toBe("THESIS_SYNTHESIZED");
+  });
+});
+
+describe("phase 2b.1 — informativeness, masking and compatibility", () => {
+  const rowsFor = (over: Partial<ExperimentResultRow>[]): ExperimentResultRow[] =>
+    over.map((o) => resultRow(o));
+
+  it("classifies frozen artifacts without distinct-origin semantics as not evaluable", () => {
+    const legacy = classifyExperimentCompatibility(
+      baseInput({ distinctIndependentEvidenceOrigins: null }),
+      ["INDEPENDENT_ORIGIN_GATE_REMOVED"],
+    );
+    const modern = classifyExperimentCompatibility(baseInput(), [
+      "INDEPENDENT_ORIGIN_GATE_HYBRID",
+    ]);
+    expect(legacy.status).toBe("NOT_EVALUABLE_FOR_EXPERIMENT_VERSION");
+    expect(legacy.reason).toBe("MISSING_FROZEN_DISTINCT_INDEPENDENT_EVIDENCE_ORIGINS");
+    expect(modern.status).toBe("COMPATIBLE");
+  });
+
+  it("reports treatment exposure of zero when another gate masks the changed rule", () => {
+    const control = rowsFor([
+      { eventKey: "a", failedGates: ["THESIS_SCORE", "INDEPENDENT_ORIGINS"] },
+      { eventKey: "b", failedGates: ["THESIS_SCORE", "INDEPENDENT_ORIGINS"] },
+    ]);
+    const challenger = rowsFor([
+      { eventKey: "a", variantKey: "CHALLENGER_A", failedGates: ["THESIS_SCORE"] },
+      { eventKey: "b", variantKey: "CHALLENGER_A", failedGates: ["THESIS_SCORE"] },
+    ]);
+    const funnel = buildGateFunnel(
+      control,
+      challenger,
+      "INDEPENDENT_ORIGIN_GATE_REMOVED",
+      "CHALLENGER_A",
+    );
+    expect(funnel.changedRuleCandidates).toBe(2);
+    expect(funnel.treatmentExposure).toBe(0);
+    expect(funnel.maskedByOtherGates).toBe(2);
+    expect(funnel.primaryMask).toBe("THESIS_SCORE");
+    expect(funnel.decisionDifferences).toBe(0);
+
+    const interpretation = interpretExperiment({
+      funnel,
+      compatibleEvents: 12,
+      measuredOutcomes: 0,
+    });
+    expect(interpretation.state).toBe("MASKED_BY_OTHER_GATES");
+    expect(interpretation.primaryMask).toBe("THESIS_SCORE");
+  });
+
+  it("reports no treatment exposure when the rule never changes its own verdict", () => {
+    const control = rowsFor([{ eventKey: "a", failedGates: ["THESIS_SCORE"] }]);
+    const challenger = rowsFor([
+      { eventKey: "a", variantKey: "CHALLENGER_A", failedGates: ["THESIS_SCORE"] },
+    ]);
+    const funnel = buildGateFunnel(
+      control,
+      challenger,
+      "INDEPENDENT_ORIGIN_GATE_REMOVED",
+      "CHALLENGER_A",
+    );
+    expect(
+      interpretExperiment({ funnel, compatibleEvents: 20, measuredOutcomes: 0 }).state,
+    ).toBe("NO_TREATMENT_EXPOSURE");
+  });
+
+  it("flags an insufficient compatible population before any other reading", () => {
+    const funnel = buildGateFunnel([], [], "INDEPENDENT_ORIGIN_GATE_REMOVED", "CHALLENGER_A");
+    expect(
+      interpretExperiment({ funnel, compatibleEvents: 2, measuredOutcomes: 0 }).state,
+    ).toBe("INSUFFICIENT_COMPATIBLE_DATA");
+  });
+
+  it("flags exposed decision differences with no persisted outcome coverage", () => {
+    const control = rowsFor([{ eventKey: "a", failedGates: ["INDEPENDENT_ORIGINS"] }]);
+    const challenger = rowsFor([
+      {
+        eventKey: "a",
+        variantKey: "CHALLENGER_A",
+        failedGates: [],
+        challengerDecision: "SHADOW_CALL",
+        differs: true,
+      },
+    ]);
+    const funnel = buildGateFunnel(
+      control,
+      challenger,
+      "INDEPENDENT_ORIGIN_GATE_REMOVED",
+      "CHALLENGER_A",
+    );
+    expect(funnel.treatmentExposure).toBe(1);
+    expect(
+      interpretExperiment({ funnel, compatibleEvents: 20, measuredOutcomes: 0 }).state,
+    ).toBe("INSUFFICIENT_OUTCOME_COVERAGE");
+    expect(
+      interpretExperiment({ funnel, compatibleEvents: 20, measuredOutcomes: 1 }).state,
+    ).toBe("INFORMATIVE");
+  });
+
+  it("a prospective shadow still cannot evaluate pre-activation events", () => {
+    const spec = {
+      experimentType: "PROSPECTIVE_SHADOW",
+      shadowStartAt: "2026-03-01T00:00:00.000Z",
+    } as ExperimentSpec;
+    expect(isWithinShadowWindow(spec, "2026-02-28T23:59:59.000Z")).toBe(false);
+    expect(isWithinShadowWindow(spec, "2026-03-01T00:00:01.000Z")).toBe(true);
   });
 });
