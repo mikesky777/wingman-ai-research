@@ -19,7 +19,9 @@ import {
   EXPERIMENT_INPUT_CONTRACT,
   EXPERIMENT_VERSION,
   buildFrozenDecisionInput,
+  changedGateForRule,
   classifyExperimentCompatibility,
+  classifyScoreTreatment,
   evaluateControl,
   evaluateVariant,
   isWithinShadowWindow,
@@ -430,6 +432,13 @@ export async function loadExperimentResults(
     failedGates: (row["failed_gates"] as string[] | null) ?? [],
     frozenInput: obj(row["frozen_input"]) as unknown as ExperimentFrozenInput,
     inputContractVersion: str(row, "input_contract_version") ?? EXPERIMENT_INPUT_CONTRACT,
+    treatmentExposure: str(row, "treatment_exposure"),
+    maskedByOtherGates:
+      typeof row["masked_by_other_gates"] === "boolean"
+        ? (row["masked_by_other_gates"] as boolean)
+        : null,
+    maskingGateList: (row["masking_gate_list"] as string[] | null) ?? [],
+    finalDecisionDifference: Boolean(row["final_decision_difference"] ?? row["differs"]),
     decidedAt: str(row, "decided_at"),
   }));
 }

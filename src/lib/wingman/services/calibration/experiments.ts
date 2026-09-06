@@ -361,6 +361,11 @@ export interface ExperimentResultRow {
   frozenInput: ExperimentFrozenInput;
   inputContractVersion: string;
   decidedAt: string | null;
+  /** Phase 2C.1 — persisted treatment-exposure diagnostics (calibration only). */
+  treatmentExposure?: string | null;
+  maskedByOtherGates?: boolean | null;
+  maskingGateList?: string[];
+  finalDecisionDifference?: boolean;
 }
 
 /* ------------------------------------------------------------------ *
