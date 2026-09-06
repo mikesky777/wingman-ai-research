@@ -25,6 +25,7 @@ import {
   loadCalibrationExperiment,
   runCalibrationExperiment,
   setCalibrationPromotionState,
+  activateCalibrationShadow,
 } from "@/lib/wingman/experiments.functions";
 import {
   DEFAULT_HORIZON_KEY,
@@ -33,13 +34,18 @@ import {
 } from "@/lib/wingman/services/calibration/observatory";
 import {
   EXPERIMENT_TYPE_LABEL,
+  GATE_LABEL,
+  INTERPRETATION_NOTE,
+  OTHER_GATE_KEYS,
   PROMOTION_NOTE,
   RETROSPECTIVE_DISCLAIMER,
   buildDecisionDiffs,
+  buildGateFunnel,
   computeSelectionOverlap,
   coverageForVariant,
   evaluateVariantOutcomes,
   groupResultsByMint,
+  interpretExperiment,
   type ExperimentResultRow,
   type ExperimentSpec,
   type VariantKey,
@@ -156,6 +162,7 @@ function ExperimentDetail({
   const loadEvents = useServerFn(loadObservatory);
   const run = useServerFn(runCalibrationExperiment);
   const promote = useServerFn(setCalibrationPromotionState);
+  const activateShadow = useServerFn(activateCalibrationShadow);
 
   const [horizon, setHorizon] = useState(DEFAULT_HORIZON_KEY);
   const [variantKey, setVariantKey] = useState<VariantKey>("CHALLENGER_A");
@@ -175,7 +182,7 @@ function ExperimentDetail({
     mutationFn: () => run({ data: { experimentId } }),
     onSuccess: (r) => {
       toast.success(
-        `Experiment evaluated — ${r.populationN} frozen decisions, ${r.uniqueMints} unique mints`,
+        `Experiment evaluated — ${r.populationN} compatible frozen decisions, ${r.uniqueMints} unique mints, ${r.incompatibleN} excluded as NOT_EVALUABLE_FOR_EXPERIMENT_VERSION`,
       );
       void queryClient.invalidateQueries({ queryKey: ["calibration-experiment", experimentId] });
       void queryClient.invalidateQueries({ queryKey: ["calibration-experiments"] });
@@ -191,6 +198,20 @@ function ExperimentDetail({
       void queryClient.invalidateQueries({ queryKey: ["calibration-experiment", experimentId] });
     },
   });
+
+  const shadowMutation = useMutation({
+    mutationFn: () => activateShadow({ data: { experimentId } }),
+    onSuccess: (r) => {
+      toast.success(
+        r.created
+          ? `Prospective shadow activated ${formatDate(r.shadowStartAt)} — no backfill`
+          : "Prospective shadow already active",
+      );
+      void queryClient.invalidateQueries({ queryKey: ["calibration-experiments"] });
+    },
+    onError: (e: unknown) => toast.error("Activation failed", { description: String(e) }),
+  });
+
 
   const spec = detail.data?.spec ?? null;
   const results = useMemo(
@@ -248,6 +269,18 @@ function ExperimentDetail({
   const overlap = computeSelectionOverlap(controlRows, challengerRows);
   const diffs = buildDecisionDiffs(challengerRows, eventsByKey, horizon);
   const mintGroups = groupResultsByMint(controlRows);
+
+  const compatibility = detail.data?.compatibility ?? null;
+  const activeRule =
+    spec.challengerVariants.find((v) => v.key === variantKey)?.differsBy ?? "NONE";
+  const funnel = buildGateFunnel(controlRows, challengerRows, activeRule, variantKey);
+  const challengerEvaluation = evaluations.find((e) => e.variantKey === variantKey) ?? null;
+  const interpretation = interpretExperiment({
+    funnel,
+    compatibleEvents: compatibility?.compatibleEvents ?? controlRows.length,
+    measuredOutcomes: challengerEvaluation?.kpis.measuredN ?? 0,
+  });
+
 
   return (
     <div className="space-y-6">
@@ -343,6 +376,137 @@ function ExperimentDetail({
           ))}
         </div>
       </Section>
+
+      {/* Informativeness + gate masking (Phase 2B.1) */}
+      {spec.experimentType === "RETROSPECTIVE_BACKTEST" ? (
+        <Section
+          title="Retrospective Informativeness"
+          description="Whether this replay could observe anything at all. Diagnostics, not performance labels."
+          actions={
+            <Badge variant="outline" className="border-warning/45 bg-warning/12 text-warning">
+              {interpretation.state.replace(/_/g, " ")}
+            </Badge>
+          }
+        >
+          <div className="space-y-3">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+              <StatTile label="Eligible frozen events" value={funnel.eligibleFrozenEvents} />
+              <StatTile
+                label="Changed-rule candidates"
+                value={funnel.changedRuleCandidates}
+                detail="Challenger's own gate verdict differs"
+              />
+              <StatTile
+                label="Treatment exposure"
+                value={funnel.treatmentExposure}
+                detail="Rule could decide the outcome"
+              />
+              <StatTile
+                label="Masked by other gates"
+                value={funnel.maskedByOtherGates}
+                detail={
+                  funnel.primaryMask
+                    ? `Primary mask: ${GATE_LABEL[funnel.primaryMask] ?? funnel.primaryMask}`
+                    : "No masking observed"
+                }
+              />
+              <StatTile label="Decision differences" value={funnel.decisionDifferences} />
+            </div>
+
+            <div className="rounded-md border border-border bg-surface px-3 py-2 text-[11px] text-muted-foreground">
+              <div className="font-medium text-foreground">Gate funnel — {variantKey}</div>
+              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span>Eligible {funnel.eligibleFrozenEvents}</span>
+                <span>→ changed-rule {funnel.changedRuleCandidates}</span>
+                {OTHER_GATE_KEYS.map((k) => (
+                  <span key={k}>
+                    → pass {GATE_LABEL[k] ?? k}: {funnel.passCounts[k]}
+                  </span>
+                ))}
+                <span>→ shadow decisions {funnel.finalShadowCalls}</span>
+              </div>
+              {Object.keys(funnel.maskCounts).length > 0 ? (
+                <div className="mt-1">
+                  Masking gates:{" "}
+                  {Object.entries(funnel.maskCounts)
+                    .sort((a, b) => b[1] - a[1])
+                    .map(([g, n]) => `${GATE_LABEL[g] ?? g} (${n})`)
+                    .join(" · ")}
+                </div>
+              ) : null}
+              <div className="mt-1">{interpretation.detail}</div>
+            </div>
+
+            <div className="rounded-md border border-border bg-surface px-3 py-2 text-[11px] text-muted-foreground">
+              <div className="font-medium text-foreground">Historical semantics compatibility</div>
+              <div className="mt-1">
+                Compatible frozen events: {compatibility?.compatibleEvents ?? funnel.eligibleFrozenEvents}
+                {" · "}Excluded as NOT_EVALUABLE_FOR_EXPERIMENT_VERSION:{" "}
+                {compatibility?.incompatibleEvents ?? 0}
+              </div>
+              {compatibility && Object.keys(compatibility.incompatibleReasons).length > 0 ? (
+                <div className="mt-1">
+                  Reasons:{" "}
+                  {Object.entries(compatibility.incompatibleReasons)
+                    .map(([r, n]) => `${r} (${n})`)
+                    .join(" · ")}
+                </div>
+              ) : null}
+              {compatibility && compatibility.compatiblePolicyVersions.length > 0 ? (
+                <div className="mt-1">
+                  Control reproduces production for:{" "}
+                  {compatibility.compatiblePolicyVersions.join(", ")}
+                </div>
+              ) : null}
+            </div>
+
+            <p className="text-[11px] text-muted-foreground">{INTERPRETATION_NOTE}</p>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={shadowMutation.isPending}
+                onClick={() => shadowMutation.mutate()}
+              >
+                {shadowMutation.isPending ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : null}
+                Activate prospective shadow
+              </Button>
+              <span className="text-[11px] text-muted-foreground">
+                Activation starts now. Pre-activation events are never backfilled.
+              </span>
+            </div>
+          </div>
+        </Section>
+      ) : (
+        <Section
+          title="Prospective Shadow Evidence"
+          description="Accumulates forward from activation only. Structurally separate from retrospective replay."
+          actions={
+            <Badge variant="outline" className="border-primary/45 bg-primary/12 text-primary">
+              {interpretation.state.replace(/_/g, " ")}
+            </Badge>
+          }
+        >
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <StatTile
+              label="Active since"
+              value={spec.shadowStartAt ? formatDate(spec.shadowStartAt) : "—"}
+            />
+            <StatTile label="Eligible events observed" value={funnel.eligibleFrozenEvents} />
+            <StatTile label="Decision differences" value={funnel.decisionDifferences} />
+            <StatTile
+              label="Outcome coverage"
+              value={challengerEvaluation?.kpis.measuredN ?? 0}
+              detail="Persisted observations only"
+            />
+          </div>
+          <p className="mt-2 text-[11px] text-muted-foreground">{INTERPRETATION_NOTE}</p>
+        </Section>
+      )}
+
 
       {/* Population + filters */}
       <Section

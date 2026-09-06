@@ -19,10 +19,12 @@ import {
   EXPERIMENT_INPUT_CONTRACT,
   EXPERIMENT_VERSION,
   buildFrozenDecisionInput,
+  classifyExperimentCompatibility,
   evaluateControl,
   evaluateVariant,
   isWithinShadowWindow,
   type ChallengerRule,
+  type ExperimentCompatibility,
   type ExperimentFrozenInput,
   type JsonRecord,
   type ExperimentResultRow,
@@ -31,6 +33,7 @@ import {
   type ProductionDecision,
   type VariantKey,
 } from "./experiments";
+
 
 type Row = Record<string, unknown>;
 
@@ -106,7 +109,11 @@ export interface FrozenPopulationEntry {
   input: ExperimentFrozenInput;
   /** Exactly what production persisted for this artifact. */
   productionQualifiedAsOpportunity: boolean;
+  /** Whether this frozen artifact carries the semantics the experiment needs. */
+  compatibility: ExperimentCompatibility;
+  incompatibleReason: string | null;
 }
+
 
 /**
  * The frozen eligible population for the Thesis Call gate family: canonical
@@ -186,14 +193,60 @@ export async function loadFrozenThesisPopulation(
       opportunityGateVersion: OPPORTUNITY_GATE_VERSION,
     });
 
+    const rules = spec.challengerVariants.map((v) => v.differsBy);
+    const compat = classifyExperimentCompatibility(input, rules);
+
     out.push({
       eventKey: `THESIS_SYNTHESIZED:${a.reportId}`,
       input,
       productionQualifiedAsOpportunity: Boolean(row["qualified_as_opportunity"]),
+      compatibility: compat.status,
+      incompatibleReason: compat.reason,
     });
   }
   return out;
 }
+
+/* ------------------------------------------------------------------ *
+ * Historical semantics compatibility audit
+ * ------------------------------------------------------------------ */
+
+export interface CompatibilityAudit {
+  totalFrozenEvents: number;
+  compatibleEvents: number;
+  incompatibleEvents: number;
+  /** Reason code -> count. Excluded from the denominator, never hidden. */
+  incompatibleReasons: Record<string, number>;
+  compatiblePolicyVersions: string[];
+}
+
+export async function auditExperimentCompatibility(
+  experimentId: string,
+): Promise<CompatibilityAudit> {
+  const spec = await getExperiment(experimentId);
+  if (!spec) throw new Error("EXPERIMENT_NOT_FOUND");
+  const population = await loadFrozenThesisPopulation(spec);
+  const reasons: Record<string, number> = {};
+  const versions = new Set<string>();
+  let compatible = 0;
+  for (const entry of population) {
+    if (entry.compatibility === "COMPATIBLE") {
+      compatible += 1;
+      if (entry.input.thesisPolicyVersion) versions.add(entry.input.thesisPolicyVersion);
+    } else {
+      const key = entry.incompatibleReason ?? "NOT_EVALUABLE_FOR_EXPERIMENT_VERSION";
+      reasons[key] = (reasons[key] ?? 0) + 1;
+    }
+  }
+  return {
+    totalFrozenEvents: population.length,
+    compatibleEvents: compatible,
+    incompatibleEvents: population.length - compatible,
+    incompatibleReasons: reasons,
+    compatiblePolicyVersions: [...versions].sort(),
+  };
+}
+
 
 /* ------------------------------------------------------------------ *
  * Run — decisions only, no outcomes in scope
@@ -202,7 +255,11 @@ export async function loadFrozenThesisPopulation(
 export interface RunExperimentResult {
   experimentId: string;
   status: ExperimentSpec["status"];
+  /** Compatible frozen events only — the experiment denominator. */
   populationN: number;
+  /** Excluded as NOT_EVALUABLE_FOR_EXPERIMENT_VERSION, reported not hidden. */
+  incompatibleN: number;
+
   uniqueMints: number;
   variantsRun: VariantKey[];
   persistedRows: number;
@@ -242,7 +299,11 @@ export async function runExperiment(experimentId: string): Promise<RunExperiment
     input_contract_version: string;
   }
   const rows: ResultInsert[] = [];
-  for (const entry of population) {
+  // Incompatible frozen artifacts are counted, never evaluated: current
+  // semantics are not reconstructed backwards into an older decision.
+  const compatible = population.filter((p) => p.compatibility === "COMPATIBLE");
+  for (const entry of compatible) {
+
     const control = evaluateControl(entry.input);
     const productionDecision = control.decision as ProductionDecision;
     for (const variant of variants) {
@@ -278,6 +339,28 @@ export async function runExperiment(experimentId: string): Promise<RunExperiment
       .upsert(batch, { onConflict: "experiment_id,variant_key,event_key" });
   }
 
+  // Calibration hygiene: drop rows for events that are no longer part of the
+  // compatible denominator. Only calibration rows are touched.
+  const keptKeys = new Set(rows.map((r) => r.event_key));
+  const { data: stored } = await supabaseAdmin
+    .from("calibration_experiment_results")
+    .select("event_key")
+    .eq("experiment_id", experimentId);
+  const stale = [
+    ...new Set(
+      ((stored as Row[]) ?? [])
+        .map((r) => r["event_key"] as string)
+        .filter((k) => !keptKeys.has(k)),
+    ),
+  ];
+  for (const batch of chunk(stale, 100)) {
+    await supabaseAdmin
+      .from("calibration_experiment_results")
+      .delete()
+      .eq("experiment_id", experimentId)
+      .in("event_key", batch);
+  }
+
   await supabaseAdmin
     .from("calibration_experiments")
     .update({ status: "COMPLETE", last_evaluated_at: new Date().toISOString() })
@@ -286,11 +369,13 @@ export async function runExperiment(experimentId: string): Promise<RunExperiment
   return {
     experimentId,
     status: "COMPLETE",
-    populationN: population.length,
-    uniqueMints: new Set(population.map((p) => p.input.mint)).size,
+    populationN: compatible.length,
+    incompatibleN: population.length - compatible.length,
+    uniqueMints: new Set(compatible.map((p) => p.input.mint)).size,
     variantsRun: variants.map((v) => v.key),
     persistedRows: rows.length,
   };
+
 }
 
 export async function loadExperimentResults(
@@ -330,4 +415,60 @@ export async function setPromotionState(
     .from("calibration_experiments")
     .update({ promotion_state: promotionState })
     .eq("id", experimentId);
+}
+
+/* ------------------------------------------------------------------ *
+ * Prospective shadow activation — no historical backfill
+ * ------------------------------------------------------------------ */
+
+/**
+ * Creates a PROSPECTIVE_SHADOW twin of an existing retrospective experiment,
+ * activated at `now`. Events decided before activation are structurally
+ * excluded by `isWithinShadowWindow`, so no backfill is possible.
+ */
+export async function activateProspectiveShadow(
+  experimentId: string,
+): Promise<{ experimentId: string; shadowStartAt: string; created: boolean }> {
+  const source = await getExperiment(experimentId);
+  if (!source) throw new Error("EXPERIMENT_NOT_FOUND");
+
+  const name = `${source.name} — Prospective Shadow`;
+  const { data: existing } = await supabaseAdmin
+    .from("calibration_experiments")
+    .select("id, shadow_start_at")
+    .eq("name", name)
+    .maybeSingle();
+  if (existing) {
+    return {
+      experimentId: (existing as Row)["id"] as string,
+      shadowStartAt: ((existing as Row)["shadow_start_at"] as string | null) ?? "",
+      created: false,
+    };
+  }
+
+  const shadowStartAt = new Date().toISOString();
+  const { data, error } = await supabaseAdmin
+    .from("calibration_experiments")
+    .insert({
+      name,
+      hypothesis: source.hypothesis,
+      experiment_version: EXPERIMENT_VERSION,
+      experiment_type: "PROSPECTIVE_SHADOW",
+      status: "RUNNING",
+      source_stage: source.sourceStage,
+      source_policy_filters: source.sourcePolicyFilters,
+      population_definition: source.populationDefinition,
+      population_semantics: source.populationSemantics,
+      control_policy: source.controlPolicy,
+      challenger_variants: source.challengerVariants as unknown as JsonRecord[],
+      evaluation_horizons: source.evaluationHorizons,
+      predeclared: true,
+      shadow_start_at: shadowStartAt,
+      promotion_state: "NONE",
+    })
+    .select("id")
+    .single();
+  if (error) throw new Error(error.message);
+
+  return { experimentId: (data as Row)["id"] as string, shadowStartAt, created: true };
 }
