@@ -5,6 +5,7 @@
  * attempts), canonical readiness counting, the deny-by-default Thesis input
  * contract, the two explicit market snapshots and partial holder coverage.
  */
+import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import {
   buildThesisModelInput,
@@ -277,5 +278,23 @@ describe("holder coverage semantics", () => {
     ]);
     expect(packet.evidenceGaps).not.toContain("HOLDER_CONCENTRATION_UNAVAILABLE");
     expect(packet.evidenceGaps).not.toContain("HOLDER_DATA_UNAVAILABLE");
+  });
+});
+
+/**
+ * The ON CONFLICT target used by production persistence must stay exactly
+ * (scan_run_id, contract_address) — the columns covered by the live
+ * non-partial unique index `research_packets_scan_mint_key`. A partial index
+ * (e.g. WHERE contract_address IS NOT NULL) is NOT matchable by Postgres and
+ * broke packet persistence once already.
+ */
+describe("research_packet_conflict_target/v1", () => {
+  it("5. production upsert conflict target matches the live unique index columns", async () => {
+    const source = await readFile(
+      new URL("./packet.server.ts", import.meta.url),
+      "utf8",
+    );
+    expect(source).toContain('onConflict: "scan_run_id,contract_address"');
+    expect(source).toContain("ignoreDuplicates: true");
   });
 });
