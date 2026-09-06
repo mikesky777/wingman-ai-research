@@ -49,6 +49,31 @@ function prune(obj: Record<string, Json>): Record<string, Json> {
   return out;
 }
 
+/**
+ * packet_market_snapshot/v1 — each market observation is emitted separately
+ * with its own provenance so a consumer always knows which one it is reading.
+ */
+function snapshot(s: MarketSnapshot): Record<string, Json> {
+  return prune({
+    snapshot: s.kind,
+    available: s.available,
+    price: s.price,
+    mc: round(s.marketCap, 0),
+    liq: round(s.liquidityUsd, 0),
+    v1h: round(s.volume1h, 0),
+    v24h: round(s.volume24h, 0),
+    t1h: s.trades1h,
+    t24h: s.trades24h,
+    buys24h: s.buys24h,
+    sells24h: s.sells24h,
+    chg1h: round(s.priceChange1hPct, 2),
+    chg24h: round(s.priceChange24hPct, 2),
+    src: s.source,
+    at: s.observedAt,
+    stale: s.stale,
+  });
+}
+
 /** Deterministic: identical packets always serialize to identical output. */
 export function serializeCompact(packet: ResearchPacket): Record<string, Json> {
   const p = packet;
