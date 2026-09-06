@@ -41,6 +41,7 @@ export type ExclusionReason =
 /** Machine-readable evidence gaps. Never a judgement. */
 export type EvidenceGap =
   | "HOLDER_DATA_UNAVAILABLE"
+  | "HOLDER_CONCENTRATION_UNAVAILABLE"
   | "CREATOR_DATA_UNAVAILABLE"
   | "PRICE_INTEGRITY_NOT_EVALUATED"
   | "PARTICIPATION_NOT_EVALUATED"
@@ -52,6 +53,7 @@ export type EvidenceGap =
   | "OUTCOMES_UNAVAILABLE"
   | "CURRENT_OUTCOME_MARKET_INVALID"
   | "CURRENT_OUTCOME_MARKET_UNKNOWN";
+
 
 /** Evaluated-layer status. NOT_EVALUATED is distinct from UNKNOWN by design. */
 export type LayerStatus =
@@ -110,6 +112,37 @@ export interface PacketEligibility {
   };
 }
 
+/**
+ * packet_market_snapshot/v1 — the two market observations a packet carries are
+ * explicit and never substituted for one another.
+ *
+ * SCAN_FROZEN_MARKET   = exact values persisted with the upstream scan candidate.
+ * PACKET_REFRESH_MARKET = market enrichment fetched at packet-generation time.
+ */
+export const MARKET_SNAPSHOT_VERSION = "packet_market_snapshot/v1";
+
+export type MarketSnapshotKind = "SCAN_FROZEN_MARKET" | "PACKET_REFRESH_MARKET";
+
+export interface MarketSnapshot {
+  kind: MarketSnapshotKind;
+  available: boolean;
+  price: number | null;
+  marketCap: number | null;
+  liquidityUsd: number | null;
+  volume1h: number | null;
+  volume24h: number | null;
+  trades1h: number | null;
+  trades24h: number | null;
+  buys24h: number | null;
+  sells24h: number | null;
+  priceChange1hPct: number | null;
+  priceChange24hPct: number | null;
+  source: string | null;
+  observedAt: string | null;
+  /** Only meaningful for the refresh snapshot. */
+  stale: boolean | null;
+}
+
 export interface PacketMarket {
   price: Fact<number>;
   marketCap: Fact<number>;
@@ -128,7 +161,13 @@ export interface PacketMarket {
   observedAt: string | null;
   /** True when the newest market observation is older than the freshness bound. */
   stale: boolean;
+  /** Which snapshot the flattened fields above resolve to. */
+  snapshotVersion: typeof MARKET_SNAPSHOT_VERSION;
+  snapshotUsed: MarketSnapshotKind;
+  scanFrozen: MarketSnapshot;
+  packetRefresh: MarketSnapshot;
 }
+
 
 export interface PacketUniverse {
   status: string;

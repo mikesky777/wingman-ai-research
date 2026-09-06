@@ -11,7 +11,13 @@
  * no information are omitted entirely so the model cannot mistake absence for
  * a zero.
  */
-import { RESEARCH_COMPACT_VERSION, type Fact, type ResearchPacket } from "./types";
+import {
+  RESEARCH_COMPACT_VERSION,
+  type Fact,
+  type MarketSnapshot,
+  type ResearchPacket,
+} from "./types";
+
 
 type Json = string | number | boolean | null | Json[] | { [k: string]: Json };
 
@@ -41,6 +47,31 @@ function prune(obj: Record<string, Json>): Record<string, Json> {
     out[key] = value;
   }
   return out;
+}
+
+/**
+ * packet_market_snapshot/v1 — each market observation is emitted separately
+ * with its own provenance so a consumer always knows which one it is reading.
+ */
+function snapshot(s: MarketSnapshot): Record<string, Json> {
+  return prune({
+    snapshot: s.kind,
+    available: s.available,
+    price: s.price,
+    mc: round(s.marketCap, 0),
+    liq: round(s.liquidityUsd, 0),
+    v1h: round(s.volume1h, 0),
+    v24h: round(s.volume24h, 0),
+    t1h: s.trades1h,
+    t24h: s.trades24h,
+    buys24h: s.buys24h,
+    sells24h: s.sells24h,
+    chg1h: round(s.priceChange1hPct, 2),
+    chg24h: round(s.priceChange24hPct, 2),
+    src: s.source,
+    at: s.observedAt,
+    stale: s.stale,
+  });
 }
 
 /** Deterministic: identical packets always serialize to identical output. */
@@ -103,6 +134,7 @@ export function serializeCompact(packet: ResearchPacket): Record<string, Json> {
       damage_state: p.marketDamage.derivedState,
     }),
     mkt: prune({
+      snapshot: p.market.snapshotUsed,
       price: v(p.market.price),
       mc: round(v(p.market.marketCap) as number | null, 0),
       liq: round(v(p.market.liquidityUsd) as number | null, 0),
@@ -120,6 +152,10 @@ export function serializeCompact(packet: ResearchPacket): Record<string, Json> {
       at: p.market.observedAt,
       stale: p.market.stale,
     }),
+    mkt_policy: p.market.snapshotVersion ?? null,
+    mkt_scan: p.market.scanFrozen ? snapshot(p.market.scanFrozen) : null,
+    mkt_refresh: p.market.packetRefresh ? snapshot(p.market.packetRefresh) : null,
+
     universe: prune({
       status: p.universe.status,
       cat: p.universe.category,

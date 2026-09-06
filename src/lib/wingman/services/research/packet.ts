@@ -71,6 +71,8 @@ import {
   type ExclusionReason,
   type Fact,
   type LayerStatus,
+  type MarketSnapshot,
+  MARKET_SNAPSHOT_VERSION,
   type PacketHolders,
   type PacketMarket,
   type PacketOutcomes,
@@ -358,6 +360,16 @@ function buildHolders(input: PacketInput): { holders: PacketHolders; gaps: Evide
     holders.top10Pct.status !== "observed" &&
     holders.top20Pct.status !== "observed";
   if (noHolderEvidence) gaps.push("HOLDER_DATA_UNAVAILABLE");
+  // Partial holder coverage: some holder facts exist but the concentration
+  // metrics the distribution subdomain needs do not. This is MISSING evidence
+  // only — it never implies concentration or structural weakness and is never
+  // affirmative negative evidence.
+  else if (
+    holders.top10Pct.status !== "observed" &&
+    holders.top20Pct.status !== "observed"
+  ) {
+    gaps.push("HOLDER_CONCENTRATION_UNAVAILABLE");
+  }
   if (Object.keys(creator).length === 0) gaps.push("CREATOR_DATA_UNAVAILABLE");
 
   return { holders, gaps };
@@ -393,6 +405,45 @@ function buildMarket(input: PacketInput): { market: PacketMarket; gaps: Evidence
   if (!cur) gaps.push("CURRENT_MARKET_EVIDENCE_UNAVAILABLE");
   if (stale) gaps.push("CURRENT_MARKET_EVIDENCE_STALE");
 
+  // packet_market_snapshot/v1 — both observations are preserved distinctly with
+  // their own provenance; neither overwrites nor substitutes for the other.
+  const scanFrozen: MarketSnapshot = {
+    kind: "SCAN_FROZEN_MARKET",
+    available: true,
+    price: c.priceUsd,
+    marketCap: c.marketCap,
+    liquidityUsd: c.liquidityUsd,
+    volume1h: c.volume1h,
+    volume24h: c.volume24h,
+    trades1h: c.trades1h,
+    trades24h: c.trades24h,
+    buys24h: c.buys24h,
+    sells24h: c.sells24h,
+    priceChange1hPct: c.priceChange1h,
+    priceChange24hPct: c.priceChange24h,
+    source: "wingman_scan",
+    observedAt: input.scanCompletedAt,
+    stale: null,
+  };
+  const packetRefresh: MarketSnapshot = {
+    kind: "PACKET_REFRESH_MARKET",
+    available: Boolean(cur),
+    price: cur?.priceUsd ?? null,
+    marketCap: cur?.marketCap ?? null,
+    liquidityUsd: cur?.liquidityUsd ?? null,
+    volume1h: cur?.volume1h ?? null,
+    volume24h: cur?.volume24h ?? null,
+    trades1h: cur?.trades1h ?? null,
+    trades24h: cur?.trades24h ?? null,
+    buys24h: cur?.buys24h ?? null,
+    sells24h: cur?.sells24h ?? null,
+    priceChange1hPct: cur?.priceChange1h ?? null,
+    priceChange24hPct: cur?.priceChange24h ?? null,
+    source: cur?.source ?? null,
+    observedAt: cur?.observedAt ?? null,
+    stale: cur ? stale : null,
+  };
+
   const market: PacketMarket = {
     price: observed(pick(cur?.priceUsd, c.priceUsd), source, at),
     marketCap: observed(marketCap, source, at),
@@ -410,9 +461,16 @@ function buildMarket(input: PacketInput): { market: PacketMarket; gaps: Evidence
     source,
     observedAt: at,
     stale,
+    snapshotVersion: MARKET_SNAPSHOT_VERSION,
+    // The flattened view has always resolved to the refreshed observation when
+    // one exists. That choice is now explicit and versioned.
+    snapshotUsed: cur ? "PACKET_REFRESH_MARKET" : "SCAN_FROZEN_MARKET",
+    scanFrozen,
+    packetRefresh,
   };
   return { market, gaps };
 }
+
 
 function buildOutcomes(input: PacketInput): PacketOutcomes | null {
   const o = input.candidate.outcome;
