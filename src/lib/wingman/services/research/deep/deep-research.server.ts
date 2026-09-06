@@ -542,6 +542,12 @@ export async function runDeepResearch(
     failed: results.filter((r) => r.status === "failed").length,
     milestonesCreated: 0,
     skippedWithOutcome,
+    spendPolicyVersion: RESEARCH_SPEND_POLICY_VERSION,
+    deferredRecentResearch: spendDecisions.filter(
+      (d) => d.spendDecision === "DEFERRED_RECENT_RESEARCH",
+    ).length,
+    deferredBudget: spendDecisions.filter((d) => d.spendDecision === "DEFERRED_BUDGET").length,
+    spendDecisions,
     candidates: results,
   };
 }
