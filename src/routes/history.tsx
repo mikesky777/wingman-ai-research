@@ -257,7 +257,8 @@ function StageView({ stage }: { stage: FunnelStage }) {
         </span>
         <span className="text-muted-foreground">·</span>
         <span className="text-muted-foreground">
-          every {Math.round(LIVE_REFRESH_INTERVAL_MS / 1000)}s while this tab is visible
+          reads stored observations every {Math.round(LIVE_REFRESH_INTERVAL_MS / 1000)}s · collected
+          in the background every 5m
         </span>
         <span className="text-muted-foreground">·</span>
         <span className="tabular text-muted-foreground">
