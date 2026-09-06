@@ -639,8 +639,12 @@ export function buildGateFunnel(
   }
 
   const primaryMask =
-    Object.entries(maskCounts).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] ??
-    null;
+    Object.entries(maskCounts).sort(
+      (a, b) =>
+        b[1] - a[1] ||
+        OTHER_GATE_KEYS.indexOf(a[0] as OtherGateKey) -
+          OTHER_GATE_KEYS.indexOf(b[0] as OtherGateKey),
+    )[0]?.[0] ?? null;
 
   return {
     variantKey,
