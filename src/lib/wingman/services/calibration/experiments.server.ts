@@ -343,11 +343,13 @@ export async function runExperiment(experimentId: string): Promise<RunExperiment
   return {
     experimentId,
     status: "COMPLETE",
-    populationN: population.length,
-    uniqueMints: new Set(population.map((p) => p.input.mint)).size,
+    populationN: compatible.length,
+    incompatibleN: population.length - compatible.length,
+    uniqueMints: new Set(compatible.map((p) => p.input.mint)).size,
     variantsRun: variants.map((v) => v.key),
     persistedRows: rows.length,
   };
+
 }
 
 export async function loadExperimentResults(
