@@ -249,6 +249,18 @@ function ExperimentDetail({
   const diffs = buildDecisionDiffs(challengerRows, eventsByKey, horizon);
   const mintGroups = groupResultsByMint(controlRows);
 
+  const compatibility = detail.data?.compatibility ?? null;
+  const activeRule =
+    spec.challengerVariants.find((v) => v.key === variantKey)?.differsBy ?? "NONE";
+  const funnel = buildGateFunnel(controlRows, challengerRows, activeRule, variantKey);
+  const challengerEvaluation = evaluations.find((e) => e.variantKey === variantKey) ?? null;
+  const interpretation = interpretExperiment({
+    funnel,
+    compatibleEvents: compatibility?.compatibleEvents ?? controlRows.length,
+    measuredOutcomes: challengerEvaluation?.kpis.measuredN ?? 0,
+  });
+
+
   return (
     <div className="space-y-6">
       <Section
