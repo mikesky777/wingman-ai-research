@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as CalibrationRouteImport } from './routes/calibration'
 import { Route as HistoryRouteImport } from './routes/history'
 import { Route as ResearchRouteImport } from './routes/research'
 import { Route as ScannerRouteImport } from './routes/scanner'
@@ -25,6 +26,11 @@ import { Route as ApiPublicThesisV2CalibrationRouteImport } from './routes/api/p
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CalibrationRoute = CalibrationRouteImport.update({
+  id: '/calibration',
+  path: '/calibration',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HistoryRoute = HistoryRouteImport.update({
@@ -87,6 +93,7 @@ const ApiPublicThesisV2CalibrationRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/calibration': typeof CalibrationRoute
   '/history': typeof HistoryRoute
   '/research': typeof ResearchRoute
   '/scanner': typeof ScannerRoute
@@ -101,6 +108,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/calibration': typeof CalibrationRoute
   '/history': typeof HistoryRoute
   '/research': typeof ResearchRoute
   '/scanner': typeof ScannerRoute
@@ -115,6 +123,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/calibration': typeof CalibrationRoute
   '/history': typeof HistoryRoute
   '/research': typeof ResearchRoute
   '/scanner': typeof ScannerRoute
@@ -131,6 +140,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/calibration'
     | '/history'
     | '/research'
     | '/scanner'
@@ -145,6 +155,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/calibration'
     | '/history'
     | '/research'
     | '/scanner'
@@ -158,6 +169,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/calibration'
     | '/history'
     | '/research'
     | '/scanner'
@@ -173,6 +185,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  CalibrationRoute: typeof CalibrationRoute
   HistoryRoute: typeof HistoryRoute
   ResearchRoute: typeof ResearchRoute
   ScannerRoute: typeof ScannerRoute
@@ -191,6 +204,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/calibration': {
+      id: '/calibration'
+      path: '/calibration'
+      fullPath: '/calibration'
+      preLoaderRoute: typeof CalibrationRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/history': {
@@ -289,6 +309,7 @@ const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  CalibrationRoute: CalibrationRoute,
   HistoryRoute: HistoryRoute,
   ResearchRoute: ResearchRoute,
   ScannerRoute: ScannerRoute,

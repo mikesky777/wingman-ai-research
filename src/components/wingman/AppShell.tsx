@@ -20,8 +20,20 @@ const NAV = [
   { to: "/watchlist", label: "Watchlist", icon: Eye },
   { to: "/research", label: "Research", icon: FlaskConical },
   { to: "/history", label: "History", icon: History },
+  { to: "/calibration", label: "Calibration", icon: FlaskConical },
   { to: "/settings", label: "Settings", icon: Settings },
 ] as const;
+
+function isNavActive(to: string, pathname: string): boolean {
+  if (to === "/") return pathname === "/";
+  // Calibration is active for its primary route and the legacy redirect path.
+  if (to === "/calibration")
+    return pathname.startsWith("/calibration") || pathname.startsWith("/settings/calibration");
+  // Settings must not appear active for the legacy calibration route.
+  if (to === "/settings")
+    return pathname.startsWith("/settings") && !pathname.startsWith("/settings/calibration");
+  return pathname.startsWith(to);
+}
 
 /** First-class nav entry for official production THESIS_CALL records. */
 function LiveCallsNavBadge() {
@@ -71,7 +83,7 @@ export function AppShell({
 
         <nav className="flex flex-1 flex-col gap-0.5 px-3 py-2">
           {NAV.map(({ to, label, icon: Icon }) => {
-            const active = to === "/" ? pathname === "/" : pathname.startsWith(to);
+            const active = isNavActive(to, pathname);
             return (
               <Link
                 key={to}
@@ -117,7 +129,7 @@ export function AppShell({
           </div>
           <nav className="flex gap-1 overflow-x-auto border-t border-border px-3 py-2 md:hidden">
             {NAV.map(({ to, label }) => {
-              const active = to === "/" ? pathname === "/" : pathname.startsWith(to);
+              const active = isNavActive(to, pathname);
               return (
                 <Link
                   key={to}
