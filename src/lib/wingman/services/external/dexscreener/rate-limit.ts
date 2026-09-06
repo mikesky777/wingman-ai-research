@@ -10,7 +10,8 @@
  */
 
 /** Minimum spacing between two provider requests (conservative ceiling). */
-export const DEX_MIN_REQUEST_INTERVAL_MS = 1_200;
+export const DEX_MIN_REQUEST_INTERVAL_MS =
+  process.env["NODE_ENV"] === "test" ? 0 : 1_200;
 
 /** Never more than one in-flight DexScreener request. */
 export const DEX_MAX_CONCURRENCY = 1;
