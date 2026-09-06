@@ -19,7 +19,9 @@ import {
   EXPERIMENT_INPUT_CONTRACT,
   EXPERIMENT_VERSION,
   buildFrozenDecisionInput,
+  changedGateForRule,
   classifyExperimentCompatibility,
+  classifyScoreTreatment,
   evaluateControl,
   evaluateVariant,
   isWithinShadowWindow,
@@ -297,6 +299,10 @@ export async function runExperiment(experimentId: string): Promise<RunExperiment
     failed_gates: string[];
     frozen_input: JsonRecord;
     input_contract_version: string;
+    treatment_exposure: string | null;
+    masked_by_other_gates: boolean | null;
+    masking_gate_list: string[];
+    final_decision_difference: boolean;
   }
   const rows: ResultInsert[] = [];
   // Incompatible frozen artifacts are counted, never evaluated: current
@@ -312,6 +318,20 @@ export async function runExperiment(experimentId: string): Promise<RunExperiment
           ? control
           : evaluateVariant({ key: variant.key, label: variant.key, differsBy: variant.rule,
               description: "" }, entry.input);
+
+      // Treatment exposure — did the single declared rule actually change its
+      // own gate verdict, and was the event blocked anyway by another gate?
+      const changedGate = changedGateForRule(variant.rule);
+      const ruleDiffers =
+        changedGate !== null &&
+        control.failedGates.includes(changedGate) !== result.failedGates.includes(changedGate);
+      const otherFailures = changedGate
+        ? result.failedGates.filter((g) => g !== changedGate)
+        : result.failedGates;
+      const differs =
+        variant.key !== "CONTROL" &&
+        (result.decision === "SHADOW_CALL") !== (productionDecision === "CALL");
+
       rows.push({
         experiment_id: experimentId,
         variant_key: variant.key,
@@ -322,16 +342,26 @@ export async function runExperiment(experimentId: string): Promise<RunExperiment
         decision_at: entry.input.decisionAt,
         production_decision: productionDecision,
         challenger_decision: result.decision,
-        differs:
-          variant.key !== "CONTROL" &&
-          (result.decision === "SHADOW_CALL") !== (productionDecision === "CALL"),
+        differs,
         differing_rule: variant.key === "CONTROL" ? null : variant.rule,
         failed_gates: result.failedGates,
         frozen_input: entry.input as unknown as JsonRecord,
         input_contract_version: EXPERIMENT_INPUT_CONTRACT,
+        treatment_exposure:
+          variant.key === "CONTROL"
+            ? null
+            : variant.rule === "THESIS_SCORE_MIN_65"
+              ? classifyScoreTreatment(entry.input)
+              : ruleDiffers
+                ? "RULE_DIFFERENCE"
+                : "NO_RULE_DIFFERENCE",
+        masked_by_other_gates: variant.key === "CONTROL" ? null : ruleDiffers && otherFailures.length > 0,
+        masking_gate_list: ruleDiffers ? otherFailures : [],
+        final_decision_difference: differs,
       });
     }
   }
+
 
   for (const batch of chunk(rows, 200)) {
     await supabaseAdmin
@@ -402,6 +432,13 @@ export async function loadExperimentResults(
     failedGates: (row["failed_gates"] as string[] | null) ?? [],
     frozenInput: obj(row["frozen_input"]) as unknown as ExperimentFrozenInput,
     inputContractVersion: str(row, "input_contract_version") ?? EXPERIMENT_INPUT_CONTRACT,
+    treatmentExposure: str(row, "treatment_exposure"),
+    maskedByOtherGates:
+      typeof row["masked_by_other_gates"] === "boolean"
+        ? (row["masked_by_other_gates"] as boolean)
+        : null,
+    maskingGateList: (row["masking_gate_list"] as string[] | null) ?? [],
+    finalDecisionDifference: Boolean(row["final_decision_difference"] ?? row["differs"]),
     decidedAt: str(row, "decided_at"),
   }));
 }

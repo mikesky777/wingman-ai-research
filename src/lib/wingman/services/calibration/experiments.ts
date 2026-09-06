@@ -167,12 +167,32 @@ export function buildFrozenDecisionInput(
 export type ChallengerRule =
   | "NONE"
   | "INDEPENDENT_ORIGIN_GATE_REMOVED"
-  | "INDEPENDENT_ORIGIN_GATE_HYBRID";
+  | "INDEPENDENT_ORIGIN_GATE_HYBRID"
+  | "THESIS_SCORE_MIN_65";
 
 export type ProductionDecision = "CALL" | "NO_CALL" | "NOT_EVALUABLE";
 export type ChallengerDecision = "SHADOW_CALL" | "NO_SHADOW_CALL" | "NOT_EVALUABLE";
 
 export const HYBRID_MIN_EVIDENCE_CONFIDENCE = 60;
+
+/**
+ * Phase 2C.1 — the ONLY alternative Thesis Score threshold under test.
+ * No sweeps, no additional thresholds. 65 vs production 70.
+ */
+export const CHALLENGER_THESIS_SCORE_MIN = 65;
+
+/** The single production gate a challenger rule is allowed to alter. */
+export function changedGateForRule(rule: ChallengerRule): string | null {
+  if (rule === "THESIS_SCORE_MIN_65") return "THESIS_SCORE";
+  if (
+    rule === "INDEPENDENT_ORIGIN_GATE_REMOVED" ||
+    rule === "INDEPENDENT_ORIGIN_GATE_HYBRID"
+  ) {
+    return "INDEPENDENT_ORIGINS";
+  }
+  return null;
+}
+
 
 const SEVERITY_ORDER: Record<BearSeverity, number> = {
   LOW: 0,
@@ -259,7 +279,14 @@ export function evaluateChallenger(
   input: ExperimentFrozenInput,
   policy: OpportunityPolicy = OPPORTUNITY_POLICY,
 ): VariantDecisionResult {
-  const failed = sharedGateFailures(input, policy);
+  // Only the single declared rule may differ. For the score-gate challenger
+  // that is exactly one number; every other gate keeps production semantics.
+  const effectivePolicy: OpportunityPolicy =
+    rule === "THESIS_SCORE_MIN_65"
+      ? { ...policy, minThesisScore: CHALLENGER_THESIS_SCORE_MIN }
+      : policy;
+
+  const failed = sharedGateFailures(input, effectivePolicy);
   const gate = evaluateIndependentOriginGate(input, policy);
   let independence: "PASS" | "FAIL" | "NOT_EVALUABLE" = gate.status;
 
@@ -283,6 +310,7 @@ export function evaluateChallenger(
   }
 
   if (independence !== "PASS") failed.push("INDEPENDENT_ORIGINS");
+
 
   const decision: ChallengerDecision =
     failed.length === 0
@@ -333,6 +361,11 @@ export interface ExperimentResultRow {
   frozenInput: ExperimentFrozenInput;
   inputContractVersion: string;
   decidedAt: string | null;
+  /** Phase 2C.1 — persisted treatment-exposure diagnostics (calibration only). */
+  treatmentExposure?: string | null;
+  maskedByOtherGates?: boolean | null;
+  maskingGateList?: string[];
+  finalDecisionDifference?: boolean;
 }
 
 /* ------------------------------------------------------------------ *
@@ -558,8 +591,69 @@ export function classifyExperimentCompatibility(
       };
     }
   }
+  // The score-gate challenger only differs on one number, but its shadow
+  // decision still replays EVERY production gate — so every gate input must be
+  // frozen in the artifact. Missing semantics are excluded, never reconstructed.
+  if (rules.includes("THESIS_SCORE_MIN_65")) {
+    if (typeof input.thesisScore !== "number" || !Number.isFinite(input.thesisScore)) {
+      return {
+        status: "NOT_EVALUABLE_FOR_EXPERIMENT_VERSION",
+        reason: "MISSING_FROZEN_THESIS_SCORE",
+      };
+    }
+    if (
+      typeof input.evidenceConfidence !== "number" ||
+      !Number.isFinite(input.evidenceConfidence)
+    ) {
+      return {
+        status: "NOT_EVALUABLE_FOR_EXPERIMENT_VERSION",
+        reason: "MISSING_FROZEN_EVIDENCE_CONFIDENCE",
+      };
+    }
+    if (!input.verdict) {
+      return {
+        status: "NOT_EVALUABLE_FOR_EXPERIMENT_VERSION",
+        reason: "MISSING_FROZEN_VERDICT",
+      };
+    }
+    if (!input.bearSeverity) {
+      return {
+        status: "NOT_EVALUABLE_FOR_EXPERIMENT_VERSION",
+        reason: "MISSING_FROZEN_BEAR_SEVERITY",
+      };
+    }
+    const origins = input.distinctIndependentEvidenceOrigins;
+    if (typeof origins !== "number" || !Number.isFinite(origins)) {
+      return {
+        status: "NOT_EVALUABLE_FOR_EXPERIMENT_VERSION",
+        reason: "MISSING_FROZEN_DISTINCT_INDEPENDENT_EVIDENCE_ORIGINS",
+      };
+    }
+  }
   return { status: "COMPATIBLE", reason: null };
 }
+
+/* ------------------------------------------------------------------ *
+ * Phase 2C.1 — Thesis Score treatment exposure
+ * ------------------------------------------------------------------ */
+
+export type ScoreTreatmentExposure = "NO_SCORE_RULE_DIFFERENCE" | "SCORE_TREATMENT_CANDIDATE";
+
+/**
+ * A frozen decision is a score-gate treatment candidate only when its score
+ * sits strictly inside the 65–69 band that the challenger changes.
+ */
+export function classifyScoreTreatment(
+  input: ExperimentFrozenInput,
+  policy: OpportunityPolicy = OPPORTUNITY_POLICY,
+): ScoreTreatmentExposure {
+  const score = input.thesisScore;
+  if (typeof score !== "number" || !Number.isFinite(score)) return "NO_SCORE_RULE_DIFFERENCE";
+  return score >= CHALLENGER_THESIS_SCORE_MIN && score < policy.minThesisScore
+    ? "SCORE_TREATMENT_CANDIDATE"
+    : "NO_SCORE_RULE_DIFFERENCE";
+}
+
 
 /* ------------------------------------------------------------------ *
  * Phase 2B.1 — gate masking decomposition + informativeness
@@ -610,6 +704,9 @@ export function buildGateFunnel(
   variantKey: VariantKey,
 ): GateFunnel {
   const controlByKey = new Map(controlRows.map((r) => [r.eventKey, r]));
+  // The gate this challenger is allowed to change. Everything else is a mask.
+  const changedGate = changedGateForRule(rule) ?? "INDEPENDENT_ORIGINS";
+  const otherKeys = OTHER_GATE_KEYS.filter((k) => k !== changedGate);
   const passCounts = Object.fromEntries(OTHER_GATE_KEYS.map((k) => [k, 0])) as Record<
     OtherGateKey,
     number
@@ -623,13 +720,13 @@ export function buildGateFunnel(
   for (const row of challengerRows) {
     const control = controlByKey.get(row.eventKey);
     if (!control) continue;
-    const controlBlocked = control.failedGates.includes("INDEPENDENT_ORIGINS");
-    const challengerBlocked = row.failedGates.includes("INDEPENDENT_ORIGINS");
+    const controlBlocked = control.failedGates.includes(changedGate);
+    const challengerBlocked = row.failedGates.includes(changedGate);
     if (controlBlocked === challengerBlocked) continue;
     changed += 1;
 
-    const others = row.failedGates.filter((g) => g !== "INDEPENDENT_ORIGINS");
-    for (const key of OTHER_GATE_KEYS) if (!others.includes(key)) passCounts[key] += 1;
+    const others = row.failedGates.filter((g) => g !== changedGate);
+    for (const key of otherKeys) if (!others.includes(key)) passCounts[key] += 1;
     if (others.length === 0) {
       exposure += 1;
     } else {
@@ -637,6 +734,7 @@ export function buildGateFunnel(
       for (const g of others) maskCounts[g] = (maskCounts[g] ?? 0) + 1;
     }
   }
+
 
   const primaryMask =
     Object.entries(maskCounts).sort(
