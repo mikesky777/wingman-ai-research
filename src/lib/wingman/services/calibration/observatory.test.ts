@@ -66,6 +66,12 @@ describe("observatory horizon measurement", () => {
     expect(m.peakPct).toBeCloseTo(50);
     expect(m.maxDrawdownPct).toBeCloseTo(-20);
     expect(m.timeToPeakMinutes).toBe(10);
+    expect(m.liquiditySurvived).toBe(true);
+  });
+
+  it("marks liquidity survival false when depth collapses against the baseline", () => {
+    const m = measureHorizon(baseline, [obs(50, 900_000, 1_000)], HOUR, at(600));
+    expect(m.status).toBe("MEASURED");
     expect(m.liquiditySurvived).toBe(false);
   });
 
