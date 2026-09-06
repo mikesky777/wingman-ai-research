@@ -167,12 +167,32 @@ export function buildFrozenDecisionInput(
 export type ChallengerRule =
   | "NONE"
   | "INDEPENDENT_ORIGIN_GATE_REMOVED"
-  | "INDEPENDENT_ORIGIN_GATE_HYBRID";
+  | "INDEPENDENT_ORIGIN_GATE_HYBRID"
+  | "THESIS_SCORE_MIN_65";
 
 export type ProductionDecision = "CALL" | "NO_CALL" | "NOT_EVALUABLE";
 export type ChallengerDecision = "SHADOW_CALL" | "NO_SHADOW_CALL" | "NOT_EVALUABLE";
 
 export const HYBRID_MIN_EVIDENCE_CONFIDENCE = 60;
+
+/**
+ * Phase 2C.1 — the ONLY alternative Thesis Score threshold under test.
+ * No sweeps, no additional thresholds. 65 vs production 70.
+ */
+export const CHALLENGER_THESIS_SCORE_MIN = 65;
+
+/** The single production gate a challenger rule is allowed to alter. */
+export function changedGateForRule(rule: ChallengerRule): string | null {
+  if (rule === "THESIS_SCORE_MIN_65") return "THESIS_SCORE";
+  if (
+    rule === "INDEPENDENT_ORIGIN_GATE_REMOVED" ||
+    rule === "INDEPENDENT_ORIGIN_GATE_HYBRID"
+  ) {
+    return "INDEPENDENT_ORIGINS";
+  }
+  return null;
+}
+
 
 const SEVERITY_ORDER: Record<BearSeverity, number> = {
   LOW: 0,
