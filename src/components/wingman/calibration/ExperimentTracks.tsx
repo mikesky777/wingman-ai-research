@@ -192,6 +192,20 @@ function ExperimentDetail({
     },
   });
 
+  const shadowMutation = useMutation({
+    mutationFn: () => activateShadow({ data: { experimentId } }),
+    onSuccess: (r) => {
+      toast.success(
+        r.created
+          ? `Prospective shadow activated ${formatDate(r.shadowStartAt)} — no backfill`
+          : "Prospective shadow already active",
+      );
+      void queryClient.invalidateQueries({ queryKey: ["calibration-experiments"] });
+    },
+    onError: (e: unknown) => toast.error("Activation failed", { description: String(e) }),
+  });
+
+
   const spec = detail.data?.spec ?? null;
   const results = useMemo(
     () => (detail.data?.results ?? []) as ExperimentResultRow[],
