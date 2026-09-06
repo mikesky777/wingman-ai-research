@@ -41,6 +41,7 @@ export type ExclusionReason =
 /** Machine-readable evidence gaps. Never a judgement. */
 export type EvidenceGap =
   | "HOLDER_DATA_UNAVAILABLE"
+  | "HOLDER_CONCENTRATION_UNAVAILABLE"
   | "CREATOR_DATA_UNAVAILABLE"
   | "PRICE_INTEGRITY_NOT_EVALUATED"
   | "PARTICIPATION_NOT_EVALUATED"
@@ -52,6 +53,7 @@ export type EvidenceGap =
   | "OUTCOMES_UNAVAILABLE"
   | "CURRENT_OUTCOME_MARKET_INVALID"
   | "CURRENT_OUTCOME_MARKET_UNKNOWN";
+
 
 /** Evaluated-layer status. NOT_EVALUATED is distinct from UNKNOWN by design. */
 export type LayerStatus =
