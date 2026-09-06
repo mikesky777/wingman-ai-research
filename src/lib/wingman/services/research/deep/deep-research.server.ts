@@ -346,6 +346,48 @@ export async function runDeepResearch(
   const byMint = new Map(candidates.filter((c) => c.contractAddress).map((c) => [c.contractAddress as string, c]));
   const markets = await loadCurrentMarkets(candidates.map((c) => c.tokenId));
 
+  // research_spend_policy/v1 — operational spend control between AI Triage and
+  // Deep Research. Deferral is NEVER a Triage decision and NEVER negative
+  // evidence; the Triage decision, packet and recurrence data are untouched.
+  const spendDecisions: SpendDecisionRecord[] = [];
+  const spendClaimByMint = new Map<string, SpendClaim>();
+  if (!isCalibration && options.spendControl !== false) {
+    const packetFacts = await loadCohortPacketFacts(
+      triageRun.sourceScanId,
+      shortlist.map((c) => c.mint),
+    );
+    const claims = await claimSpendDecisions({
+      triageRunId: triageRun.id,
+      scanRunId: triageRun.sourceScanId,
+      ...(options.spendConfig ? { config: options.spendConfig } : {}),
+      ...(options.now ? { now: options.now } : {}),
+      candidates: shortlist.map((c) => {
+        const sc = byMint.get(c.mint) ?? null;
+        return {
+          mint: c.mint,
+          tokenId: c.tokenId,
+          triageDecisionId: c.decisionId,
+          researchPacketId: c.researchPacketId,
+          triageRank: c.triageRank,
+          quantRank: sc?.globalRank ?? null,
+          recurrenceState: sc?.recurrenceState ?? null,
+          recurrenceNumber: sc?.scansSeenCount ?? null,
+          packetFacts: packetFacts.get(c.mint) ?? null,
+        };
+      }),
+    });
+    for (const claim of claims) {
+      spendDecisions.push(claim.record);
+      spendClaimByMint.set(claim.record.mint, claim);
+    }
+    const granted = new Set(
+      claims
+        .filter((c) => c.claimed && c.record.spendDecision === "RUN_DEEP_RESEARCH")
+        .map((c) => c.record.mint),
+    );
+    shortlist = shortlist.filter((c) => granted.has(c.mint));
+  }
+
   const results: DeepResearchCandidateResult[] = [];
 
   for (const candidate of shortlist) {
