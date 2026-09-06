@@ -366,7 +366,7 @@ export function Observatory() {
                               symbol={e.symbol}
                               name={e.name}
                               mint={e.mint}
-                              compact
+                              pairAddress={null}
                             />
                           </td>
                           <td className="py-2 pr-3 text-muted-foreground">
