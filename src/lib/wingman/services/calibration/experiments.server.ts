@@ -255,7 +255,11 @@ export async function auditExperimentCompatibility(
 export interface RunExperimentResult {
   experimentId: string;
   status: ExperimentSpec["status"];
+  /** Compatible frozen events only — the experiment denominator. */
   populationN: number;
+  /** Excluded as NOT_EVALUABLE_FOR_EXPERIMENT_VERSION, reported not hidden. */
+  incompatibleN: number;
+
   uniqueMints: number;
   variantsRun: VariantKey[];
   persistedRows: number;
