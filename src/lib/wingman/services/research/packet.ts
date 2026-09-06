@@ -71,6 +71,8 @@ import {
   type ExclusionReason,
   type Fact,
   type LayerStatus,
+  type MarketSnapshot,
+  MARKET_SNAPSHOT_VERSION,
   type PacketHolders,
   type PacketMarket,
   type PacketOutcomes,
