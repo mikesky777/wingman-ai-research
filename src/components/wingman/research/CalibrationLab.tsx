@@ -17,6 +17,7 @@ import { TriagePanel } from "@/components/wingman/research/TriagePanel";
 import { DeepResearchPanel } from "@/components/wingman/research/DeepResearchPanel";
 import { ThesisPanel } from "@/components/wingman/research/ThesisPanel";
 import { EntryPanel } from "@/components/wingman/research/EntryPanel";
+import { Observatory } from "@/components/wingman/calibration/Observatory";
 import {
   preflightThesisBenchmarkModels,
   runThesisModelBenchmarkFn,
@@ -81,6 +82,8 @@ export function CalibrationLab() {
           {status ? <span className="text-xs text-muted-foreground">{status}</span> : null}
         </div>
       </Section>
+
+      <Observatory />
 
       <TriagePanel calibration />
       <DeepResearchPanel />
