@@ -1743,6 +1743,12 @@ export type Database = {
           spend_decision: string
           spend_decision_reason: string
           token_id: string | null
+          tradability_checked_at: string | null
+          tradability_liquidity_usd: number | null
+          tradability_market_source: string | null
+          tradability_pair_address: string | null
+          tradability_reason_code: string | null
+          tradability_result: string | null
           triage_decision_id: string | null
           triage_rank: number | null
           triage_run_id: string
@@ -1785,6 +1791,12 @@ export type Database = {
           spend_decision: string
           spend_decision_reason: string
           token_id?: string | null
+          tradability_checked_at?: string | null
+          tradability_liquidity_usd?: number | null
+          tradability_market_source?: string | null
+          tradability_pair_address?: string | null
+          tradability_reason_code?: string | null
+          tradability_result?: string | null
           triage_decision_id?: string | null
           triage_rank?: number | null
           triage_run_id: string
@@ -1827,6 +1839,12 @@ export type Database = {
           spend_decision?: string
           spend_decision_reason?: string
           token_id?: string | null
+          tradability_checked_at?: string | null
+          tradability_liquidity_usd?: number | null
+          tradability_market_source?: string | null
+          tradability_pair_address?: string | null
+          tradability_reason_code?: string | null
+          tradability_result?: string | null
           triage_decision_id?: string | null
           triage_rank?: number | null
           triage_run_id?: string
@@ -1890,6 +1908,90 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      research_tradability_checks: {
+        Row: {
+          chain: string
+          checked_at: string
+          created_at: string
+          deep_research_executed: boolean
+          deep_research_run_id: string | null
+          detail: string | null
+          dex_id: string | null
+          id: string
+          is_calibration: boolean
+          liquidity_usd: number | null
+          market_source: string
+          min_liquidity_usd: number
+          mint: string
+          policy_version: string
+          provider_error_code: string | null
+          reason_code: string
+          research_spend_decision_id: string | null
+          resolved_pair_address: string | null
+          result: string
+          scan_run_id: string | null
+          spend_decision: string | null
+          token_id: string | null
+          triage_decision: string | null
+          triage_decision_id: string | null
+          triage_run_id: string | null
+        }
+        Insert: {
+          chain?: string
+          checked_at?: string
+          created_at?: string
+          deep_research_executed?: boolean
+          deep_research_run_id?: string | null
+          detail?: string | null
+          dex_id?: string | null
+          id?: string
+          is_calibration?: boolean
+          liquidity_usd?: number | null
+          market_source: string
+          min_liquidity_usd: number
+          mint: string
+          policy_version: string
+          provider_error_code?: string | null
+          reason_code: string
+          research_spend_decision_id?: string | null
+          resolved_pair_address?: string | null
+          result: string
+          scan_run_id?: string | null
+          spend_decision?: string | null
+          token_id?: string | null
+          triage_decision?: string | null
+          triage_decision_id?: string | null
+          triage_run_id?: string | null
+        }
+        Update: {
+          chain?: string
+          checked_at?: string
+          created_at?: string
+          deep_research_executed?: boolean
+          deep_research_run_id?: string | null
+          detail?: string | null
+          dex_id?: string | null
+          id?: string
+          is_calibration?: boolean
+          liquidity_usd?: number | null
+          market_source?: string
+          min_liquidity_usd?: number
+          mint?: string
+          policy_version?: string
+          provider_error_code?: string | null
+          reason_code?: string
+          research_spend_decision_id?: string | null
+          resolved_pair_address?: string | null
+          result?: string
+          scan_run_id?: string | null
+          spend_decision?: string | null
+          token_id?: string | null
+          triage_decision?: string | null
+          triage_decision_id?: string | null
+          triage_run_id?: string | null
+        }
+        Relationships: []
       }
       scan_candidates: {
         Row: {

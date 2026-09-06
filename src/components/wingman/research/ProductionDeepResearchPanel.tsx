@@ -35,6 +35,8 @@ const statusTone: Record<DeepResearchUiStatus, string> = {
   DEFERRED_BUDGET: "border-border-strong bg-surface text-muted-foreground",
   NOT_STARTED: "border-border bg-surface text-muted-foreground",
   BLOCKED: "border-negative/40 bg-negative/10 text-negative",
+  // Operational, not a thesis failure — deliberately neutral styling.
+  BLOCKED_TRADABILITY: "border-border-strong bg-surface text-muted-foreground",
   FAILED: "border-negative/40 bg-negative/10 text-negative",
 };
 
@@ -49,6 +51,7 @@ const STATUS_LABEL: Record<DeepResearchUiStatus, string> = {
   DEFERRED_RECENT_RESEARCH: "DEFERRED · RECENTLY RESEARCHED",
   DEFERRED_BUDGET: "DEFERRED · BUDGET",
   BLOCKED: "BLOCKED",
+  BLOCKED_TRADABILITY: "BLOCKED · TRADABILITY",
   FAILED: "FAILED",
 };
 
@@ -360,6 +363,19 @@ export function ProductionDeepResearchPanel() {
                     ) : null}
                   </div>
                 </div>
+                {c.status === "BLOCKED_TRADABILITY" ? (
+                  <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+                    DEEP_RESEARCH selected ·{" "}
+                    {c.blockedStatement ??
+                      (c.blockedReasonCode === "CURRENT_LIQUIDITY_BELOW_MINIMUM"
+                        ? "Current liquidity fell below the $3,000 operational minimum after Triage."
+                        : "Current tradability could not be verified; research spend withheld.")}
+                    {typeof c.tradabilityLiquidityUsd === "number"
+                      ? ` · current liquidity $${Math.round(c.tradabilityLiquidityUsd).toLocaleString()}`
+                      : ""}
+                    {c.tradabilityCheckedAt ? ` · checked ${relativeTime(c.tradabilityCheckedAt)}` : ""}
+                  </p>
+                ) : null}
                 {c.spend && c.status.startsWith("DEFERRED") ? (
                   <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
                     {c.status === "DEFERRED_BUDGET"

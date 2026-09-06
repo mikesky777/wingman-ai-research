@@ -68,6 +68,11 @@ import {
   type SpendClaim,
 } from "../spend/spend.server";
 import {
+  checkCurrentTradability,
+  markTradabilityExecuted,
+} from "../tradability/tradability.server";
+import { tradabilityStatement, type CurrentMarketObservation } from "../tradability/tradability";
+import {
   RESEARCH_SPEND_POLICY_VERSION,
   type ResearchSpendConfig,
   type SpendDecisionRecord,
@@ -201,6 +206,10 @@ export interface RunDeepResearchOptions {
    */
   spendControl?: boolean;
   spendConfig?: ResearchSpendConfig;
+  /** Disables the pre-research tradability gate (tests/calibration only). */
+  tradabilityGate?: boolean;
+  /** Injectable fresh market observation for deterministic tests. */
+  observeCurrentMarket?: (mint: string) => Promise<CurrentMarketObservation>;
   /** Injected clock for deterministic tests. */
   now?: Date;
 
@@ -455,6 +464,64 @@ export async function runDeepResearch(
       continue;
     }
 
+    // pre_deep_research_tradability/v1 — fresh exact-mint current market check
+    // performed as close as practical to paid provider execution, and only for
+    // candidates that were actually granted spend. A frozen Triage decision is
+    // never rewritten; this only withholds spend right now.
+    let tradabilityCheckId: string | null = null;
+    if (!isCalibration && options.tradabilityGate !== false) {
+      const spendClaim = spendClaimByMint.get(candidate.mint) ?? null;
+      const check = await checkCurrentTradability({
+        mint: candidate.mint,
+        chain: candidate.chain,
+        tokenId: candidate.tokenId,
+        scanRunId: triageRun.sourceScanId,
+        triageRunId: triageRun.id,
+        triageDecisionId: candidate.decisionId,
+        triageDecision: "DEEP_RESEARCH",
+        spendDecisionId: spendClaim?.id ?? null,
+        spendDecision: spendClaim?.record.spendDecision ?? null,
+        ...(options.observeCurrentMarket ? { observe: options.observeCurrentMarket } : {}),
+      });
+      tradabilityCheckId = check.id;
+      if (check.assessment.result !== "TRADABLE") {
+        const operational = {
+          researchEligibleNow: false,
+          exclusionReasons: [check.assessment.reasonCode],
+        };
+        const runId = await insertRun({
+          candidate,
+          provider,
+          isCalibration,
+          status: "blocked",
+          budget,
+          eligibility,
+          shortlistMilestoneId: await findShortlistMilestone(candidate.tokenId),
+        });
+        await finishRun(runId, {
+          status: "blocked",
+          stopReason: null,
+          error: null,
+          counts: { queries: 0, fetches: 0, passes: 0 },
+          durationMs: 0,
+          eligibilityAfter: operational,
+          diagnostics: {
+            reason: "OPERATIONAL_TRADABILITY",
+            policyVersion: check.policyVersion,
+            reasonCode: check.assessment.reasonCode,
+            statement: tradabilityStatement(check.assessment.reasonCode),
+            liquidityUsd: check.assessment.liquidityUsd,
+            minLiquidityUsd: check.assessment.minLiquidityUsd,
+            pairAddress: check.observation.pairAddress,
+            marketSource: check.observation.source,
+            checkedAt: check.observation.observedAt,
+          },
+        });
+        results.push(blockedResult(candidate, runId, [check.assessment.reasonCode]));
+        continue;
+      }
+    }
+
     try {
       const result = await researchCandidate({
         candidate,
@@ -465,6 +532,7 @@ export async function runDeepResearch(
         isCalibration,
         eligibility,
       });
+
       // Eligibility is rechecked AFTER research against fresh market state.
       // A token that collapses mid-research keeps its report and its
       // AI_SHORTLIST milestone, but is flagged so nothing downstream (e.g.
@@ -488,6 +556,7 @@ export async function runDeepResearch(
         spendClaimByMint.get(candidate.mint)?.id ?? null,
         result.deepResearchRunId,
       );
+      await markTradabilityExecuted(tradabilityCheckId, result.deepResearchRunId);
 
     } catch (error) {
       // Failure isolation: one bad candidate never aborts the batch. A run row
