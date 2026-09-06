@@ -68,6 +68,11 @@ import {
   type SpendClaim,
 } from "../spend/spend.server";
 import {
+  checkCurrentTradability,
+  markTradabilityExecuted,
+} from "../tradability/tradability.server";
+import { tradabilityStatement, type CurrentMarketObservation } from "../tradability/tradability";
+import {
   RESEARCH_SPEND_POLICY_VERSION,
   type ResearchSpendConfig,
   type SpendDecisionRecord,
@@ -201,6 +206,10 @@ export interface RunDeepResearchOptions {
    */
   spendControl?: boolean;
   spendConfig?: ResearchSpendConfig;
+  /** Disables the pre-research tradability gate (tests/calibration only). */
+  tradabilityGate?: boolean;
+  /** Injectable fresh market observation for deterministic tests. */
+  observeCurrentMarket?: (mint: string) => Promise<CurrentMarketObservation>;
   /** Injected clock for deterministic tests. */
   now?: Date;
 
@@ -547,6 +556,7 @@ export async function runDeepResearch(
         spendClaimByMint.get(candidate.mint)?.id ?? null,
         result.deepResearchRunId,
       );
+      await markTradabilityExecuted(tradabilityCheckId, result.deepResearchRunId);
 
     } catch (error) {
       // Failure isolation: one bad candidate never aborts the batch. A run row
