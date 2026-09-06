@@ -11,7 +11,11 @@ import { describe, expect, it } from "vitest";
 const ROOT = "src/lib/wingman/services";
 
 const DECISION_DIRS = ["scanner", "research", "entry", "sizing", "evidence"];
-const FORBIDDEN = ["outcomes/sampler", "outcomes/observation-read", "outcome-persistence"];
+/**
+ * Reading collected observations is forbidden everywhere in the decision path.
+ * `refreshOutcomes` is a write-only, post-decision call and stays allowed.
+ */
+const FORBIDDEN = ["outcomes/sampler", "outcomes/observation-read", "readPersistedMarkets"];
 
 function walk(dir: string): string[] {
   const out: string[] = [];
