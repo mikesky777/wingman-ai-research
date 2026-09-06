@@ -193,14 +193,60 @@ export async function loadFrozenThesisPopulation(
       opportunityGateVersion: OPPORTUNITY_GATE_VERSION,
     });
 
+    const rules = spec.challengerVariants.map((v) => v.differsBy);
+    const compat = classifyExperimentCompatibility(input, rules);
+
     out.push({
       eventKey: `THESIS_SYNTHESIZED:${a.reportId}`,
       input,
       productionQualifiedAsOpportunity: Boolean(row["qualified_as_opportunity"]),
+      compatibility: compat.status,
+      incompatibleReason: compat.reason,
     });
   }
   return out;
 }
+
+/* ------------------------------------------------------------------ *
+ * Historical semantics compatibility audit
+ * ------------------------------------------------------------------ */
+
+export interface CompatibilityAudit {
+  totalFrozenEvents: number;
+  compatibleEvents: number;
+  incompatibleEvents: number;
+  /** Reason code -> count. Excluded from the denominator, never hidden. */
+  incompatibleReasons: Record<string, number>;
+  compatiblePolicyVersions: string[];
+}
+
+export async function auditExperimentCompatibility(
+  experimentId: string,
+): Promise<CompatibilityAudit> {
+  const spec = await getExperiment(experimentId);
+  if (!spec) throw new Error("EXPERIMENT_NOT_FOUND");
+  const population = await loadFrozenThesisPopulation(spec);
+  const reasons: Record<string, number> = {};
+  const versions = new Set<string>();
+  let compatible = 0;
+  for (const entry of population) {
+    if (entry.compatibility === "COMPATIBLE") {
+      compatible += 1;
+      if (entry.input.thesisPolicyVersion) versions.add(entry.input.thesisPolicyVersion);
+    } else {
+      const key = entry.incompatibleReason ?? "NOT_EVALUABLE_FOR_EXPERIMENT_VERSION";
+      reasons[key] = (reasons[key] ?? 0) + 1;
+    }
+  }
+  return {
+    totalFrozenEvents: population.length,
+    compatibleEvents: compatible,
+    incompatibleEvents: population.length - compatible,
+    incompatibleReasons: reasons,
+    compatiblePolicyVersions: [...versions].sort(),
+  };
+}
+
 
 /* ------------------------------------------------------------------ *
  * Run — decisions only, no outcomes in scope
