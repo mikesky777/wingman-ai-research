@@ -32,6 +32,85 @@ export interface StartRunInput {
   discoveryConfigVersion: string;
   /** Exact strategy this run evaluates with — snapshotted, never referenced. */
   strategy: StrategySettings;
+  /**
+   * Full Cycle only. Associates this run with exactly one orchestrated cycle;
+   * a partial unique index allows at most one scan per cycle. Manual scans
+   * leave it null and are entirely unaffected.
+   */
+  productionCycleRunId?: string | null;
+  /** Backend execution owner, used for scan-level liveness. */
+  executionOwner?: string | null;
+}
+
+/** Scanner execution is considered dead after this long without a heartbeat. */
+export const SCAN_EXECUTION_STALE_MS = 90 * 1000;
+
+export interface ScanExecutionState {
+  id: string;
+  status: string;
+  errorMessage: string | null;
+  executionOwner: string | null;
+  executionHeartbeatAt: string | null;
+}
+
+/** Reads the exact scan pinned to a cycle, without mutating anything. */
+export async function getCycleScanExecution(
+  productionCycleRunId: string,
+): Promise<ScanExecutionState | null> {
+  const { data, error } = await supabaseAdmin
+    .from("scan_runs")
+    .select("id, status, error_message, execution_owner, execution_heartbeat_at")
+    .eq("production_cycle_run_id", productionCycleRunId)
+    .maybeSingle();
+  if (error) throw new Error(`Could not read cycle scan run: ${error.message}`);
+  if (!data) return null;
+  const row = data as Row;
+  return {
+    id: row["id"] as string,
+    status: row["status"] as string,
+    errorMessage: (row["error_message"] as string | null) ?? null,
+    executionOwner: (row["execution_owner"] as string | null) ?? null,
+    executionHeartbeatAt: (row["execution_heartbeat_at"] as string | null) ?? null,
+  };
+}
+
+/** True when a scanner execution is still demonstrably alive. */
+export function isScanExecutionAlive(
+  state: Pick<ScanExecutionState, "executionHeartbeatAt">,
+  nowMs: number = Date.now(),
+): boolean {
+  if (!state.executionHeartbeatAt) return false;
+  return nowMs - new Date(state.executionHeartbeatAt).getTime() < SCAN_EXECUTION_STALE_MS;
+}
+
+/**
+ * Takes over execution of an existing scan row. Succeeds only when no live
+ * owner is heartbeating, so recovery can never duplicate provider work.
+ */
+export async function claimScanExecution(runId: string, owner: string): Promise<boolean> {
+  const cutoff = new Date(Date.now() - SCAN_EXECUTION_STALE_MS).toISOString();
+  const nowIso = new Date().toISOString();
+  const { data, error } = await supabaseAdmin
+    .from("scan_runs")
+    .update({
+      execution_owner: owner,
+      execution_heartbeat_at: nowIso,
+      execution_started_at: nowIso,
+    } as never)
+    .eq("id", runId)
+    .eq("status", "running")
+    .or(`execution_heartbeat_at.is.null,execution_heartbeat_at.lt.${cutoff}`)
+    .select("id");
+  if (error) throw new Error(`Could not claim scan execution: ${error.message}`);
+  return ((data as Row[] | null) ?? []).length > 0;
+}
+
+export async function heartbeatScanExecution(runId: string, owner: string): Promise<void> {
+  await supabaseAdmin
+    .from("scan_runs")
+    .update({ execution_heartbeat_at: new Date().toISOString() } as never)
+    .eq("id", runId)
+    .eq("execution_owner", owner);
 }
 
 export class ConcurrentScanError extends Error {
@@ -124,6 +203,10 @@ async function insertScanRun(input: StartRunInput): Promise<string> {
       // Policy era this run actually executes under, frozen at run start.
       selection_policy_version: SELECTION_POLICY_VERSION,
       policy_epoch: CURRENT_POLICY_EPOCH,
+      production_cycle_run_id: input.productionCycleRunId ?? null,
+      execution_owner: input.executionOwner ?? null,
+      execution_heartbeat_at: input.executionOwner ? new Date().toISOString() : null,
+      execution_started_at: input.executionOwner ? new Date().toISOString() : null,
     } as never)
     .select("id")
     .single();

@@ -38,14 +38,30 @@ export const Route = createFileRoute("/api/public/production-cycle-tick")({
         const denied = await authenticateProductionCycleScheduler(request);
         if (denied) return denied;
 
-        const { watchdogProductionCycle } = await import(
+        let mode = "WATCHDOG";
+        try {
+          const body = (await request.json()) as { mode?: string } | null;
+          if (body?.mode === "STAGE") mode = "STAGE";
+        } catch {
+          // no body: scheduler watchdog tick
+        }
+
+        const { runProductionCycleStage, watchdogProductionCycle } = await import(
           "@/lib/wingman/services/production-cycle/cycle.server"
         );
-        const result = await watchdogProductionCycle();
-        return new Response(JSON.stringify({ code: result.code, steps: result.steps, stage: result.cycle?.stage ?? null }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
+        // STAGE = normal immediate backend progression hand-off.
+        // WATCHDOG = once-a-minute recovery only.
+        const result =
+          mode === "STAGE" ? await runProductionCycleStage() : await watchdogProductionCycle();
+        return new Response(
+          JSON.stringify({
+            mode,
+            code: result.code,
+            steps: result.steps,
+            stage: result.cycle?.stage ?? null,
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
       },
     },
   },

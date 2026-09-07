@@ -1486,8 +1486,57 @@ export type Database = {
           },
         ]
       }
+      production_cycle_events: {
+        Row: {
+          created_at: string
+          detail: Json
+          event_type: string
+          id: string
+          occurred_at: string
+          production_cycle_run_id: string
+          reason: string | null
+          scan_run_id: string | null
+          stage: string | null
+          worker_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          detail?: Json
+          event_type: string
+          id?: string
+          occurred_at?: string
+          production_cycle_run_id: string
+          reason?: string | null
+          scan_run_id?: string | null
+          stage?: string | null
+          worker_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          detail?: Json
+          event_type?: string
+          id?: string
+          occurred_at?: string
+          production_cycle_run_id?: string
+          reason?: string | null
+          scan_run_id?: string | null
+          stage?: string | null
+          worker_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "production_cycle_events_production_cycle_run_id_fkey"
+            columns: ["production_cycle_run_id"]
+            isOneToOne: false
+            referencedRelation: "production_cycle_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       production_cycle_runs: {
         Row: {
+          accepted_at: string | null
+          claim_acquired_at: string | null
           completed_at: string | null
           completion_code: string | null
           created_at: string
@@ -1501,11 +1550,15 @@ export type Database = {
           failure_reason: string | null
           failure_stage: string | null
           id: string
+          last_progress_at: string | null
           last_tick_at: string | null
           lease_expires_at: string | null
           lease_owner: string | null
           orchestrator_version: string
           packet_count: number
+          recovery_reason: string | null
+          recovery_state: string | null
+          requested_at: string
           scan_run_id: string | null
           scanner_policy_version: string | null
           stage: string
@@ -1520,8 +1573,13 @@ export type Database = {
           triage_watch_count: number
           trigger: string
           updated_at: string
+          worker_error: string | null
+          worker_heartbeat_at: string | null
+          worker_status: string
         }
         Insert: {
+          accepted_at?: string | null
+          claim_acquired_at?: string | null
           completed_at?: string | null
           completion_code?: string | null
           created_at?: string
@@ -1535,11 +1593,15 @@ export type Database = {
           failure_reason?: string | null
           failure_stage?: string | null
           id?: string
+          last_progress_at?: string | null
           last_tick_at?: string | null
           lease_expires_at?: string | null
           lease_owner?: string | null
           orchestrator_version?: string
           packet_count?: number
+          recovery_reason?: string | null
+          recovery_state?: string | null
+          requested_at?: string
           scan_run_id?: string | null
           scanner_policy_version?: string | null
           stage?: string
@@ -1554,8 +1616,13 @@ export type Database = {
           triage_watch_count?: number
           trigger?: string
           updated_at?: string
+          worker_error?: string | null
+          worker_heartbeat_at?: string | null
+          worker_status?: string
         }
         Update: {
+          accepted_at?: string | null
+          claim_acquired_at?: string | null
           completed_at?: string | null
           completion_code?: string | null
           created_at?: string
@@ -1569,11 +1636,15 @@ export type Database = {
           failure_reason?: string | null
           failure_stage?: string | null
           id?: string
+          last_progress_at?: string | null
           last_tick_at?: string | null
           lease_expires_at?: string | null
           lease_owner?: string | null
           orchestrator_version?: string
           packet_count?: number
+          recovery_reason?: string | null
+          recovery_state?: string | null
+          requested_at?: string
           scan_run_id?: string | null
           scanner_policy_version?: string | null
           stage?: string
@@ -1588,6 +1659,9 @@ export type Database = {
           triage_watch_count?: number
           trigger?: string
           updated_at?: string
+          worker_error?: string | null
+          worker_heartbeat_at?: string | null
+          worker_status?: string
         }
         Relationships: []
       }
@@ -2418,6 +2492,9 @@ export type Database = {
           duration_ms: number | null
           enriched_count: number
           error_message: string | null
+          execution_heartbeat_at: string | null
+          execution_owner: string | null
+          execution_started_at: string | null
           id: string
           lane_diagnostics: Json | null
           market_regime: string
@@ -2428,6 +2505,7 @@ export type Database = {
           passed_quantitative_ranking: number
           policy_epoch: string | null
           price_integrity_diagnostics: Json | null
+          production_cycle_run_id: string | null
           provider_telemetry: Json | null
           quantitatively_ranked: number
           recurrence_diagnostics: Json | null
@@ -2463,6 +2541,9 @@ export type Database = {
           duration_ms?: number | null
           enriched_count?: number
           error_message?: string | null
+          execution_heartbeat_at?: string | null
+          execution_owner?: string | null
+          execution_started_at?: string | null
           id?: string
           lane_diagnostics?: Json | null
           market_regime?: string
@@ -2473,6 +2554,7 @@ export type Database = {
           passed_quantitative_ranking?: number
           policy_epoch?: string | null
           price_integrity_diagnostics?: Json | null
+          production_cycle_run_id?: string | null
           provider_telemetry?: Json | null
           quantitatively_ranked?: number
           recurrence_diagnostics?: Json | null
@@ -2508,6 +2590,9 @@ export type Database = {
           duration_ms?: number | null
           enriched_count?: number
           error_message?: string | null
+          execution_heartbeat_at?: string | null
+          execution_owner?: string | null
+          execution_started_at?: string | null
           id?: string
           lane_diagnostics?: Json | null
           market_regime?: string
@@ -2518,6 +2603,7 @@ export type Database = {
           passed_quantitative_ranking?: number
           policy_epoch?: string | null
           price_integrity_diagnostics?: Json | null
+          production_cycle_run_id?: string | null
           provider_telemetry?: Json | null
           quantitatively_ranked?: number
           recurrence_diagnostics?: Json | null
@@ -2537,7 +2623,15 @@ export type Database = {
           tokens_scanned?: number
           universe_diagnostics?: Json | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "scan_runs_production_cycle_run_id_fkey"
+            columns: ["production_cycle_run_id"]
+            isOneToOne: false
+            referencedRelation: "production_cycle_runs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       scanner_labels: {
         Row: {
@@ -4008,7 +4102,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      dispatch_production_cycle_stage: { Args: never; Returns: undefined }
     }
     Enums: {
       [_ in never]: never

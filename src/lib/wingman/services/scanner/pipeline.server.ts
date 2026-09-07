@@ -84,6 +84,7 @@ import {
   persistCandidates,
   resolveTokenIds,
   startScanRun,
+  heartbeatScanExecution,
   recordDiscoveryHealth,
   recordResearchPacketResult,
 } from "./persistence.server";
@@ -282,8 +283,36 @@ async function mapWithLimit<T>(items: T[], limit: number, fn: (item: T) => Promi
   await Promise.all(workers);
 }
 
+/**
+ * Full Cycle only: create the durable scan row BEFORE any provider work, so
+ * the orchestrator can persist the exact scan id on the cycle first and
+ * recovery always evaluates that same row. Manual scans never use this.
+ */
+export async function createCycleScanRun(input: {
+  productionCycleRunId: string;
+  executionOwner: string;
+}): Promise<string> {
+  const activeStrategy = await loadActiveStrategy();
+  const config = runConfig({ strategy: activeStrategy.settings });
+  return startScanRun({
+    calibrationMode: config.calibrationMode,
+    discoveryConfigVersion: DISCOVERY_CONFIG_VERSION,
+    strategy: config.strategy,
+    productionCycleRunId: input.productionCycleRunId,
+    executionOwner: input.executionOwner,
+  });
+}
+
+export interface ScannerExecutionOptions {
+  /** Execute into this already-created run instead of inserting a new one. */
+  existingRunId?: string;
+  /** Backend owner keeping the scan-level liveness heartbeat alive. */
+  executionOwner?: string;
+}
+
 export async function runScannerPipeline(
   overrides: Partial<ScannerRunConfig> = {},
+  execution: ScannerExecutionOptions = {},
 ): Promise<RunScanResult> {
   const activeStrategy = await loadActiveStrategy();
   const config = runConfig({ strategy: activeStrategy.settings, ...overrides });
@@ -291,34 +320,65 @@ export async function runScannerPipeline(
   const startedAt = new Date().toISOString();
 
   let runId: string;
-  try {
-    runId = await startScanRun({
-      calibrationMode: config.calibrationMode,
-      discoveryConfigVersion: DISCOVERY_CONFIG_VERSION,
-      strategy: config.strategy,
-    });
-  } catch (error) {
-    if (error instanceof ConcurrentScanError) {
+  if (execution.existingRunId) {
+    runId = execution.existingRunId;
+  } else {
+    try {
+      runId = await startScanRun({
+        calibrationMode: config.calibrationMode,
+        discoveryConfigVersion: DISCOVERY_CONFIG_VERSION,
+        strategy: config.strategy,
+      });
+    } catch (error) {
+      if (error instanceof ConcurrentScanError) {
+        return {
+          ok: false,
+          summary: null,
+          message: "A scan is already running.",
+          code: "ALREADY_RUNNING",
+          runId: null,
+          activeRunId: error.activeRunId,
+          researchPackets: NO_PACKET_ATTEMPT,
+        };
+      }
       return {
         ok: false,
         summary: null,
-        message: "A scan is already running.",
-        code: "ALREADY_RUNNING",
+        message: error instanceof Error ? error.message : "Could not start scan.",
+        code: "FAILED",
         runId: null,
-        activeRunId: error.activeRunId,
+        activeRunId: null,
         researchPackets: NO_PACKET_ATTEMPT,
       };
     }
-    return {
-      ok: false,
-      summary: null,
-      message: error instanceof Error ? error.message : "Could not start scan.",
-      code: "FAILED",
-      runId: null,
-      activeRunId: null,
-      researchPackets: NO_PACKET_ATTEMPT,
-    };
   }
+
+  // Scan-level liveness: while this execution is genuinely working, recovery
+  // must be able to see it and stay away.
+  const owner = execution.executionOwner ?? null;
+  const heartbeat = owner
+    ? setInterval(() => {
+        void heartbeatScanExecution(runId, owner).catch(() => undefined);
+      }, 20_000)
+    : null;
+  if (heartbeat && typeof heartbeat === "object" && "unref" in heartbeat) {
+    (heartbeat as unknown as { unref: () => void }).unref();
+  }
+  try {
+    return await executeScannerPipeline({ runId, config, telemetry, startedAt });
+  } finally {
+    if (heartbeat) clearInterval(heartbeat);
+  }
+}
+
+async function executeScannerPipeline(args: {
+  runId: string;
+  config: ScannerRunConfig;
+  telemetry: TelemetryRecorder;
+  startedAt: string;
+}): Promise<RunScanResult> {
+  const { runId, config, telemetry, startedAt } = args;
+
 
   try {
     // Preflight: one cheap authoritative call. A definitively blocked provider
