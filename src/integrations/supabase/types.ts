@@ -1591,6 +1591,27 @@ export type Database = {
         }
         Relationships: []
       }
+      production_cycle_scheduler_credentials: {
+        Row: {
+          id: boolean
+          rotated_at: string
+          token_hash: string
+          token_value: string
+        }
+        Insert: {
+          id?: boolean
+          rotated_at?: string
+          token_hash: string
+          token_value: string
+        }
+        Update: {
+          id?: boolean
+          rotated_at?: string
+          token_hash?: string
+          token_value?: string
+        }
+        Relationships: []
+      }
       research_packets: {
         Row: {
           candidate_source: string
