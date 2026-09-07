@@ -19,6 +19,19 @@ import {
   getScanRunStatus,
   runScan,
 } from "@/lib/wingman/scanner.functions";
+import { startProductionCycleFn } from "@/lib/wingman/production-cycle.functions";
+import { useProductionCycle } from "@/lib/wingman/services/production-cycle/useProductionCycle";
+import { ProductionCyclePanel } from "@/components/wingman/scanner/ProductionCyclePanel";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   DiscoveryProviderPanel,
   type DiscoveryProviderStatus,
