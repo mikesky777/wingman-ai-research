@@ -543,7 +543,7 @@ async function stageScan(cycle: ProductionCycleState): Promise<StageOutcome> {
 }
 
 /** STAGE 2 — canonical Research Packets for the pinned scan only. */
-async function stagePackets(cycle: ProductionCycleState): Promise<void> {
+async function stagePackets(cycle: ProductionCycleState): Promise<StageOutcome> {
   const scanRunId = cycle.scanRunId;
   if (!scanRunId) {
     await fail(cycle.id, "GENERATING_PACKETS", "Cycle has no pinned scan.");
@@ -578,7 +578,7 @@ async function stagePackets(cycle: ProductionCycleState): Promise<void> {
 }
 
 /** STAGE 3 — one canonical production triage for the pinned cohort. */
-async function stageTriage(cycle: ProductionCycleState): Promise<void> {
+async function stageTriage(cycle: ProductionCycleState): Promise<StageOutcome> {
   const scanRunId = cycle.scanRunId;
   if (!scanRunId) {
     await fail(cycle.id, "TRIAGING", "Cycle has no pinned scan.");
@@ -622,7 +622,7 @@ async function stageTriage(cycle: ProductionCycleState): Promise<void> {
  * and paid Deep Research, all inside the existing production path. Candidate
  * problems are terminal for that candidate only.
  */
-async function stageDeepResearch(cycle: ProductionCycleState): Promise<void> {
+async function stageDeepResearch(cycle: ProductionCycleState): Promise<StageOutcome> {
   const triageRunId = cycle.triageRunId;
   if (!triageRunId) {
     await fail(cycle.id, "DEEP_RESEARCH", "Cycle has no pinned triage run.");
@@ -659,7 +659,7 @@ async function stageDeepResearch(cycle: ProductionCycleState): Promise<void> {
 }
 
 /** STAGE 6 — Thesis Synthesis for genuinely eligible current-cohort dossiers. */
-async function stageThesis(cycle: ProductionCycleState): Promise<void> {
+async function stageThesis(cycle: ProductionCycleState): Promise<StageOutcome> {
   const triageRunId = cycle.triageRunId;
   if (!triageRunId) {
     await fail(cycle.id, "THESIS_SYNTHESIS", "Cycle has no pinned triage run.");
@@ -687,7 +687,7 @@ async function stageThesis(cycle: ProductionCycleState): Promise<void> {
  * STAGE 7 — qualification is READ-ONLY. Thesis Calls exist only because the
  * existing production Opportunity gates minted them during synthesis.
  */
-async function stageQualification(cycle: ProductionCycleState): Promise<void> {
+async function stageQualification(cycle: ProductionCycleState): Promise<StageOutcome> {
   const triageRunId = cycle.triageRunId;
   if (!triageRunId) {
     await fail(cycle.id, "THESIS_QUALIFICATION", "Cycle has no pinned triage run.");
@@ -704,7 +704,7 @@ async function stageQualification(cycle: ProductionCycleState): Promise<void> {
 }
 
 /** STAGE 8 — Entry runs ONLY for canonical production Thesis Calls. */
-async function stageEntry(cycle: ProductionCycleState): Promise<void> {
+async function stageEntry(cycle: ProductionCycleState): Promise<StageOutcome> {
   const triageRunId = cycle.triageRunId;
   if (!triageRunId) {
     await fail(cycle.id, "ENTRY_TIMING", "Cycle has no pinned triage run.");
