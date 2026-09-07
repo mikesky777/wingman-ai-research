@@ -13,6 +13,7 @@ import { Brain, FlaskConical, Loader2, Link2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Section } from "@/components/wingman/Section";
+import { useProductionCycle } from "@/lib/wingman/services/production-cycle/useProductionCycle";
 import { EmptyState } from "@/components/wingman/EmptyState";
 import {
   getThesisProgress,
@@ -45,6 +46,8 @@ function short(mint: string): string {
 }
 
 export function ThesisPanel({ calibration = false }: { calibration?: boolean } = {}) {
+  // production_cycle/v1 owns stage progression while a cycle is active.
+  const cycleActive = Boolean(useProductionCycle().data?.active);
   const queryClient = useQueryClient();
   const fetchReports = useServerFn(getThesisReports);
   const fetchProgress = useServerFn(getThesisProgress);
@@ -136,7 +139,7 @@ export function ThesisPanel({ calibration = false }: { calibration?: boolean } =
               ) : null}
               <Button
                 size="sm"
-                disabled={mutation.isPending || (progress ? pending === 0 : false)}
+                disabled={mutation.isPending || (progress ? pending === 0 : false) || cycleActive}
                 onClick={() => run("PRODUCTION")}
               >
                 {mutation.isPending ? (

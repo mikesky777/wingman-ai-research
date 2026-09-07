@@ -20,6 +20,7 @@ import { Route as SettingsIndexRouteImport } from './routes/settings.index'
 import { Route as SettingsCalibrationRouteImport } from './routes/settings.calibration'
 import { Route as TokenTokenIdRouteImport } from './routes/token.$tokenId'
 import { Route as ApiPublicOutcomeSamplerRouteImport } from './routes/api/public/outcome-sampler'
+import { Route as ApiPublicProductionCycleTickRouteImport } from './routes/api/public/production-cycle-tick'
 import { Route as ApiPublicThesisBenchmarkRouteImport } from './routes/api/public/thesis-benchmark'
 import { Route as ApiPublicThesisV2CalibrationRouteImport } from './routes/api/public/thesis-v2-calibration'
 
@@ -78,6 +79,12 @@ const ApiPublicOutcomeSamplerRoute = ApiPublicOutcomeSamplerRouteImport.update({
   path: '/api/public/outcome-sampler',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicProductionCycleTickRoute =
+  ApiPublicProductionCycleTickRouteImport.update({
+    id: '/api/public/production-cycle-tick',
+    path: '/api/public/production-cycle-tick',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicThesisBenchmarkRoute =
   ApiPublicThesisBenchmarkRouteImport.update({
     id: '/api/public/thesis-benchmark',
@@ -103,6 +110,7 @@ export interface FileRoutesByFullPath {
   '/token/$tokenId': typeof TokenTokenIdRoute
   '/settings/': typeof SettingsIndexRoute
   '/api/public/outcome-sampler': typeof ApiPublicOutcomeSamplerRoute
+  '/api/public/production-cycle-tick': typeof ApiPublicProductionCycleTickRoute
   '/api/public/thesis-benchmark': typeof ApiPublicThesisBenchmarkRoute
   '/api/public/thesis-v2-calibration': typeof ApiPublicThesisV2CalibrationRoute
 }
@@ -117,6 +125,7 @@ export interface FileRoutesByTo {
   '/token/$tokenId': typeof TokenTokenIdRoute
   '/settings': typeof SettingsIndexRoute
   '/api/public/outcome-sampler': typeof ApiPublicOutcomeSamplerRoute
+  '/api/public/production-cycle-tick': typeof ApiPublicProductionCycleTickRoute
   '/api/public/thesis-benchmark': typeof ApiPublicThesisBenchmarkRoute
   '/api/public/thesis-v2-calibration': typeof ApiPublicThesisV2CalibrationRoute
 }
@@ -133,6 +142,7 @@ export interface FileRoutesById {
   '/token/$tokenId': typeof TokenTokenIdRoute
   '/settings/': typeof SettingsIndexRoute
   '/api/public/outcome-sampler': typeof ApiPublicOutcomeSamplerRoute
+  '/api/public/production-cycle-tick': typeof ApiPublicProductionCycleTickRoute
   '/api/public/thesis-benchmark': typeof ApiPublicThesisBenchmarkRoute
   '/api/public/thesis-v2-calibration': typeof ApiPublicThesisV2CalibrationRoute
 }
@@ -150,6 +160,7 @@ export interface FileRouteTypes {
     | '/token/$tokenId'
     | '/settings/'
     | '/api/public/outcome-sampler'
+    | '/api/public/production-cycle-tick'
     | '/api/public/thesis-benchmark'
     | '/api/public/thesis-v2-calibration'
   fileRoutesByTo: FileRoutesByTo
@@ -164,6 +175,7 @@ export interface FileRouteTypes {
     | '/token/$tokenId'
     | '/settings'
     | '/api/public/outcome-sampler'
+    | '/api/public/production-cycle-tick'
     | '/api/public/thesis-benchmark'
     | '/api/public/thesis-v2-calibration'
   id:
@@ -179,6 +191,7 @@ export interface FileRouteTypes {
     | '/token/$tokenId'
     | '/settings/'
     | '/api/public/outcome-sampler'
+    | '/api/public/production-cycle-tick'
     | '/api/public/thesis-benchmark'
     | '/api/public/thesis-v2-calibration'
   fileRoutesById: FileRoutesById
@@ -193,6 +206,7 @@ export interface RootRouteChildren {
   WatchlistRoute: typeof WatchlistRoute
   TokenTokenIdRoute: typeof TokenTokenIdRoute
   ApiPublicOutcomeSamplerRoute: typeof ApiPublicOutcomeSamplerRoute
+  ApiPublicProductionCycleTickRoute: typeof ApiPublicProductionCycleTickRoute
   ApiPublicThesisBenchmarkRoute: typeof ApiPublicThesisBenchmarkRoute
   ApiPublicThesisV2CalibrationRoute: typeof ApiPublicThesisV2CalibrationRoute
 }
@@ -276,6 +290,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicOutcomeSamplerRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/production-cycle-tick': {
+      id: '/api/public/production-cycle-tick'
+      path: '/api/public/production-cycle-tick'
+      fullPath: '/api/public/production-cycle-tick'
+      preLoaderRoute: typeof ApiPublicProductionCycleTickRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/thesis-benchmark': {
       id: '/api/public/thesis-benchmark'
       path: '/api/public/thesis-benchmark'
@@ -317,6 +338,7 @@ const rootRouteChildren: RootRouteChildren = {
   WatchlistRoute: WatchlistRoute,
   TokenTokenIdRoute: TokenTokenIdRoute,
   ApiPublicOutcomeSamplerRoute: ApiPublicOutcomeSamplerRoute,
+  ApiPublicProductionCycleTickRoute: ApiPublicProductionCycleTickRoute,
   ApiPublicThesisBenchmarkRoute: ApiPublicThesisBenchmarkRoute,
   ApiPublicThesisV2CalibrationRoute: ApiPublicThesisV2CalibrationRoute,
 }

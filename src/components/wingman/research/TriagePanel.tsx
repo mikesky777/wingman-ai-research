@@ -12,6 +12,7 @@ import { Brain, FlaskConical, Loader2, PackagePlus, RotateCcw } from "lucide-rea
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Section } from "@/components/wingman/Section";
+import { useProductionCycle } from "@/lib/wingman/services/production-cycle/useProductionCycle";
 import { EmptyState } from "@/components/wingman/EmptyState";
 import { TokenIdentity } from "@/components/wingman/TokenIdentity";
 import { getLatestTriage, getTriageAvailability, runTriage } from "@/lib/wingman/triage.functions";
@@ -28,6 +29,8 @@ const decisionTone: Record<string, string> = {
 };
 
 export function TriagePanel({ calibration = false }: { calibration?: boolean } = {}) {
+  // production_cycle/v1 owns stage progression while a cycle is active.
+  const cycleActive = Boolean(useProductionCycle().data?.active);
   const queryClient = useQueryClient();
   const fetchLatest = useServerFn(getLatestTriage);
   const startRun = useServerFn(runTriage);
@@ -161,7 +164,7 @@ export function TriagePanel({ calibration = false }: { calibration?: boolean } =
           <Button
             size="sm"
             onClick={() => run("PRODUCTION")}
-            disabled={mutation.isPending || triageInProgress}
+            disabled={mutation.isPending || triageInProgress || cycleActive}
           >
             {mutation.isPending ? (
               <Loader2 className="size-4 animate-spin" />
@@ -175,7 +178,7 @@ export function TriagePanel({ calibration = false }: { calibration?: boolean } =
           size="sm"
           variant="outline"
           onClick={() => packetMutation.mutate()}
-          disabled={packetMutation.isPending || calibration}
+          disabled={packetMutation.isPending || calibration || cycleActive}
         >
           {packetMutation.isPending ? (
             <Loader2 className="size-4 animate-spin" />

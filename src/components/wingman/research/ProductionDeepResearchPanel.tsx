@@ -13,6 +13,7 @@ import { BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Section } from "@/components/wingman/Section";
+import { useProductionCycle } from "@/lib/wingman/services/production-cycle/useProductionCycle";
 import { EmptyState } from "@/components/wingman/EmptyState";
 import { TokenIdentity } from "@/components/wingman/TokenIdentity";
 import { getProductionFunnel } from "@/lib/wingman/triage.functions";
@@ -186,6 +187,8 @@ function ClaimList({
 }
 
 export function ProductionDeepResearchPanel() {
+  // production_cycle/v1 owns stage progression while a cycle is active.
+  const cycleActive = Boolean(useProductionCycle().data?.active);
   const fetchFunnel = useServerFn(getProductionFunnel);
   const [filter, setFilter] = useState<DeepResearchFilter>("ALL");
   const [openMint, setOpenMint] = useState<string | null>(null);
@@ -254,7 +257,7 @@ export function ProductionDeepResearchPanel() {
         <div className="flex items-center gap-2">
           <Button
             size="sm"
-            disabled={notStartedCount === 0 || start.isPending || retry.isPending}
+            disabled={notStartedCount === 0 || start.isPending || retry.isPending || cycleActive}
             onClick={() => start.mutate()}
           >
             {start.isPending ? "Researching…" : `Run Deep Research (${notStartedCount})`}
@@ -263,7 +266,7 @@ export function ProductionDeepResearchPanel() {
             <Button
               size="sm"
               variant="outline"
-              disabled={retry.isPending}
+              disabled={retry.isPending || cycleActive}
               onClick={() => retry.mutate()}
             >
               {retry.isPending ? "Retrying…" : `Retry failed research (${retryableCount})`}

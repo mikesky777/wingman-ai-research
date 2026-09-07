@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { TokenIdentity } from "@/components/wingman/TokenIdentity";
 import { Section } from "@/components/wingman/Section";
+import { useProductionCycle } from "@/lib/wingman/services/production-cycle/useProductionCycle";
 import { EmptyState } from "@/components/wingman/EmptyState";
 import { DexScreenerEmbed } from "@/components/wingman/history/DexScreenerEmbed";
 import {
@@ -55,6 +56,8 @@ function duration(since: string | null): string {
 }
 
 export function EntryPanel({ calibration = false }: { calibration?: boolean } = {}) {
+  // production_cycle/v1 owns stage progression while a cycle is active.
+  const cycleActive = Boolean(useProductionCycle().data?.active);
   const mode: "PRODUCTION" | "CALIBRATION" = calibration ? "CALIBRATION" : "PRODUCTION";
   const queryClient = useQueryClient();
   const fetchEvaluations = useServerFn(getEntryEvaluations);
@@ -127,7 +130,7 @@ export function EntryPanel({ calibration = false }: { calibration?: boolean } = 
             size="sm"
             variant="outline"
             onClick={() => batch.mutate()}
-            disabled={batch.isPending || (!calibration && eligible === 0)}
+            disabled={batch.isPending || (!calibration && eligible === 0) || cycleActive}
           >
             {batch.isPending ? (
               <Loader2 className="mr-2 size-3.5 animate-spin" />

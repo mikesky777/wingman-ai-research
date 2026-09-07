@@ -19,6 +19,19 @@ import {
   getScanRunStatus,
   runScan,
 } from "@/lib/wingman/scanner.functions";
+import { startProductionCycleFn } from "@/lib/wingman/production-cycle.functions";
+import { useProductionCycle } from "@/lib/wingman/services/production-cycle/useProductionCycle";
+import { ProductionCyclePanel } from "@/components/wingman/scanner/ProductionCyclePanel";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   DiscoveryProviderPanel,
   type DiscoveryProviderStatus,
@@ -289,6 +302,17 @@ function ScannerPage() {
   });
   const [selected, setSelected] = useState<string | null>(null);
   const scan = useServerFn(runScan);
+  // production_cycle/v1: the orchestrator owns progression while it is active,
+  // so conflicting manual stage actions on the same cohort are disabled.
+  const startCycle = useServerFn(startProductionCycleFn);
+  const { data: cycleState } = useProductionCycle();
+  const cycleActive = Boolean(cycleState?.active);
+  const [confirmCycle, setConfirmCycle] = useState(false);
+  const cycleMutation = useMutation({
+    mutationFn: () => startCycle(),
+    onSettled: () =>
+      queryClient.invalidateQueries({ queryKey: ["wingman", "production-cycle"] }),
+  });
   const loadProviderStatus = useServerFn(getDiscoveryProviderStatus);
   // Diagnostic only: readiness never changes scoring, selection or health.
   const { data: providerStatus } = useQuery({
@@ -445,7 +469,11 @@ function ScannerPage() {
             {funnel?.scannerVersion ?? "scanner/v1"}
             {funnel?.calibrationMode ? " · calibration" : ""}
           </span>
-          <Button size="sm" onClick={() => mutation.mutate()} disabled={controlBlocked}>
+          <Button
+            size="sm"
+            onClick={() => mutation.mutate()}
+            disabled={controlBlocked || cycleActive}
+          >
             {controlBlocked ? (
               <>
                 <Loader2 className="size-3.5 animate-spin" />{" "}
@@ -455,10 +483,47 @@ function ScannerPage() {
               "Run scan"
             )}
           </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setConfirmCycle(true)}
+            disabled={cycleActive || cycleMutation.isPending || controlBlocked}
+          >
+            {cycleActive ? (
+              <>
+                <Loader2 className="size-3.5 animate-spin" /> Cycle running
+              </>
+            ) : (
+              "Run full cycle"
+            )}
+          </Button>
         </div>
       }
     >
+      <AlertDialog open={confirmCycle} onOpenChange={setConfirmCycle}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Run the full production cycle?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This runs Scanner → AI Triage → Deep Research → Thesis Synthesis → Entry Timing
+              automatically and will spend AI and Deep Research credits. Existing spend controls,
+              cooldowns and budgets still apply. Nothing is bought, sold or signed, and no
+              downstream milestone is forced: thesis calls are still minted only by the normal
+              opportunity gates.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => cycleMutation.mutate()}>
+              Run full cycle
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <div className="space-y-6">
+        <ProductionCyclePanel />
+
         {message ? (
           <p
             className={`rounded-md border px-3 py-2 text-xs ${
