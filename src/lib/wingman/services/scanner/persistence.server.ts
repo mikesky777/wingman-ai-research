@@ -203,6 +203,10 @@ async function insertScanRun(input: StartRunInput): Promise<string> {
       // Policy era this run actually executes under, frozen at run start.
       selection_policy_version: SELECTION_POLICY_VERSION,
       policy_epoch: CURRENT_POLICY_EPOCH,
+      production_cycle_run_id: input.productionCycleRunId ?? null,
+      execution_owner: input.executionOwner ?? null,
+      execution_heartbeat_at: input.executionOwner ? new Date().toISOString() : null,
+      execution_started_at: input.executionOwner ? new Date().toISOString() : null,
     } as never)
     .select("id")
     .single();
