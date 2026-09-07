@@ -575,6 +575,7 @@ async function stagePackets(cycle: ProductionCycleState): Promise<StageOutcome> 
     return "TERMINAL";
   }
   await advance(cycle, { packet_count: count });
+  return "ADVANCED";
 }
 
 /** STAGE 3 — one canonical production triage for the pinned cohort. */
@@ -615,6 +616,7 @@ async function stageTriage(cycle: ProductionCycleState): Promise<StageOutcome> {
     triage_watch_count: result.watchCount,
     triage_skip_count: Math.max(result.packetCount - result.deepResearchCount - result.watchCount, 0),
   });
+  return "ADVANCED";
 }
 
 /**
@@ -656,6 +658,7 @@ async function stageDeepResearch(cycle: ProductionCycleState): Promise<StageOutc
       },
     },
   });
+  return "ADVANCED";
 }
 
 /** STAGE 6 — Thesis Synthesis for genuinely eligible current-cohort dossiers. */
@@ -681,6 +684,7 @@ async function stageThesis(cycle: ProductionCycleState): Promise<StageOutcome> {
       },
     },
   });
+  return "ADVANCED";
 }
 
 /**
@@ -701,6 +705,7 @@ async function stageQualification(cycle: ProductionCycleState): Promise<StageOut
     thesis_synthesized_count: synthesized,
     thesis_call_count: calls.length,
   });
+  return "ADVANCED";
 }
 
 /** STAGE 8 — Entry runs ONLY for canonical production Thesis Calls. */
