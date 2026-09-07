@@ -302,6 +302,17 @@ function ScannerPage() {
   });
   const [selected, setSelected] = useState<string | null>(null);
   const scan = useServerFn(runScan);
+  // production_cycle/v1: the orchestrator owns progression while it is active,
+  // so conflicting manual stage actions on the same cohort are disabled.
+  const startCycle = useServerFn(startProductionCycleFn);
+  const { data: cycleState } = useProductionCycle();
+  const cycleActive = Boolean(cycleState?.active);
+  const [confirmCycle, setConfirmCycle] = useState(false);
+  const cycleMutation = useMutation({
+    mutationFn: () => startCycle(),
+    onSettled: () =>
+      queryClient.invalidateQueries({ queryKey: ["wingman", "production-cycle"] }),
+  });
   const loadProviderStatus = useServerFn(getDiscoveryProviderStatus);
   // Diagnostic only: readiness never changes scoring, selection or health.
   const { data: providerStatus } = useQuery({
