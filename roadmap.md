@@ -1,6 +1,7 @@
 # Wingman roadmap
 
 ## In progress
+- [ ] Full Cycle v1.1: durable acceptance, cycle-linked scan startup, real worker heartbeat/progress, one-stage watchdog recovery, and backend-bound UI states.
 - [x] Scanner outcome tracking: First Seen + First Wingman Call baselines, derived performance, fixed horizons, table/drawer UI, tests.
 
 ## Later
