@@ -17,6 +17,7 @@ export const productionCycleKey = ["wingman", "production-cycle"] as const;
 export function useProductionCycle() {
   const queryClient = useQueryClient();
   const ticking = useRef(false);
+  const lastTickAt = useRef(0);
   const lastStage = useRef<string | null>(null);
 
   const query = useQuery({
@@ -32,7 +33,9 @@ export function useProductionCycle() {
   // server lease, so this can never double-run a paid stage.
   useEffect(() => {
     if (!active || ticking.current) return;
+    if (Date.now() - lastTickAt.current < 10_000) return;
     ticking.current = true;
+    lastTickAt.current = Date.now();
     void Promise.resolve(tickProductionCycleFn())
       .catch(() => undefined)
       .finally(() => {
