@@ -84,6 +84,7 @@ import {
   persistCandidates,
   resolveTokenIds,
   startScanRun,
+  heartbeatScanExecution,
   recordDiscoveryHealth,
   recordResearchPacketResult,
 } from "./persistence.server";
