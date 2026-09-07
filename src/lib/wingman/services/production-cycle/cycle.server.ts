@@ -151,7 +151,8 @@ export async function startProductionCycle(): Promise<StartProductionCycleResult
 async function patch(id: string, values: Record<string, unknown>): Promise<void> {
   const { error } = await supabaseAdmin
     .from("production_cycle_runs")
-    .update(values)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .update(values as any)
     .eq("id", id);
   if (error) throw new Error(error.message);
 }

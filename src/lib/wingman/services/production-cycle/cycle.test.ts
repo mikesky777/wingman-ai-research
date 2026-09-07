@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { CycleStage } from "./cycle";
 import {
   CYCLE_STAGES,
   completionCode,
@@ -11,7 +12,7 @@ import {
 describe("production_cycle/v1 stage progression", () => {
   it("advances through the canonical sequence and stops after Entry", () => {
     const seen: string[] = [];
-    let stage = CYCLE_STAGES[0];
+    let stage: CycleStage = CYCLE_STAGES[0];
     for (let i = 0; i < 20 && !isTerminalStage(stage); i += 1) {
       seen.push(stage);
       stage = nextStage(stage);
@@ -29,7 +30,7 @@ describe("production_cycle/v1 stage progression", () => {
     ]);
     expect(stage).toBe("COMPLETE");
     // No sizing / execution stage exists at all.
-    expect(CYCLE_STAGES).not.toContain("SIZING");
+    expect(CYCLE_STAGES as readonly string[]).not.toContain("SIZING");
   });
 
   it("never advances past a terminal stage", () => {
