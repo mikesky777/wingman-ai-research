@@ -103,7 +103,7 @@ function num(v: unknown): number | null {
  * A missing monitoring row defaults to ACTIVE (new calls begin ACTIVE); there
  * is no automatic age cutoff.
  */
-async function loadActivelyMonitoredCallMints(): Promise<string[]> {
+export async function loadActivelyMonitoredCallMints(): Promise<string[]> {
   const { data: callRows, error } = await supabaseAdmin
     .from("token_stage_milestones")
     .select("contract_address")
