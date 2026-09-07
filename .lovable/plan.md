@@ -18,27 +18,31 @@
 - Keep the existing partial unique rule so only nonterminal cycles block starts; verify COMPLETE and FAILED rows cannot retain a claim or block a later cycle.
 - Record requested/accepted timestamps and a concise startup event without launching long work in the browser request.
 
-### 2. Durable scan startup before provider work
+### 2. Durable scan startup and scan-execution ownership
 
 - Split scanner run creation from scanner execution.
-- Create a cycle-linked scan row first, persist/attach its ID to the cycle, then begin provider work.
-- Add an explicit unique cycle-to-scan association so recovery can rediscover the same row after a crash between writes.
-- On recovery: reuse the exact linked scan; completed advances, failed persists cycle failure, live-running waits, and stale-running is resolved without creating a second scan.
+- Create the scan row first, attach its ID to the cycle, then claim scanner execution, then begin provider work.
+- Scope cycle-to-scan uniqueness to cycle-linked scans only, so at most one authoritative scan exists per cycle while ordinary manual scans keep working with no cycle and no new constraint.
+- Give scanner execution its own durable owner/heartbeat, separate from the parent cycle claim, so recovery can tell a genuinely live scan from a dead one and never duplicates provider work.
+- On recovery: reuse the exact linked scan; completed advances, terminally failed persists cycle failure, live execution waits, and lost execution with no terminal artifact is resumed idempotently without a second scan.
 
-### 3. Worker lease, heartbeat, and progress semantics
+### 3. Backend-owned progression, ownership, and heartbeat
 
-- Replace the all-stages-in-one-request loop with one idempotent stage per watchdog invocation.
-- Add separate persisted fields for claim acquisition, worker heartbeat, meaningful progress, worker/pass status, recovery state/reason, and latest worker error.
-- Use a short renewable lease and a backend-only heartbeat during long stage execution. UI reads/polls never write these fields.
-- Release ownership on normal return and caught failure; if the process is terminated, heartbeat stops and the lease expires so the next watchdog pass can recover.
-- Make watchdog classification explicit: live, stale/recoverable, or recovering. Do not use generic `updated_at` as liveness.
+- Normal progression is immediate and backend-owned: after a bounded idempotent stage persists its result, the backend dispatches the next eligible stage itself through a durable server-side handoff. A healthy cycle never waits for a scheduler tick between stages, and the browser is never involved.
+- Each stage runs as its own bounded backend invocation, so no single request carries the whole pipeline.
+- The once-a-minute watchdog stays recovery/dispatch safety only: find the active cycle, judge liveness, do nothing when healthy, and otherwise claim the exact cycle, resume the next unfinished stage, and hand it back to normal progression.
+- Add persisted fields for claim acquisition, worker heartbeat, meaningful progress, worker/pass status, recovery state/reason, and latest worker error. Heartbeat is a mutable liveness field, never an event row.
+- Use a short renewable lease with a backend-only heartbeat during long stages. UI reads/polls never write any of these fields, and generic `updated_at` is never used as liveness.
+- Release ownership on normal return and caught failure; if the process dies, the heartbeat stops and the lease expires so recovery can take over.
 
-### 4. Restart-safe stage transitions
+### 4. Restart-safe transitions and honest timeout semantics
 
 - Before each stage, inspect the exact pinned canonical artifact and treat already-completed work as satisfied.
+- Distinguish four outcomes explicitly: confirmed terminal stage/provider failure, lost worker/process, legitimately still-running stage, and unknown-but-recoverable. Only the first persists cycle failure.
+- A request/HTTP wrapper reaching its timeout is never by itself a stage failure; when ownership disappears without a terminal artifact, recover idempotently instead.
 - Preserve existing packet, triage, spend-control, Deep Research, Thesis, qualification, and Entry policies unchanged.
 - Never repeat completed paid work. Preserve zero-Thesis-Call successful completion and no Sizing/Live/trading behavior.
-- Add one concise transition event per acceptance, claim, heartbeat checkpoint, stage entry/completion/failure, scan assignment, recovery, release, and final completion.
+- Record one event per meaningful transition only: accepted, claimed, stage entered, scan assigned, stage completed, stage failed, recovery started, ownership released, and cycle completed/failed.
 
 ### 5. Scanner and Full Cycle page state
 
