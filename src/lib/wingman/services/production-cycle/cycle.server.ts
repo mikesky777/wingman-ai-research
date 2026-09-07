@@ -24,6 +24,10 @@ import {
 
 type Row = Record<string, unknown>;
 
+/** Diagnostics stay flat and JSON-serializable across the RPC boundary. */
+type DiagnosticScalar = string | number | boolean | null;
+export type CycleDiagnostics = Record<string, DiagnosticScalar | Record<string, DiagnosticScalar>>;
+
 export interface ProductionCycleState {
   id: string;
   orchestratorVersion: string;
@@ -51,7 +55,7 @@ export interface ProductionCycleState {
   completionCode: string | null;
   failureStage: string | null;
   failureReason: string | null;
-  diagnostics: Record<string, unknown>;
+  diagnostics: CycleDiagnostics;
 }
 
 const SELECT_COLUMNS =
@@ -85,7 +89,7 @@ function mapRow(r: Row): ProductionCycleState {
     completionCode: (r["completion_code"] as string) ?? null,
     failureStage: (r["failure_stage"] as string) ?? null,
     failureReason: (r["failure_reason"] as string) ?? null,
-    diagnostics: (r["diagnostics"] as Record<string, unknown>) ?? {},
+    diagnostics: (r["diagnostics"] as CycleDiagnostics) ?? {},
   };
 }
 
