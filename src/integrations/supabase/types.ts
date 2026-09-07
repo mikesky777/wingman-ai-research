@@ -4102,7 +4102,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      dispatch_production_cycle_stage: { Args: never; Returns: undefined }
     }
     Enums: {
       [_ in never]: never
