@@ -56,6 +56,8 @@ function duration(since: string | null): string {
 }
 
 export function EntryPanel({ calibration = false }: { calibration?: boolean } = {}) {
+  // production_cycle/v1 owns stage progression while a cycle is active.
+  const cycleActive = Boolean(useProductionCycle().data?.active);
   const mode: "PRODUCTION" | "CALIBRATION" = calibration ? "CALIBRATION" : "PRODUCTION";
   const queryClient = useQueryClient();
   const fetchEvaluations = useServerFn(getEntryEvaluations);

@@ -187,6 +187,8 @@ function ClaimList({
 }
 
 export function ProductionDeepResearchPanel() {
+  // production_cycle/v1 owns stage progression while a cycle is active.
+  const cycleActive = Boolean(useProductionCycle().data?.active);
   const fetchFunnel = useServerFn(getProductionFunnel);
   const [filter, setFilter] = useState<DeepResearchFilter>("ALL");
   const [openMint, setOpenMint] = useState<string | null>(null);

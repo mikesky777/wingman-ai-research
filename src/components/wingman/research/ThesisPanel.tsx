@@ -46,6 +46,8 @@ function short(mint: string): string {
 }
 
 export function ThesisPanel({ calibration = false }: { calibration?: boolean } = {}) {
+  // production_cycle/v1 owns stage progression while a cycle is active.
+  const cycleActive = Boolean(useProductionCycle().data?.active);
   const queryClient = useQueryClient();
   const fetchReports = useServerFn(getThesisReports);
   const fetchProgress = useServerFn(getThesisProgress);

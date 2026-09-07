@@ -29,6 +29,8 @@ const decisionTone: Record<string, string> = {
 };
 
 export function TriagePanel({ calibration = false }: { calibration?: boolean } = {}) {
+  // production_cycle/v1 owns stage progression while a cycle is active.
+  const cycleActive = Boolean(useProductionCycle().data?.active);
   const queryClient = useQueryClient();
   const fetchLatest = useServerFn(getLatestTriage);
   const startRun = useServerFn(runTriage);
