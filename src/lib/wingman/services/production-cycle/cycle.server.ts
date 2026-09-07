@@ -204,36 +204,115 @@ async function releaseLease(id: string): Promise<void> {
     .eq("id", id);
 }
 
-export interface AdvanceResult {
-  code: "ADVANCED" | "NO_ACTIVE_CYCLE" | "BUSY" | "TERMINAL";
+export interface DriveResult {
+  code: "DRIVEN" | "NO_ACTIVE_CYCLE" | "BUSY" | "TERMINAL";
   cycle: ProductionCycleState | null;
+  steps: number;
+}
+
+export interface WatchdogResult {
+  code: "NO_ACTIVE_CYCLE" | "HEALTHY_NO_ACTION" | "RESUMED";
+  cycle: ProductionCycleState | null;
+  steps: number;
+}
+
+/** Max stage steps in one drive pass; the sequence is far shorter than this. */
+const MAX_DRIVE_STEPS = 24;
+
+async function loadCycleById(id: string): Promise<ProductionCycleState | null> {
+  const { data, error } = await supabaseAdmin
+    .from("production_cycle_runs")
+    .select(SELECT_COLUMNS)
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data ? mapRow(data as Row) : null;
+}
+
+async function renewLease(id: string, owner: string): Promise<void> {
+  await supabaseAdmin
+    .from("production_cycle_runs")
+    .update({
+      lease_owner: owner,
+      lease_expires_at: new Date(Date.now() + CYCLE_LEASE_MS).toISOString(),
+      last_tick_at: new Date().toISOString(),
+    })
+    .eq("id", id);
 }
 
 /**
- * Executes AT MOST ONE stage step for the active cycle, then persists. Ticks
- * are idempotent and cohort-pinned: a resumed cycle inspects persisted
- * artifacts and never repeats a completed paid stage.
+ * BACKEND-OWNED PROGRESSION.
+ *
+ * Runs the pinned cohort forward stage by stage inside one leased server pass,
+ * until the cycle reaches a terminal state. Nothing in the browser is involved
+ * — the client only reads persisted state. Every step is idempotent and
+ * cohort-pinned, so a resumed pass never repeats a completed paid stage, and
+ * the lease guarantees only one worker ever progresses a cycle at a time.
  */
-export async function advanceProductionCycle(): Promise<AdvanceResult> {
+export async function driveProductionCycle(): Promise<DriveResult> {
   const cycle = await loadActiveProductionCycle();
-  if (!cycle) return { code: "NO_ACTIVE_CYCLE", cycle: null };
-  if (isTerminalStage(cycle.stage)) return { code: "TERMINAL", cycle };
+  if (!cycle) return { code: "NO_ACTIVE_CYCLE", cycle: null, steps: 0 };
+  if (isTerminalStage(cycle.stage)) return { code: "TERMINAL", cycle, steps: 0 };
 
   const owner = `worker-${Math.random().toString(36).slice(2, 10)}`;
-  if (!(await claimLease(cycle.id, owner))) return { code: "BUSY", cycle };
+  if (!(await claimLease(cycle.id, owner))) return { code: "BUSY", cycle, steps: 0 };
 
+  let steps = 0;
+  let current: ProductionCycleState | null = cycle;
   try {
-    await runStage(cycle);
+    while (current && !isTerminalStage(current.stage) && steps < MAX_DRIVE_STEPS) {
+      await runStage(current);
+      steps += 1;
+      current = await loadCycleById(cycle.id);
+      if (current && !isTerminalStage(current.stage)) await renewLease(cycle.id, owner);
+    }
   } catch (error) {
-    await fail(cycle.id, cycle.stage, error instanceof Error ? error.message : String(error));
+    await fail(
+      cycle.id,
+      current?.stage ?? cycle.stage,
+      error instanceof Error ? error.message : String(error),
+    );
   } finally {
-    const after = await loadLatestProductionCycle();
+    const after = await loadCycleById(cycle.id);
     if (after && !isTerminalStage(after.stage)) await releaseLease(cycle.id);
   }
 
-  const updated = await loadLatestProductionCycle();
-  return { code: "ADVANCED", cycle: updated };
+  return { code: "DRIVEN", cycle: await loadCycleById(cycle.id), steps };
 }
+
+/**
+ * RECOVERY WATCHDOG ONLY.
+ *
+ * Exits immediately when no cycle is active. When one is active and still
+ * being progressed by a live worker (unexpired lease, recent tick), it does
+ * nothing. It resumes the next unfinished stage only when normal backend
+ * progression stalled — e.g. the worker died mid-run.
+ */
+export async function watchdogProductionCycle(): Promise<WatchdogResult> {
+  const cycle = await loadActiveProductionCycle();
+  if (!cycle) return { code: "NO_ACTIVE_CYCLE", cycle: null, steps: 0 };
+
+  const { data } = await supabaseAdmin
+    .from("production_cycle_runs")
+    .select("lease_owner, lease_expires_at, last_tick_at")
+    .eq("id", cycle.id)
+    .maybeSingle();
+  const lease = (data as Row | null) ?? {};
+  const stalled = isCycleStalled(
+    {
+      leaseOwner: (lease["lease_owner"] as string) ?? null,
+      leaseExpiresAt: (lease["lease_expires_at"] as string) ?? null,
+      lastTickAt: (lease["last_tick_at"] as string) ?? null,
+      startedAt: cycle.startedAt,
+    },
+    Date.now(),
+  );
+  if (!stalled) return { code: "HEALTHY_NO_ACTION", cycle, steps: 0 };
+
+  const driven = await driveProductionCycle();
+  return { code: "RESUMED", cycle: driven.cycle, steps: driven.steps };
+}
+
 
 async function runStage(cycle: ProductionCycleState): Promise<void> {
   switch (cycle.stage) {
