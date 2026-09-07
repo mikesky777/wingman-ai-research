@@ -1,13 +1,12 @@
 /**
  * production_cycle/v1 server functions.
  *
- * The client starts, observes and nudges a durable server-side cycle. It never
- * owns progression: closing the browser does not stop the run, and a scheduled
- * tick keeps advancing it.
+ * The client starts and OBSERVES a durable server-side cycle. It never owns
+ * progression: the backend drives every stage, and a scheduled watchdog
+ * resumes a stalled cycle. Closing the browser changes nothing.
  */
 import { createServerFn } from "@tanstack/react-start";
 import type {
-  AdvanceResult,
   ProductionCycleState,
   StartProductionCycleResult,
 } from "./services/production-cycle/cycle.server";
@@ -32,13 +31,5 @@ export const getProductionCycleFn = createServerFn({ method: "GET" }).handler(
       loadLatestProductionCycle(),
     ]);
     return { active, latest };
-  },
-);
-
-/** Executes at most one stage step. Safe to call concurrently — leased. */
-export const tickProductionCycleFn = createServerFn({ method: "POST" }).handler(
-  async (): Promise<AdvanceResult> => {
-    const { advanceProductionCycle } = await import("./services/production-cycle/cycle.server");
-    return advanceProductionCycle();
   },
 );

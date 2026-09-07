@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import type { CycleStage } from "./cycle";
 import {
   CYCLE_STAGES,
+  CYCLE_STALL_MS,
   completionCode,
+  isCycleStalled,
   entryEligibleMints,
   isLeaseHeld,
   isTerminalStage,
@@ -90,5 +92,50 @@ describe("lease", () => {
   it("expires so a dead worker never blocks recovery", () => {
     expect(isLeaseHeld({ owner: "w1", expiresAt: "2025-12-31T23:50:00.000Z" }, now)).toBe(false);
     expect(isLeaseHeld({ owner: null, expiresAt: null }, now)).toBe(false);
+  });
+});
+
+describe("watchdog stall detection", () => {
+  const now = Date.parse("2026-09-07T01:00:00.000Z");
+  it("never touches a cycle a live backend pass still holds", () => {
+    expect(
+      isCycleStalled(
+        {
+          leaseOwner: "worker-1",
+          leaseExpiresAt: new Date(now + 60_000).toISOString(),
+          lastTickAt: new Date(now - 5_000).toISOString(),
+          startedAt: new Date(now - 60_000).toISOString(),
+        },
+        now,
+      ),
+    ).toBe(false);
+  });
+
+  it("leaves a recently ticked cycle alone even without a lease", () => {
+    expect(
+      isCycleStalled(
+        {
+          leaseOwner: null,
+          leaseExpiresAt: null,
+          lastTickAt: new Date(now - 30_000).toISOString(),
+          startedAt: new Date(now - 60_000).toISOString(),
+        },
+        now,
+      ),
+    ).toBe(false);
+  });
+
+  it("resumes only when the backend pass is dead", () => {
+    expect(
+      isCycleStalled(
+        {
+          leaseOwner: "worker-1",
+          leaseExpiresAt: new Date(now - 1_000).toISOString(),
+          lastTickAt: new Date(now - CYCLE_STALL_MS - 1_000).toISOString(),
+          startedAt: new Date(now - CYCLE_STALL_MS - 60_000).toISOString(),
+        },
+        now,
+      ),
+    ).toBe(true);
   });
 });
