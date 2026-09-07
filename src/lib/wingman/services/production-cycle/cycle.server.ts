@@ -547,7 +547,7 @@ async function stagePackets(cycle: ProductionCycleState): Promise<StageOutcome> 
   const scanRunId = cycle.scanRunId;
   if (!scanRunId) {
     await fail(cycle.id, "GENERATING_PACKETS", "Cycle has no pinned scan.");
-    return;
+    return "TERMINAL";
   }
   const { canonicalPacketCount, generateResearchPackets } = await import(
     "../research/packet.server"
@@ -563,7 +563,7 @@ async function stagePackets(cycle: ProductionCycleState): Promise<StageOutcome> 
         "GENERATING_PACKETS",
         error instanceof Error ? error.message : String(error),
       );
-      return;
+      return "TERMINAL";
     }
   }
   if (count === 0) {
@@ -572,7 +572,7 @@ async function stagePackets(cycle: ProductionCycleState): Promise<StageOutcome> 
       "GENERATING_PACKETS",
       "No research packets were persisted for the pinned scan.",
     );
-    return;
+    return "TERMINAL";
   }
   await advance(cycle, { packet_count: count });
 }
@@ -582,7 +582,7 @@ async function stageTriage(cycle: ProductionCycleState): Promise<StageOutcome> {
   const scanRunId = cycle.scanRunId;
   if (!scanRunId) {
     await fail(cycle.id, "TRIAGING", "Cycle has no pinned scan.");
-    return;
+    return "TERMINAL";
   }
   const { loadCohortTriageRunId } = await import("../research/cohort.server");
   const { triageRunAvailability } = await import("../research/triage-rerun");
@@ -600,14 +600,14 @@ async function stageTriage(cycle: ProductionCycleState): Promise<StageOutcome> {
       triage_watch_count: decisions.filter((d) => d.decision === "WATCH").length,
       triage_skip_count: decisions.filter((d) => d.decision === "SKIP").length,
     });
-    return;
+    return "ADVANCED";
   }
 
   const { runAiTriage } = await import("../research/triage.server");
   const result = await runAiTriage({ mode: "PRODUCTION", scanRunId, allowRerun: false });
   if (result.code !== "OK" || !result.triageRunId) {
     await fail(cycle.id, "TRIAGING", `Triage produced no canonical result (${result.code}).`);
-    return;
+    return "TERMINAL";
   }
   await advance(cycle, {
     triage_run_id: result.triageRunId,
@@ -626,7 +626,7 @@ async function stageDeepResearch(cycle: ProductionCycleState): Promise<StageOutc
   const triageRunId = cycle.triageRunId;
   if (!triageRunId) {
     await fail(cycle.id, "DEEP_RESEARCH", "Cycle has no pinned triage run.");
-    return;
+    return "TERMINAL";
   }
   const { runDeepResearch } = await import("../research/deep/deep-research.server");
   const result = await runDeepResearch({
@@ -663,7 +663,7 @@ async function stageThesis(cycle: ProductionCycleState): Promise<StageOutcome> {
   const triageRunId = cycle.triageRunId;
   if (!triageRunId) {
     await fail(cycle.id, "THESIS_SYNTHESIS", "Cycle has no pinned triage run.");
-    return;
+    return "TERMINAL";
   }
   const { runThesisSynthesis } = await import("../research/thesis/thesis.server");
   const result = await runThesisSynthesis({ mode: "production", triageRunId });
@@ -691,7 +691,7 @@ async function stageQualification(cycle: ProductionCycleState): Promise<StageOut
   const triageRunId = cycle.triageRunId;
   if (!triageRunId) {
     await fail(cycle.id, "THESIS_QUALIFICATION", "Cycle has no pinned triage run.");
-    return;
+    return "TERMINAL";
   }
   const { loadCohortThesisReports } = await import("../research/cohort.server");
   const refs = await loadCohortThesisReports(triageRunId);
@@ -708,7 +708,7 @@ async function stageEntry(cycle: ProductionCycleState): Promise<StageOutcome> {
   const triageRunId = cycle.triageRunId;
   if (!triageRunId) {
     await fail(cycle.id, "ENTRY_TIMING", "Cycle has no pinned triage run.");
-    return;
+    return "TERMINAL";
   }
   const { loadCohortThesisReports } = await import("../research/cohort.server");
   const { loadActivelyMonitoredCallMints, runEntryStateBatch } = await import(
