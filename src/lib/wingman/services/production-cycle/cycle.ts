@@ -115,7 +115,11 @@ export interface CycleLeaseSnapshot {
  * True only when normal backend progression appears dead: no live lease AND no
  * recent tick. A healthy in-flight cycle is never touched by the watchdog.
  */
-export function isCycleStalled(snapshot: CycleLeaseSnapshot, nowMs: number): boolean {
+export function isCycleStalled(
+  snapshot: CycleLeaseSnapshot,
+  nowMs: number,
+  stallMs: number = CYCLE_STALL_MS,
+): boolean {
   const leaseAlive = isLeaseHeld(
     { owner: snapshot.leaseOwner, expiresAt: snapshot.leaseExpiresAt },
     nowMs,
