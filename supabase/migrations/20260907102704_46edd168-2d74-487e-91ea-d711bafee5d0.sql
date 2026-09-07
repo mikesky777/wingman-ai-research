@@ -1,0 +1,1 @@
+select cron.unschedule('production-cycle-watchdog-1min');

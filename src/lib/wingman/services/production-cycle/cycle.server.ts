@@ -17,6 +17,7 @@ import {
   PRODUCTION_CYCLE_VERSION,
   completionCode,
   entryEligibleMints,
+  CYCLE_WATCHDOG_STALL_MS,
   isCycleStalled,
   isTerminalStage,
   nextStage,
@@ -312,6 +313,7 @@ export async function watchdogProductionCycle(): Promise<WatchdogResult> {
       startedAt: cycle.startedAt,
     },
     Date.now(),
+    CYCLE_WATCHDOG_STALL_MS,
   );
   if (!stalled) return { code: "HEALTHY_NO_ACTION", cycle, steps: 0 };
 

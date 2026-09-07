@@ -115,7 +115,11 @@ export interface CycleLeaseSnapshot {
  * True only when normal backend progression appears dead: no live lease AND no
  * recent tick. A healthy in-flight cycle is never touched by the watchdog.
  */
-export function isCycleStalled(snapshot: CycleLeaseSnapshot, nowMs: number): boolean {
+export function isCycleStalled(
+  snapshot: CycleLeaseSnapshot,
+  nowMs: number,
+  stallMs: number = CYCLE_STALL_MS,
+): boolean {
   const leaseAlive = isLeaseHeld(
     { owner: snapshot.leaseOwner, expiresAt: snapshot.leaseExpiresAt },
     nowMs,
@@ -123,5 +127,12 @@ export function isCycleStalled(snapshot: CycleLeaseSnapshot, nowMs: number): boo
   if (leaseAlive) return false;
   const lastProgressAt = snapshot.lastTickAt ?? snapshot.startedAt;
   if (!lastProgressAt) return true;
-  return nowMs - new Date(lastProgressAt).getTime() > CYCLE_STALL_MS;
+  return nowMs - new Date(lastProgressAt).getTime() > stallMs;
 }
+
+/**
+ * The scheduled watchdog runs every minute. A live pass always holds an
+ * unexpired lease, so "no live lease and no tick in the last minute" already
+ * means the pass is dead and progression must be resumed promptly.
+ */
+export const CYCLE_WATCHDOG_STALL_MS = 60 * 1000;
