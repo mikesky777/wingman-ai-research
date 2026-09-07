@@ -3,6 +3,7 @@ import type { CycleStage } from "./cycle";
 import {
   CYCLE_STAGES,
   CYCLE_STALL_MS,
+  CYCLE_WATCHDOG_STALL_MS,
   completionCode,
   isCycleStalled,
   entryEligibleMints,
@@ -137,5 +138,9 @@ describe("watchdog stall detection", () => {
         now,
       ),
     ).toBe(true);
+  });
+
+  it("uses a one-minute recovery threshold for the scheduled watchdog", () => {
+    expect(CYCLE_WATCHDOG_STALL_MS).toBe(60_000);
   });
 });

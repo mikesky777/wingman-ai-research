@@ -148,10 +148,9 @@ export async function startProductionCycle(): Promise<StartProductionCycleResult
     throw new Error(error.message);
   }
   const cycle = data ? mapRow(data as Row) : null;
-  // Progression is owned by the backend from this moment on: the drive pass is
-  // kicked here and continues server-side. If this worker dies mid-pass, the
-  // scheduled watchdog resumes the next unfinished stage.
-  if (cycle) void driveProductionCycle().catch(() => undefined);
+  // The request that creates the cycle must not start detached work: serverless
+  // runtimes may terminate it as soon as this response is sent. The scheduled
+  // backend worker claims a fresh STARTING row on its next pass instead.
   return { code: "STARTED", cycle };
 }
 
@@ -305,7 +304,8 @@ export async function watchdogProductionCycle(): Promise<WatchdogResult> {
     .eq("id", cycle.id)
     .maybeSingle();
   const lease = (data as Row | null) ?? {};
-  const stalled = isCycleStalled(
+  const unclaimedStart = cycle.stage === "STARTING" && !lease["lease_owner"];
+  const stalled = unclaimedStart || isCycleStalled(
     {
       leaseOwner: (lease["lease_owner"] as string) ?? null,
       leaseExpiresAt: (lease["lease_expires_at"] as string) ?? null,
