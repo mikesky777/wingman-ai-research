@@ -748,4 +748,5 @@ async function stageEntry(cycle: ProductionCycleState): Promise<StageOutcome> {
     entryEligibleCount: eligible.length,
   });
   await complete(cycle.id, code);
+  return "TERMINAL";
 }
