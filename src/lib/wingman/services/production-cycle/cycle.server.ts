@@ -17,6 +17,7 @@ import {
   PRODUCTION_CYCLE_VERSION,
   completionCode,
   entryEligibleMints,
+  isCycleStalled,
   isTerminalStage,
   nextStage,
   type CycleStage,
@@ -145,7 +146,12 @@ export async function startProductionCycle(): Promise<StartProductionCycleResult
     if (active) return { code: "PRODUCTION_CYCLE_ALREADY_RUNNING", cycle: active };
     throw new Error(error.message);
   }
-  return { code: "STARTED", cycle: data ? mapRow(data as Row) : null };
+  const cycle = data ? mapRow(data as Row) : null;
+  // Progression is owned by the backend from this moment on: the drive pass is
+  // kicked here and continues server-side. If this worker dies mid-pass, the
+  // scheduled watchdog resumes the next unfinished stage.
+  if (cycle) void driveProductionCycle().catch(() => undefined);
+  return { code: "STARTED", cycle };
 }
 
 async function patch(id: string, values: Record<string, unknown>): Promise<void> {

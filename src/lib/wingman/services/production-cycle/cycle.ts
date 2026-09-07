@@ -100,3 +100,28 @@ export function isLeaseHeld(
 }
 
 export const CYCLE_LEASE_MS = 15 * 60 * 1000;
+
+/** A backend pass is considered dead after this long without a tick. */
+export const CYCLE_STALL_MS = 10 * 60 * 1000;
+
+export interface CycleLeaseSnapshot {
+  leaseOwner: string | null;
+  leaseExpiresAt: string | null;
+  lastTickAt: string | null;
+  startedAt: string | null;
+}
+
+/**
+ * True only when normal backend progression appears dead: no live lease AND no
+ * recent tick. A healthy in-flight cycle is never touched by the watchdog.
+ */
+export function isCycleStalled(snapshot: CycleLeaseSnapshot, nowMs: number): boolean {
+  const leaseAlive = isLeaseHeld(
+    { owner: snapshot.leaseOwner, expiresAt: snapshot.leaseExpiresAt },
+    nowMs,
+  );
+  if (leaseAlive) return false;
+  const lastProgressAt = snapshot.lastTickAt ?? snapshot.startedAt;
+  if (!lastProgressAt) return true;
+  return nowMs - new Date(lastProgressAt).getTime() > CYCLE_STALL_MS;
+}
