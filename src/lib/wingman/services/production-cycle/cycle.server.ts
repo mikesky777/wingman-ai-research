@@ -123,15 +123,63 @@ export interface StartProductionCycleResult {
   cycle: ProductionCycleState | null;
 }
 
+export type CycleEventType =
+  | "ACCEPTED"
+  | "CLAIMED"
+  | "STAGE_ENTERED"
+  | "SCAN_ASSIGNED"
+  | "STAGE_COMPLETED"
+  | "STAGE_FAILED"
+  | "STAGE_WAITING"
+  | "RECOVERY_STARTED"
+  | "OWNERSHIP_RELEASED"
+  | "CYCLE_COMPLETED"
+  | "CYCLE_FAILED";
+
+/**
+ * Meaningful transitions only. Heartbeats are mutable liveness FIELDS and are
+ * deliberately never written here, so the ledger stays small and readable.
+ */
+async function recordEvent(
+  cycleId: string,
+  eventType: CycleEventType,
+  fields: { stage?: string | null; workerId?: string | null; scanRunId?: string | null; reason?: string | null } = {},
+): Promise<void> {
+  await supabaseAdmin.from("production_cycle_events").insert({
+    production_cycle_run_id: cycleId,
+    event_type: eventType,
+    stage: fields.stage ?? null,
+    worker_id: fields.workerId ?? null,
+    scan_run_id: fields.scanRunId ?? null,
+    reason: fields.reason ? fields.reason.slice(0, 1000) : null,
+  } as never);
+}
+
+/**
+ * NORMAL BACKEND PROGRESSION HAND-OFF.
+ *
+ * Asks the database to invoke the next bounded stage immediately, out of band
+ * from this request. A healthy cycle therefore chains stage → stage on the
+ * backend within seconds, with no browser involvement and without waiting for
+ * the once-a-minute recovery watchdog.
+ */
+async function dispatchNextStage(): Promise<void> {
+  const { error } = await supabaseAdmin.rpc("dispatch_production_cycle_stage" as never);
+  // Dispatch is best-effort: if it fails, the watchdog still recovers the
+  // cycle. It must never turn a healthy stage into a failure.
+  if (error) console.error("production cycle dispatch failed", error.message);
+}
+
 /**
  * Starts one cycle. A unique partial index guarantees at most one active
  * cycle, so a double-click resolves to the existing run instead of a second
- * scan.
+ * scan. The request returns as soon as the cycle is durably accepted.
  */
 export async function startProductionCycle(): Promise<StartProductionCycleResult> {
   const existing = await loadActiveProductionCycle();
   if (existing) return { code: "PRODUCTION_CYCLE_ALREADY_RUNNING", cycle: existing };
 
+  const nowIso = new Date().toISOString();
   const { data, error } = await supabaseAdmin
     .from("production_cycle_runs")
     .insert({
@@ -139,7 +187,11 @@ export async function startProductionCycle(): Promise<StartProductionCycleResult
       status: "STARTING",
       stage: "STARTING",
       trigger: "MANUAL",
-    })
+      requested_at: nowIso,
+      accepted_at: nowIso,
+      worker_status: "UNCLAIMED",
+      last_progress_at: nowIso,
+    } as never)
     .select(SELECT_COLUMNS)
     .maybeSingle();
   if (error) {
@@ -148,9 +200,12 @@ export async function startProductionCycle(): Promise<StartProductionCycleResult
     throw new Error(error.message);
   }
   const cycle = data ? mapRow(data as Row) : null;
-  // The request that creates the cycle must not start detached work: serverless
-  // runtimes may terminate it as soon as this response is sent. The scheduled
-  // backend worker claims a fresh STARTING row on its next pass instead.
+  if (cycle) {
+    await recordEvent(cycle.id, "ACCEPTED", { stage: "STARTING" });
+    // Backend-owned progression starts immediately; the browser is not the
+    // driver and closing the tab changes nothing.
+    await dispatchNextStage();
+  }
   return { code: "STARTED", cycle };
 }
 
@@ -172,7 +227,10 @@ async function fail(id: string, stage: CycleStage, reason: string): Promise<void
     completed_at: new Date().toISOString(),
     lease_owner: null,
     lease_expires_at: null,
+    worker_status: "TERMINAL",
+    recovery_state: null,
   });
+  await recordEvent(id, "CYCLE_FAILED", { stage, reason });
 }
 
 async function complete(id: string, code: string): Promise<void> {
@@ -183,10 +241,13 @@ async function complete(id: string, code: string): Promise<void> {
     completed_at: new Date().toISOString(),
     lease_owner: null,
     lease_expires_at: null,
+    worker_status: "TERMINAL",
+    recovery_state: null,
   });
+  await recordEvent(id, "CYCLE_COMPLETED", { stage: "COMPLETE", reason: code });
 }
 
-/** Claims the tick lease. Returns false when another worker holds it. */
+/** Claims the stage lease. Returns false when another worker holds it. */
 async function claimLease(id: string, owner: string): Promise<boolean> {
   const nowIso = new Date().toISOString();
   const { data, error } = await supabaseAdmin
@@ -195,7 +256,10 @@ async function claimLease(id: string, owner: string): Promise<boolean> {
       lease_owner: owner,
       lease_expires_at: new Date(Date.now() + CYCLE_LEASE_MS).toISOString(),
       last_tick_at: nowIso,
-    })
+      claim_acquired_at: nowIso,
+      worker_heartbeat_at: nowIso,
+      worker_status: "RUNNING",
+    } as never)
     .eq("id", id)
     .or(`lease_expires_at.is.null,lease_expires_at.lt.${nowIso}`)
     .select("id");
@@ -203,11 +267,16 @@ async function claimLease(id: string, owner: string): Promise<boolean> {
   return ((data as Row[]) ?? []).length > 0;
 }
 
-async function releaseLease(id: string): Promise<void> {
+async function releaseLease(id: string, owner: string): Promise<void> {
   await supabaseAdmin
     .from("production_cycle_runs")
-    .update({ lease_owner: null, lease_expires_at: null })
-    .eq("id", id);
+    .update({
+      lease_owner: null,
+      lease_expires_at: null,
+      worker_status: "IDLE",
+    } as never)
+    .eq("id", id)
+    .eq("lease_owner", owner);
 }
 
 export interface DriveResult {
@@ -222,9 +291,6 @@ export interface WatchdogResult {
   steps: number;
 }
 
-/** Max stage steps in one drive pass; the sequence is far shorter than this. */
-const MAX_DRIVE_STEPS = 24;
-
 async function loadCycleById(id: string): Promise<ProductionCycleState | null> {
   const { data, error } = await supabaseAdmin
     .from("production_cycle_runs")
@@ -235,64 +301,102 @@ async function loadCycleById(id: string): Promise<ProductionCycleState | null> {
   return data ? mapRow(data as Row) : null;
 }
 
-async function renewLease(id: string, owner: string): Promise<void> {
+async function heartbeat(id: string, owner: string): Promise<void> {
   await supabaseAdmin
     .from("production_cycle_runs")
     .update({
-      lease_owner: owner,
       lease_expires_at: new Date(Date.now() + CYCLE_LEASE_MS).toISOString(),
+      worker_heartbeat_at: new Date().toISOString(),
       last_tick_at: new Date().toISOString(),
-    })
-    .eq("id", id);
+    } as never)
+    .eq("id", id)
+    .eq("lease_owner", owner);
 }
 
 /**
- * BACKEND-OWNED PROGRESSION.
+ * BACKEND-OWNED PROGRESSION — exactly ONE bounded stage per invocation.
  *
- * Runs the pinned cohort forward stage by stage inside one leased server pass,
- * until the cycle reaches a terminal state. Nothing in the browser is involved
- * — the client only reads persisted state. Every step is idempotent and
- * cohort-pinned, so a resumed pass never repeats a completed paid stage, and
- * the lease guarantees only one worker ever progresses a cycle at a time.
+ * The stage executes under a short renewable lease with a live heartbeat, so
+ * only one worker ever progresses a cycle. When the stage persists progress
+ * and the cycle is still active, the backend immediately dispatches the next
+ * stage itself. Nothing waits for the browser or for the watchdog clock.
  */
-export async function driveProductionCycle(): Promise<DriveResult> {
+export async function runProductionCycleStage(options: { recovery?: boolean } = {}): Promise<DriveResult> {
   const cycle = await loadActiveProductionCycle();
   if (!cycle) return { code: "NO_ACTIVE_CYCLE", cycle: null, steps: 0 };
   if (isTerminalStage(cycle.stage)) return { code: "TERMINAL", cycle, steps: 0 };
 
   const owner = `worker-${Math.random().toString(36).slice(2, 10)}`;
   if (!(await claimLease(cycle.id, owner))) return { code: "BUSY", cycle, steps: 0 };
+  await recordEvent(cycle.id, options.recovery ? "RECOVERY_STARTED" : "CLAIMED", {
+    stage: cycle.stage,
+    workerId: owner,
+  });
+  if (options.recovery) {
+    await patch(cycle.id, { recovery_state: "RECOVERING", recovery_reason: "Previous worker was not alive." });
+  }
+  await recordEvent(cycle.id, "STAGE_ENTERED", { stage: cycle.stage, workerId: owner });
 
-  let steps = 0;
-  let current: ProductionCycleState | null = cycle;
-  try {
-    while (current && !isTerminalStage(current.stage) && steps < MAX_DRIVE_STEPS) {
-      await runStage(current);
-      steps += 1;
-      current = await loadCycleById(cycle.id);
-      if (current && !isTerminalStage(current.stage)) await renewLease(cycle.id, owner);
-    }
-  } catch (error) {
-    await fail(
-      cycle.id,
-      current?.stage ?? cycle.stage,
-      error instanceof Error ? error.message : String(error),
-    );
-  } finally {
-    const after = await loadCycleById(cycle.id);
-    if (after && !isTerminalStage(after.stage)) await releaseLease(cycle.id);
+  const beat = setInterval(() => {
+    void heartbeat(cycle.id, owner).catch(() => undefined);
+  }, 20_000);
+  if (typeof beat === "object" && beat && "unref" in beat) {
+    (beat as unknown as { unref: () => void }).unref();
   }
 
-  return { code: "DRIVEN", cycle: await loadCycleById(cycle.id), steps };
+  let outcome: StageOutcome = "WAITING";
+  try {
+    outcome = await runStage(cycle);
+    if (outcome !== "WAITING") {
+      await patch(cycle.id, {
+        last_progress_at: new Date().toISOString(),
+        worker_error: null,
+        recovery_state: null,
+        recovery_reason: null,
+      });
+      await recordEvent(cycle.id, "STAGE_COMPLETED", { stage: cycle.stage, workerId: owner });
+    } else {
+      await recordEvent(cycle.id, "STAGE_WAITING", { stage: cycle.stage, workerId: owner });
+    }
+  } catch (error) {
+    // A thrown worker error is NOT a confirmed terminal stage failure: the
+    // stage may have completed, died, or simply lost its process. Persist it
+    // as recoverable state and let recovery re-evaluate the exact artifacts.
+    const message = error instanceof Error ? error.message : String(error);
+    await patch(cycle.id, {
+      worker_error: message.slice(0, 2000),
+      recovery_state: "RECOVERABLE",
+      recovery_reason: "Worker error; stage outcome unknown.",
+    });
+    await recordEvent(cycle.id, "STAGE_FAILED", { stage: cycle.stage, workerId: owner, reason: message });
+    outcome = "WAITING";
+  } finally {
+    clearInterval(beat);
+    await releaseLease(cycle.id, owner);
+    await recordEvent(cycle.id, "OWNERSHIP_RELEASED", { stage: cycle.stage, workerId: owner });
+  }
+
+  const after = await loadCycleById(cycle.id);
+  // Immediate backend hand-off to the next stage; only genuinely blocked
+  // stages ("still running elsewhere") wait for the recovery watchdog.
+  if (after && !isTerminalStage(after.stage) && outcome === "ADVANCED") {
+    await dispatchNextStage();
+  }
+  return { code: "DRIVEN", cycle: after, steps: outcome === "ADVANCED" ? 1 : 0 };
+}
+
+/** Backwards-compatible alias: one bounded stage, backend-owned. */
+export async function driveProductionCycle(): Promise<DriveResult> {
+  return runProductionCycleStage();
 }
 
 /**
  * RECOVERY WATCHDOG ONLY.
  *
- * Exits immediately when no cycle is active. When one is active and still
- * being progressed by a live worker (unexpired lease, recent tick), it does
- * nothing. It resumes the next unfinished stage only when normal backend
- * progression stalled — e.g. the worker died mid-run.
+ * Never the ordinary clock for stage progression. It exits immediately when
+ * no cycle is active, does nothing while a live backend worker owns the
+ * cycle, and resumes the next unfinished stage only when that ownership is
+ * dead — after which normal backend progression takes over again.
  */
 export async function watchdogProductionCycle(): Promise<WatchdogResult> {
   const cycle = await loadActiveProductionCycle();
@@ -300,33 +404,42 @@ export async function watchdogProductionCycle(): Promise<WatchdogResult> {
 
   const { data } = await supabaseAdmin
     .from("production_cycle_runs")
-    .select("lease_owner, lease_expires_at, last_tick_at")
+    .select("lease_owner, lease_expires_at, last_tick_at, worker_heartbeat_at")
     .eq("id", cycle.id)
     .maybeSingle();
   const lease = (data as Row | null) ?? {};
   const unclaimedStart = cycle.stage === "STARTING" && !lease["lease_owner"];
-  const stalled = unclaimedStart || isCycleStalled(
-    {
-      leaseOwner: (lease["lease_owner"] as string) ?? null,
-      leaseExpiresAt: (lease["lease_expires_at"] as string) ?? null,
-      lastTickAt: (lease["last_tick_at"] as string) ?? null,
-      startedAt: cycle.startedAt,
-    },
-    Date.now(),
-    CYCLE_WATCHDOG_STALL_MS,
-  );
+  const stalled =
+    unclaimedStart ||
+    isCycleStalled(
+      {
+        leaseOwner: (lease["lease_owner"] as string) ?? null,
+        leaseExpiresAt: (lease["lease_expires_at"] as string) ?? null,
+        lastTickAt:
+          (lease["worker_heartbeat_at"] as string) ?? (lease["last_tick_at"] as string) ?? null,
+        startedAt: cycle.startedAt,
+      },
+      Date.now(),
+      CYCLE_WATCHDOG_STALL_MS,
+    );
   if (!stalled) return { code: "HEALTHY_NO_ACTION", cycle, steps: 0 };
 
-  const driven = await driveProductionCycle();
+  const driven = await runProductionCycleStage({ recovery: true });
   return { code: "RESUMED", cycle: driven.cycle, steps: driven.steps };
 }
 
+/**
+ * Stage outcome. "WAITING" means the stage legitimately made no progress this
+ * pass (work still running elsewhere, or an unknown-but-recoverable state) —
+ * it is never a production failure.
+ */
+type StageOutcome = "ADVANCED" | "WAITING" | "TERMINAL";
 
-async function runStage(cycle: ProductionCycleState): Promise<void> {
+async function runStage(cycle: ProductionCycleState): Promise<StageOutcome> {
   switch (cycle.stage) {
     case "STARTING":
       await patch(cycle.id, { stage: "SCANNING", status: "SCANNING" });
-      return;
+      return "ADVANCED";
     case "SCANNING":
       return stageScan(cycle);
     case "GENERATING_PACKETS":
@@ -337,7 +450,7 @@ async function runStage(cycle: ProductionCycleState): Promise<void> {
       // Spend control is applied by the authoritative Deep Research path
       // itself; this state exists so the UI can name the step.
       await patch(cycle.id, { stage: "DEEP_RESEARCH", status: "DEEP_RESEARCH" });
-      return;
+      return "ADVANCED";
     case "DEEP_RESEARCH":
       return stageDeepResearch(cycle);
     case "THESIS_SYNTHESIS":
@@ -347,7 +460,7 @@ async function runStage(cycle: ProductionCycleState): Promise<void> {
     case "ENTRY_TIMING":
       return stageEntry(cycle);
     default:
-      return;
+      return "TERMINAL";
   }
 }
 
@@ -356,28 +469,77 @@ async function advance(cycle: ProductionCycleState, values: Record<string, unkno
   await patch(cycle.id, { ...values, stage: next, status: next });
 }
 
-/** STAGE 1 — the existing authoritative production scan. */
-async function stageScan(cycle: ProductionCycleState): Promise<void> {
-  if (cycle.scanRunId) {
-    // Resume: never rerun a scan that already exists for this cycle.
-    await advance(cycle);
-    return;
+/**
+ * STAGE 1 — the existing authoritative production scan.
+ *
+ * Order is durability-critical: the scan row is created and pinned to the
+ * cycle BEFORE any external provider work, and scanner execution carries its
+ * own liveness so recovery can never duplicate provider calls.
+ */
+async function stageScan(cycle: ProductionCycleState): Promise<StageOutcome> {
+  const {
+    claimScanExecution,
+    getCycleScanExecution,
+    isScanExecutionAlive,
+  } = await import("../scanner/persistence.server");
+  const { createCycleScanRun, runScannerPipeline } = await import("../scanner/pipeline.server");
+  const { ConcurrentScanError } = await import("../scanner/persistence.server");
+
+  const owner = `scan-${Math.random().toString(36).slice(2, 10)}`;
+  let scanRunId = cycle.scanRunId;
+
+  if (!scanRunId) {
+    const linked = await getCycleScanExecution(cycle.id);
+    if (linked) {
+      // A crash between the two writes: rediscover the exact same scan.
+      scanRunId = linked.id;
+    } else {
+      try {
+        scanRunId = await createCycleScanRun({ productionCycleRunId: cycle.id, executionOwner: owner });
+      } catch (error) {
+        if (error instanceof ConcurrentScanError) {
+          // A manual scan holds the lock. Transient, never a cycle failure.
+          return "WAITING";
+        }
+        throw error;
+      }
+    }
+    await patch(cycle.id, { scan_run_id: scanRunId });
+    await recordEvent(cycle.id, "SCAN_ASSIGNED", { stage: "SCANNING", scanRunId });
   }
-  const { runScannerPipeline } = await import("../scanner/pipeline.server");
-  const result = await runScannerPipeline({});
+
+  const state = await getCycleScanExecution(cycle.id);
+  if (state?.status === "completed") {
+    await advance({ ...cycle, scanRunId }, { scan_run_id: scanRunId });
+    return "ADVANCED";
+  }
+  if (state?.status === "failed") {
+    await fail(cycle.id, "SCANNING", state.errorMessage ?? "Scan did not complete.");
+    return "TERMINAL";
+  }
+  if (state && isScanExecutionAlive(state) && state.executionOwner !== owner) {
+    // The original execution is genuinely alive: never duplicate provider work.
+    return "WAITING";
+  }
+  if (state && state.executionOwner !== owner && !(await claimScanExecution(state.id, owner))) {
+    return "WAITING";
+  }
+
+  const result = await runScannerPipeline({}, { existingRunId: scanRunId, executionOwner: owner });
+  if (result.code === "ALREADY_RUNNING") return "WAITING";
   if (!result.ok || !result.runId) {
-    await fail(
-      cycle.id,
-      "SCANNING",
-      result.message ?? `Scan did not complete (${result.code}).`,
-    );
-    return;
+    await fail(cycle.id, "SCANNING", result.message ?? `Scan did not complete (${result.code}).`);
+    return "TERMINAL";
   }
-  await advance(cycle, {
-    scan_run_id: result.runId,
-    scanner_policy_version: result.summary?.scannerVersion ?? null,
-    packet_count: result.researchPackets?.persisted ?? 0,
-  });
+  await advance(
+    { ...cycle, scanRunId },
+    {
+      scan_run_id: result.runId,
+      scanner_policy_version: result.summary?.scannerVersion ?? null,
+      packet_count: result.researchPackets?.persisted ?? 0,
+    },
+  );
+  return "ADVANCED";
 }
 
 /** STAGE 2 — canonical Research Packets for the pinned scan only. */
