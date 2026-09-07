@@ -308,11 +308,29 @@ function ScannerPage() {
   const { data: cycleState } = useProductionCycle();
   const cycleActive = Boolean(cycleState?.active);
   const [confirmCycle, setConfirmCycle] = useState(false);
+  const [cycleNotice, setCycleNotice] = useState<string | null>(null);
   const cycleMutation = useMutation({
-    mutationFn: () => startCycle(),
+    // Bounded acknowledgement: the start request is durable on the backend, so
+    // a slow or lost response must never leave the button spinning forever.
+    mutationFn: async () => {
+      const timeout = new Promise<"NO_ACK">((resolve) => setTimeout(() => resolve("NO_ACK"), 15_000));
+      return Promise.race([startCycle(), timeout]);
+    },
+    onSuccess: (result) => {
+      setCycleNotice(
+        result === "NO_ACK"
+          ? "The start request was sent but not confirmed in time. Checking the saved run state below."
+          : null,
+      );
+    },
+    onError: () =>
+      setCycleNotice(
+        "The start request could not be confirmed. Checking the saved run state below.",
+      ),
     onSettled: () =>
       queryClient.invalidateQueries({ queryKey: ["wingman", "production-cycle"] }),
   });
+
   const loadProviderStatus = useServerFn(getDiscoveryProviderStatus);
   // Diagnostic only: readiness never changes scoring, selection or health.
   const { data: providerStatus } = useQuery({
