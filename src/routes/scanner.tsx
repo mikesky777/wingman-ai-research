@@ -540,7 +540,14 @@ function ScannerPage() {
       </AlertDialog>
 
       <div className="space-y-6">
+        {cycleNotice ? (
+          <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+            {cycleNotice}
+          </div>
+        ) : null}
         <ProductionCyclePanel />
+
+
 
         {message ? (
           <p
