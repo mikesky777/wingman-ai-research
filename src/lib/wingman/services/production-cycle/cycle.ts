@@ -127,5 +127,12 @@ export function isCycleStalled(
   if (leaseAlive) return false;
   const lastProgressAt = snapshot.lastTickAt ?? snapshot.startedAt;
   if (!lastProgressAt) return true;
-  return nowMs - new Date(lastProgressAt).getTime() > CYCLE_STALL_MS;
+  return nowMs - new Date(lastProgressAt).getTime() > stallMs;
 }
+
+/**
+ * The scheduled watchdog runs every minute. A live pass always holds an
+ * unexpired lease, so "no live lease and no tick in the last minute" already
+ * means the pass is dead and progression must be resumed promptly.
+ */
+export const CYCLE_WATCHDOG_STALL_MS = 60 * 1000;
