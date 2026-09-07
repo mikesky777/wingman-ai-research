@@ -469,7 +469,11 @@ function ScannerPage() {
             {funnel?.scannerVersion ?? "scanner/v1"}
             {funnel?.calibrationMode ? " · calibration" : ""}
           </span>
-          <Button size="sm" onClick={() => mutation.mutate()} disabled={controlBlocked}>
+          <Button
+            size="sm"
+            onClick={() => mutation.mutate()}
+            disabled={controlBlocked || cycleActive}
+          >
             {controlBlocked ? (
               <>
                 <Loader2 className="size-3.5 animate-spin" />{" "}
@@ -479,10 +483,47 @@ function ScannerPage() {
               "Run scan"
             )}
           </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setConfirmCycle(true)}
+            disabled={cycleActive || cycleMutation.isPending || controlBlocked}
+          >
+            {cycleActive ? (
+              <>
+                <Loader2 className="size-3.5 animate-spin" /> Cycle running
+              </>
+            ) : (
+              "Run full cycle"
+            )}
+          </Button>
         </div>
       }
     >
+      <AlertDialog open={confirmCycle} onOpenChange={setConfirmCycle}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Run the full production cycle?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This runs Scanner → AI Triage → Deep Research → Thesis Synthesis → Entry Timing
+              automatically and will spend AI and Deep Research credits. Existing spend controls,
+              cooldowns and budgets still apply. Nothing is bought, sold or signed, and no
+              downstream milestone is forced: thesis calls are still minted only by the normal
+              opportunity gates.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => cycleMutation.mutate()}>
+              Run full cycle
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <div className="space-y-6">
+        <ProductionCyclePanel />
+
         {message ? (
           <p
             className={`rounded-md border px-3 py-2 text-xs ${
