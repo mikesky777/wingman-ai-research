@@ -17,6 +17,7 @@ import {
   PRODUCTION_CYCLE_VERSION,
   completionCode,
   entryEligibleMints,
+  CYCLE_WATCHDOG_STALL_MS,
   isCycleStalled,
   isTerminalStage,
   nextStage,
