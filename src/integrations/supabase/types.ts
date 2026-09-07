@@ -1486,6 +1486,111 @@ export type Database = {
           },
         ]
       }
+      production_cycle_runs: {
+        Row: {
+          completed_at: string | null
+          completion_code: string | null
+          created_at: string
+          deep_research_blocked: number
+          deep_research_deferred: number
+          deep_research_executed: number
+          deep_research_failed: number
+          diagnostics: Json
+          entry_eligible_count: number
+          entry_evaluated_count: number
+          failure_reason: string | null
+          failure_stage: string | null
+          id: string
+          last_tick_at: string | null
+          lease_expires_at: string | null
+          lease_owner: string | null
+          orchestrator_version: string
+          packet_count: number
+          scan_run_id: string | null
+          scanner_policy_version: string | null
+          stage: string
+          started_at: string
+          status: string
+          thesis_call_count: number
+          thesis_failed_count: number
+          thesis_synthesized_count: number
+          triage_deep_count: number
+          triage_run_id: string | null
+          triage_skip_count: number
+          triage_watch_count: number
+          trigger: string
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          completion_code?: string | null
+          created_at?: string
+          deep_research_blocked?: number
+          deep_research_deferred?: number
+          deep_research_executed?: number
+          deep_research_failed?: number
+          diagnostics?: Json
+          entry_eligible_count?: number
+          entry_evaluated_count?: number
+          failure_reason?: string | null
+          failure_stage?: string | null
+          id?: string
+          last_tick_at?: string | null
+          lease_expires_at?: string | null
+          lease_owner?: string | null
+          orchestrator_version?: string
+          packet_count?: number
+          scan_run_id?: string | null
+          scanner_policy_version?: string | null
+          stage?: string
+          started_at?: string
+          status?: string
+          thesis_call_count?: number
+          thesis_failed_count?: number
+          thesis_synthesized_count?: number
+          triage_deep_count?: number
+          triage_run_id?: string | null
+          triage_skip_count?: number
+          triage_watch_count?: number
+          trigger?: string
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          completion_code?: string | null
+          created_at?: string
+          deep_research_blocked?: number
+          deep_research_deferred?: number
+          deep_research_executed?: number
+          deep_research_failed?: number
+          diagnostics?: Json
+          entry_eligible_count?: number
+          entry_evaluated_count?: number
+          failure_reason?: string | null
+          failure_stage?: string | null
+          id?: string
+          last_tick_at?: string | null
+          lease_expires_at?: string | null
+          lease_owner?: string | null
+          orchestrator_version?: string
+          packet_count?: number
+          scan_run_id?: string | null
+          scanner_policy_version?: string | null
+          stage?: string
+          started_at?: string
+          status?: string
+          thesis_call_count?: number
+          thesis_failed_count?: number
+          thesis_synthesized_count?: number
+          triage_deep_count?: number
+          triage_run_id?: string | null
+          triage_skip_count?: number
+          triage_watch_count?: number
+          trigger?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       research_packets: {
         Row: {
           candidate_source: string
