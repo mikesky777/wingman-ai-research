@@ -56,17 +56,17 @@
 
 - Associate existing scan `c6ca17c3-ce46-4b8f-8bd4-2bc00febe3eb` with existing cycle `1f808799-f95a-48b9-9000-133e3829dfa3` after validating their timestamps/state and absence of competing artifacts.
 - Do not delete either row, create a new cycle/scan, or alter historical decisions.
-- Resolve the stale scanner pass under the new recovery rules, then resume only the same cycle from its legitimate unfinished state.
+- Recover this cycle from this scan only once authoritative liveness confirms the original scanner execution is no longer active, then resume the same cycle from its legitimate unfinished state.
 
 ## Technical details
 
-- Apply one backend migration for the new lifecycle/diagnostic columns, cycle-to-scan uniqueness, event ledger, grants, RLS, indexes, and safe current-row repair.
-- Refactor scanner orchestration to accept a pre-created run ID while retaining the existing manual Run Scan behavior.
-- Keep the once-per-minute watchdog as recovery/dispatch only; each call performs at most one stage.
-- Add bounded waits around potentially hanging worker operations so every request has a defined terminal outcome.
+- Apply one backend migration for the new lifecycle/diagnostic columns, cycle-scoped scan uniqueness, event ledger, grants, RLS, indexes, and safe current-row repair.
+- Refactor scanner orchestration to accept a pre-created run ID while retaining the existing manual Run Scan behavior exactly as it is today.
+- Implement immediate backend-to-backend stage dispatch so healthy cycles continue without scheduler involvement; keep the once-per-minute job as recovery/dispatch safety only.
+- Bound each stage invocation so every request has a defined outcome, while keeping "request ended" strictly separate from "stage failed".
 
 ## Validation
 
-- Add regression coverage for all 25 requested scenarios: successive cycles, terminal singleton release, fast acknowledgement, response-loss reconciliation, double click, pre/post-scan worker death, interrupted transition, lease expiry, read-only polling, healthy/stale watchdog behavior, exact scan binding, explicit startup failure, paid-stage idempotency, zero-call completion, and unchanged no-Live/no-Sizing/no-trading behavior.
+- Add regression coverage for all 25 requested scenarios, plus: healthy cycles advance server-side without a watchdog tick, the watchdog no-ops on a live cycle, scan ID is persisted before provider work, live scanner execution is never duplicated, and a request timeout alone never marks a stage failed.
 - Run focused cycle/scanner tests, the full relevant test suite, TypeScript checks, build validation, backend security/lint checks, and browser verification of the Scanner page.
 - Re-query the repaired cycle, linked scan, event trail, artifacts, and watchdog responses before reporting completion.
