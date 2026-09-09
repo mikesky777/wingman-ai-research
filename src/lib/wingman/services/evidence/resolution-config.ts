@@ -80,6 +80,11 @@ export const DEFAULT_FRESHNESS: FreshnessConfig = {
   holders: 6 * HOUR,
   creator: 7 * DAY,
   provenance: 30 * DAY,
+  // Reserved evidence/v1.1 domains. Nothing emits these yet, so these windows
+  // are placeholders only and cannot affect any current resolution.
+  wallet: 30 * MINUTE,
+  developer: 7 * DAY,
+  liquidity_flow: 15 * MINUTE,
 };
 
 /**
