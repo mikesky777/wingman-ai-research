@@ -11,15 +11,20 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import type { EvidenceObservation, EvidenceValue } from "./evidence/types";
 import { EVIDENCE_SCHEMA_VERSION } from "./evidence/types";
+import { resolvedTokenIdFor } from "./evidence/observation-builder";
 
 export interface EvidencePersistenceContext {
-  tokenId: string;
+  /**
+   * Exact token linkage. Required for RESOLVED_MINT observations; may be null
+   * only for evidence/v1.1 UNRESOLVED_TOKEN_ATTRIBUTION observations.
+   */
+  tokenId: string | null;
   scanRunId?: string | null;
   researchReportId?: string | null;
 }
 
 type EvidenceRow = {
-  token_id: string;
+  token_id: string | null;
   scan_run_id: string | null;
   research_report_id: string | null;
   domain: string;
@@ -33,6 +38,9 @@ type EvidenceRow = {
   status: string;
   confidence: number | null;
   metadata: Record<string, EvidenceValue> | null;
+  affiliation: string | null;
+  attribution_status: string;
+  collection_health: string | null;
   schema_version: string;
 };
 
@@ -42,7 +50,9 @@ export function toEvidenceRow(
   context: EvidencePersistenceContext,
 ): EvidenceRow {
   return {
-    token_id: context.tokenId,
+    // Unresolved observations persist without a token; a RESOLVED_MINT
+    // observation with no linkage is rejected rather than silently attached.
+    token_id: resolvedTokenIdFor(observation, context.tokenId),
     scan_run_id: context.scanRunId ?? null,
     research_report_id: context.researchReportId ?? null,
     domain: observation.domain,
@@ -57,6 +67,10 @@ export function toEvidenceRow(
     status: observation.status,
     confidence: observation.confidence ?? null,
     metadata: observation.metadata ?? null,
+    affiliation: observation.affiliation ?? null,
+    // Historical v1 rows were only ever written with an exact token linkage.
+    attribution_status: observation.attributionStatus ?? "RESOLVED_MINT",
+    collection_health: observation.collectionHealth ?? null,
     schema_version: observation.schemaVersion ?? EVIDENCE_SCHEMA_VERSION,
   };
 }
