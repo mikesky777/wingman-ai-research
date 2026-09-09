@@ -117,6 +117,26 @@ export async function syncTrackingFromBaselines(nowIso = new Date().toISOString(
     if (at > current.latest) current.latest = at;
   }
 
+  // Evaluation-only enrollments join the SAME per-mint stream: an already
+  // tracked mint adds zero provider requests, it only widens what we can later
+  // evaluate. Enrollment problems never break production sampling.
+  try {
+    const { loadEnrollmentBaselines } = await import("../evaluation/enrollment.server");
+    for (const [mint, agg] of await loadEnrollmentBaselines()) {
+      const current = byMint.get(mint);
+      if (!current) {
+        byMint.set(mint, { ...agg });
+        continue;
+      }
+      current.count += agg.count;
+      if (agg.earliest < current.earliest) current.earliest = agg.earliest;
+      if (agg.latest > current.latest) current.latest = agg.latest;
+    }
+  } catch {
+    // ignore: tracking continues from production milestones alone
+  }
+
+
   const payload = [...byMint.entries()].map(([mint, agg]) => ({
     contract_address: mint,
     chain: agg.chain,
