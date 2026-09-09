@@ -215,5 +215,19 @@ export interface EvidenceObservation {
   confidence?: number;
   /** Non-interpretive extra context, e.g. the ingestion version. */
   metadata?: Record<string, EvidenceValue>;
-  schemaVersion: typeof EVIDENCE_SCHEMA_VERSION;
+  /**
+   * evidence/v1.1 — source relationship. Optional: absent means "not
+   * classified" (historical v1 rows), never UNKNOWN-as-a-judgement.
+   * Never an input to the production independent-evidence gate.
+   */
+  affiliation?: EvidenceAffiliation;
+  /**
+   * evidence/v1.1 — whether this observation is tied to an exact mint.
+   * Absent is treated as RESOLVED_MINT for historical v1 rows, which were only
+   * ever written with an exact token linkage.
+   */
+  attributionStatus?: EvidenceAttributionStatus;
+  /** evidence/v1.1 — health of the collection attempt, never of the token. */
+  collectionHealth?: EvidenceCollectionHealth;
+  schemaVersion: EvidenceSchemaVersion;
 }
