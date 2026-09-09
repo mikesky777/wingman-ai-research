@@ -899,6 +899,46 @@ async function executeScannerPipeline(args: {
       );
     }
 
+    // EVALUATION-ONLY outcome enrollment (`outcome_enrollment/v1`). Records why
+    // each event is followed for later market observations. It creates no
+    // milestone, changes no selection and never advances a token; failure here
+    // is recorded and ignored.
+    try {
+      const { enrollScanEvents } = await import("../evaluation/enrollment.server");
+      const survivorSet = new Set(survivors.map((s) => s.token.contractAddress));
+      const enrollment = await enrollScanEvents({
+        scanRunId: runId,
+        completedAt,
+        scannerPolicyVersion: SCANNER_VERSION,
+        candidates: toPersist.map((c) => ({
+          contractAddress: c.token.contractAddress,
+          tokenId: tokenIds.get(c.token.contractAddress) ?? null,
+          chain: "solana",
+          setups: c.lanes,
+          survivor: survivorSet.has(c.token.contractAddress),
+          stageReached: c.stageReached,
+          rejectionReason: c.rejection?.reason ?? null,
+          rejectionDetails: c.rejection ?? null,
+          laneRejections: c.laneRejections ?? null,
+          baseline: {
+            at: completedAt,
+            marketCapUsd: c.token.marketCap,
+            priceUsd: c.token.priceUsd,
+            liquidityUsd: c.token.liquidityUsd,
+          },
+        })),
+      });
+      if (!enrollment.ok) {
+        console.error("outcome enrollment failed", enrollment.message);
+      }
+    } catch (enrollmentError) {
+      console.error(
+        "enrollScanEvents failed",
+        enrollmentError instanceof Error ? enrollmentError.message : enrollmentError,
+      );
+    }
+
+
     // Outcome tracking runs LAST, once the run is completed, and is purely
 
     // observational: nothing it writes is ever read back into ranking,
