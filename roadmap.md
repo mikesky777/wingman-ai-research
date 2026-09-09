@@ -17,3 +17,4 @@
 ## Evidence foundation
 - [x] Phase 3A.0 `evidence/v1.1`: generic affiliation, attributionStatus (RESOLVED_MINT | UNRESOLVED_TOKEN_ATTRIBUTION), collectionHealth, nullable token linkage for unresolved observations, versioned feature-key convention. Zero production decision effect.
 - [ ] Phase 3A.1: generic decision-time learning feature layer for Calibration.
+- [x] Phase 3A.2 `outcome_enrollment/v1`: evaluation-only enrollment ledger (`outcome_enrollments`, `outcome_enrollment_strata`). Exhaustive setup-qualified/survivor + all triage classes (SKIP/WATCH/DEEP) at same-stage same-time baselines; deterministic stratified Scanner-reject sampling shipped DISABLED (capacity: 48 healthy scans/7d x 24 = ~2.45x current 796 tracked mints, above the 2x ceiling). Zero production decision effect.

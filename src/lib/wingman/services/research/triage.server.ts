@@ -516,6 +516,48 @@ export async function runAiTriage(options: RunAiTriageOptions = {}): Promise<Tri
     }
   }
 
+  // 7b. EVALUATION-ONLY triage enrollment. SKIP, WATCH and DEEP_RESEARCH all get
+  // a baseline at the SAME stage and time so the three classes are prospectively
+  // comparable. No AI_SHORTLIST milestone is created for SKIP/WATCH, and nothing
+  // here changes a triage decision or sends anything to Deep Research.
+  if (!isCalibration) {
+    try {
+      const { enrollTriageDecisions } = await import("../evaluation/enrollment.server");
+      const decidedAt = new Date().toISOString();
+      const enrollment = await enrollTriageDecisions({
+        triageRunId,
+        scanRunId: sourceScanId,
+        decidedAt,
+        triagePolicyVersion: TRIAGE_POLICY_VERSION,
+        decisions: compared
+          .filter((d) => d.decision === "SKIP" || d.decision === "WATCH" || d.decision === "DEEP_RESEARCH")
+          .map((d) => {
+            const tokenId = tokenIdByMint.get(d.mint) ?? null;
+            const candidate = tokenId ? byToken.get(tokenId) : undefined;
+            const market = tokenId ? markets.get(tokenId) ?? null : null;
+            return {
+              contractAddress: d.mint,
+              tokenId,
+              decision: d.decision as "SKIP" | "WATCH" | "DEEP_RESEARCH",
+              baseline: {
+                at: decidedAt,
+                marketCapUsd: market?.marketCap ?? candidate?.marketCap ?? null,
+                priceUsd: market?.priceUsd ?? candidate?.priceUsd ?? null,
+                liquidityUsd: market?.liquidityUsd ?? candidate?.liquidityUsd ?? null,
+              },
+            };
+          }),
+      });
+      if (!enrollment.ok) console.error("triage enrollment failed", enrollment.message);
+    } catch (enrollmentError) {
+      console.error(
+        "enrollTriageDecisions failed",
+        enrollmentError instanceof Error ? enrollmentError.message : enrollmentError,
+      );
+    }
+  }
+
+
   await finishRun(triageRunId, {
     status: "completed",
     error: null,
