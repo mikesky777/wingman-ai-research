@@ -28,7 +28,7 @@ import {
 
 type Row = Record<string, unknown>;
 
-function toRow(record: EnrollmentRecord): Row {
+function toRow(record: EnrollmentRecord) {
   return {
     schema_version: record.schemaVersion,
     token_id: record.tokenId,
