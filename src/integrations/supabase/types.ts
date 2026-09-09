@@ -952,7 +952,10 @@ export type Database = {
       }
       evidence_observations: {
         Row: {
+          affiliation: string | null
+          attribution_status: string
           captured_at: string
+          collection_health: string | null
           confidence: number | null
           domain: string
           id: string
@@ -966,12 +969,15 @@ export type Database = {
           source: string
           source_reference: string | null
           status: string
-          token_id: string
+          token_id: string | null
           unit: string | null
           value_json: Json | null
         }
         Insert: {
+          affiliation?: string | null
+          attribution_status?: string
           captured_at: string
+          collection_health?: string | null
           confidence?: number | null
           domain: string
           id?: string
@@ -985,12 +991,15 @@ export type Database = {
           source: string
           source_reference?: string | null
           status: string
-          token_id: string
+          token_id?: string | null
           unit?: string | null
           value_json?: Json | null
         }
         Update: {
+          affiliation?: string | null
+          attribution_status?: string
           captured_at?: string
+          collection_health?: string | null
           confidence?: number | null
           domain?: string
           id?: string
@@ -1004,7 +1013,7 @@ export type Database = {
           source?: string
           source_reference?: string | null
           status?: string
-          token_id?: string
+          token_id?: string | null
           unit?: string | null
           value_json?: Json | null
         }

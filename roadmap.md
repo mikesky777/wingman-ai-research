@@ -13,3 +13,7 @@
 
 ## Outcome collection
 - [x] Phase 1H `outcome_sampler/v1`: scheduled 5-minute market-observation sampler, centralized DexScreener rate-limit controller, staleness-driven selection, coverage states, History reads persisted data only.
+
+## Evidence foundation
+- [x] Phase 3A.0 `evidence/v1.1`: generic affiliation, attributionStatus (RESOLVED_MINT | UNRESOLVED_TOKEN_ATTRIBUTION), collectionHealth, nullable token linkage for unresolved observations, versioned feature-key convention. Zero production decision effect.
+- [ ] Phase 3A.1: generic decision-time learning feature layer for Calibration.

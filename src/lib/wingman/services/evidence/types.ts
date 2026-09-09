@@ -13,16 +13,129 @@
  *   - Only facts a source actually supplied are emitted. Nothing is fabricated.
  */
 
+/**
+ * Current emitters stay on evidence/v1 so existing production output is
+ * byte-identical. New senses (social, wallet, developer, liquidity flow) emit
+ * evidence/v1.1, which adds affiliation, attributionStatus and collectionHealth.
+ * Historical v1 rows are never rewritten and remain readable: the v1.1 fields
+ * are optional and absence means "not classified", never a negative fact.
+ */
 export const EVIDENCE_SCHEMA_VERSION = "evidence/v1";
+export const EVIDENCE_SCHEMA_VERSION_V1_1 = "evidence/v1.1";
 
-/** Broad subject area a fact belongs to. Future sources extend this union. */
-export type EvidenceDomain =
-  | "market"
-  | "provenance"
-  | "holders"
-  | "creator"
-  | "participation"
-  | "social";
+export type EvidenceSchemaVersion =
+  | typeof EVIDENCE_SCHEMA_VERSION
+  | typeof EVIDENCE_SCHEMA_VERSION_V1_1;
+
+/**
+ * Feature-version convention (prospective, evidence/v1.1 onward):
+ *
+ *   <domain>.<feature_name>/v<major>      e.g. "social.mention_velocity/v1"
+ *
+ * A derived feature whose DEFINITION changes gets a new version suffix and a
+ * new key; it never reuses the old key with new meaning. Directly observed
+ * provider facts keep their plain dotted keys (e.g. "market.liquidity_usd").
+ * Existing keys are deliberately NOT renamed by this convention.
+ */
+export const FEATURE_KEY_VERSION_PATTERN = /^[a-z0-9_]+\.[a-z0-9_]+\/v\d+$/;
+
+export function isVersionedFeatureKey(key: string): boolean {
+  return FEATURE_KEY_VERSION_PATTERN.test(key);
+}
+
+/**
+ * Source relationship of the observation. Describes WHO produced it, never
+ * whether it is positive, negative or corroborating. Consumers must decide
+ * explicitly how (or whether) affiliation affects their own policy.
+ *
+ * This is deliberately NOT wired into Deep Research independence/origin logic:
+ * `distinctIndependentEvidenceOrigins` and the Opportunity gate remain
+ * authoritative and untouched.
+ */
+export type EvidenceAffiliation =
+  | "PROJECT"
+  | "COMMUNITY"
+  | "INDEPENDENT"
+  | "MIRROR"
+  | "UNKNOWN";
+
+export const EVIDENCE_AFFILIATIONS: readonly EvidenceAffiliation[] = [
+  "PROJECT",
+  "COMMUNITY",
+  "INDEPENDENT",
+  "MIRROR",
+  "UNKNOWN",
+] as const;
+
+/**
+ * Whether the observation can be tied to an exact Solana mint.
+ * Ticker, name, fuzzy text, popularity or a previously-known token are NEVER
+ * sufficient to claim RESOLVED_MINT.
+ */
+export type EvidenceAttributionStatus = "RESOLVED_MINT" | "UNRESOLVED_TOKEN_ATTRIBUTION";
+
+export const EVIDENCE_ATTRIBUTION_STATUSES: readonly EvidenceAttributionStatus[] = [
+  "RESOLVED_MINT",
+  "UNRESOLVED_TOKEN_ATTRIBUTION",
+] as const;
+
+/**
+ * Quality of the COLLECTION ATTEMPT that produced (or failed to produce) this
+ * observation. It describes data collection, never the token. Provider-level
+ * operational health stays with `provider_health/v1`; this is per-attempt.
+ */
+export type EvidenceCollectionHealth =
+  | "HEALTHY"
+  | "DEGRADED"
+  | "RATE_LIMITED"
+  | "UNAVAILABLE"
+  | "NOT_CONFIGURED"
+  | "PARTIAL"
+  | "UNKNOWN";
+
+export const EVIDENCE_COLLECTION_HEALTHS: readonly EvidenceCollectionHealth[] = [
+  "HEALTHY",
+  "DEGRADED",
+  "RATE_LIMITED",
+  "UNAVAILABLE",
+  "NOT_CONFIGURED",
+  "PARTIAL",
+  "UNKNOWN",
+] as const;
+
+/** Collection states under which a numeric zero can NEVER be recorded. */
+export const NON_MEASURING_COLLECTION_HEALTHS: readonly EvidenceCollectionHealth[] = [
+  "RATE_LIMITED",
+  "UNAVAILABLE",
+  "NOT_CONFIGURED",
+  "UNKNOWN",
+] as const;
+
+/**
+ * Broad subject area a fact belongs to.
+ *
+ * Existing domains are unchanged. Future senses are added to the registry
+ * below rather than by loosening the type to arbitrary strings: the union stays
+ * closed and validated, so a typo can never invent a domain at runtime.
+ */
+export const EVIDENCE_DOMAINS = [
+  "market",
+  "provenance",
+  "holders",
+  "creator",
+  "participation",
+  "social",
+  // Reserved for future senses; nothing emits these yet and no stage reads them.
+  "wallet",
+  "developer",
+  "liquidity_flow",
+] as const;
+
+export type EvidenceDomain = (typeof EVIDENCE_DOMAINS)[number];
+
+export function isEvidenceDomain(value: string): value is EvidenceDomain {
+  return (EVIDENCE_DOMAINS as readonly string[]).includes(value);
+}
 
 /** Primitive fact values supported by the evidence layer. */
 export type EvidenceValue = number | string | boolean | null;
@@ -62,7 +175,16 @@ export type EvidenceSource = KnownEvidenceSource | (string & {});
  *   capture_time  — no provider timestamp; observedAt is our capture time.
  *   derived       — computed from other observations.
  */
-export type ObservedAtBasis = "provider_time" | "capture_time" | "derived";
+export const OBSERVED_AT_BASES = [
+  "provider_time",
+  "capture_time",
+  "derived",
+  // Reserved: a source that timestamps the underlying event itself (a post,
+  // a transaction) rather than the API read.
+  "event_time",
+] as const;
+
+export type ObservedAtBasis = (typeof OBSERVED_AT_BASES)[number];
 
 
 export interface EvidenceObservation {
@@ -93,5 +215,19 @@ export interface EvidenceObservation {
   confidence?: number;
   /** Non-interpretive extra context, e.g. the ingestion version. */
   metadata?: Record<string, EvidenceValue>;
-  schemaVersion: typeof EVIDENCE_SCHEMA_VERSION;
+  /**
+   * evidence/v1.1 — source relationship. Optional: absent means "not
+   * classified" (historical v1 rows), never UNKNOWN-as-a-judgement.
+   * Never an input to the production independent-evidence gate.
+   */
+  affiliation?: EvidenceAffiliation;
+  /**
+   * evidence/v1.1 — whether this observation is tied to an exact mint.
+   * Absent is treated as RESOLVED_MINT for historical v1 rows, which were only
+   * ever written with an exact token linkage.
+   */
+  attributionStatus?: EvidenceAttributionStatus;
+  /** evidence/v1.1 — health of the collection attempt, never of the token. */
+  collectionHealth?: EvidenceCollectionHealth;
+  schemaVersion: EvidenceSchemaVersion;
 }
