@@ -175,7 +175,16 @@ export type EvidenceSource = KnownEvidenceSource | (string & {});
  *   capture_time  — no provider timestamp; observedAt is our capture time.
  *   derived       — computed from other observations.
  */
-export type ObservedAtBasis = "provider_time" | "capture_time" | "derived";
+export const OBSERVED_AT_BASES = [
+  "provider_time",
+  "capture_time",
+  "derived",
+  // Reserved: a source that timestamps the underlying event itself (a post,
+  // a transaction) rather than the API read.
+  "event_time",
+] as const;
+
+export type ObservedAtBasis = (typeof OBSERVED_AT_BASES)[number];
 
 
 export interface EvidenceObservation {
