@@ -15,7 +15,15 @@ const DECISION_DIRS = ["scanner", "research", "entry", "sizing", "evidence"];
  * Reading collected observations is forbidden everywhere in the decision path.
  * `refreshOutcomes` is a write-only, post-decision call and stays allowed.
  */
-const FORBIDDEN = ["outcomes/sampler", "outcomes/observation-read", "readPersistedMarkets"];
+const FORBIDDEN = [
+  "outcomes/sampler",
+  "outcomes/observation-read",
+  "readPersistedMarkets",
+  // Evaluation-only enrollment reads must never re-enter a decision path.
+  "loadEnrollmentBaselines",
+  "outcome_enrollments",
+];
+
 
 function walk(dir: string): string[] {
   const out: string[] = [];
