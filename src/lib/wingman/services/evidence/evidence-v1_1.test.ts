@@ -176,6 +176,10 @@ describe("evidence/v1.1 foundation", () => {
       observedAt: CAPTURED,
       priceUsd: 1.5,
       liquidityUsd: 72000,
+      promotion: { activeBoostCount: null, totalBoostCount: null },
+      transactions: {},
+      volume: {},
+      priceChange: {},
     } as never;
     const emitted = snapshotToEvidence(snapshot, null);
     for (const observation of emitted) {
