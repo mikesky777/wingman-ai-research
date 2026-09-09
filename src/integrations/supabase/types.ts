@@ -1349,6 +1349,176 @@ export type Database = {
           },
         ]
       }
+      outcome_enrollment_strata: {
+        Row: {
+          created_at: string
+          eligible_population_n: number
+          id: string
+          inclusion_probability: number
+          sampling_policy_version: string
+          scan_run_id: string
+          seed_material: string
+          selected_at: string
+          selected_k: number
+          stratum: string
+        }
+        Insert: {
+          created_at?: string
+          eligible_population_n: number
+          id?: string
+          inclusion_probability: number
+          sampling_policy_version: string
+          scan_run_id: string
+          seed_material: string
+          selected_at?: string
+          selected_k: number
+          stratum: string
+        }
+        Update: {
+          created_at?: string
+          eligible_population_n?: number
+          id?: string
+          inclusion_probability?: number
+          sampling_policy_version?: string
+          scan_run_id?: string
+          seed_material?: string
+          selected_at?: string
+          selected_k?: number
+          stratum?: string
+        }
+        Relationships: []
+      }
+      outcome_enrollments: {
+        Row: {
+          baseline_at: string | null
+          baseline_liquidity_usd: number | null
+          baseline_market_cap_usd: number | null
+          baseline_price_usd: number | null
+          baseline_validity: string
+          chain: string
+          cohort_ref: string | null
+          contract_address: string
+          created_at: string
+          decision_at: string | null
+          decision_class: string | null
+          eligible_population_n: number | null
+          enrollment_type: string
+          funnel_stage: string
+          id: string
+          inclusion_probability: number | null
+          lane_rejections: Json | null
+          notes: string | null
+          outcome_horizons: string[]
+          production_cycle_run_id: string | null
+          rejection_details: Json | null
+          rejection_reason: string | null
+          sampled_for_outcomes: boolean
+          sampling_policy_version: string | null
+          sampling_stratum: string | null
+          scan_run_id: string | null
+          scanner_policy_version: string | null
+          schema_version: string
+          selected_at: string | null
+          selected_k: number | null
+          selection_reason: string | null
+          selection_seed: string | null
+          source_event_id: string | null
+          source_event_type: string | null
+          stage_reached: string | null
+          token_id: string | null
+          tracking_status: string
+          triage_run_id: string | null
+        }
+        Insert: {
+          baseline_at?: string | null
+          baseline_liquidity_usd?: number | null
+          baseline_market_cap_usd?: number | null
+          baseline_price_usd?: number | null
+          baseline_validity?: string
+          chain?: string
+          cohort_ref?: string | null
+          contract_address: string
+          created_at?: string
+          decision_at?: string | null
+          decision_class?: string | null
+          eligible_population_n?: number | null
+          enrollment_type: string
+          funnel_stage: string
+          id?: string
+          inclusion_probability?: number | null
+          lane_rejections?: Json | null
+          notes?: string | null
+          outcome_horizons?: string[]
+          production_cycle_run_id?: string | null
+          rejection_details?: Json | null
+          rejection_reason?: string | null
+          sampled_for_outcomes?: boolean
+          sampling_policy_version?: string | null
+          sampling_stratum?: string | null
+          scan_run_id?: string | null
+          scanner_policy_version?: string | null
+          schema_version?: string
+          selected_at?: string | null
+          selected_k?: number | null
+          selection_reason?: string | null
+          selection_seed?: string | null
+          source_event_id?: string | null
+          source_event_type?: string | null
+          stage_reached?: string | null
+          token_id?: string | null
+          tracking_status?: string
+          triage_run_id?: string | null
+        }
+        Update: {
+          baseline_at?: string | null
+          baseline_liquidity_usd?: number | null
+          baseline_market_cap_usd?: number | null
+          baseline_price_usd?: number | null
+          baseline_validity?: string
+          chain?: string
+          cohort_ref?: string | null
+          contract_address?: string
+          created_at?: string
+          decision_at?: string | null
+          decision_class?: string | null
+          eligible_population_n?: number | null
+          enrollment_type?: string
+          funnel_stage?: string
+          id?: string
+          inclusion_probability?: number | null
+          lane_rejections?: Json | null
+          notes?: string | null
+          outcome_horizons?: string[]
+          production_cycle_run_id?: string | null
+          rejection_details?: Json | null
+          rejection_reason?: string | null
+          sampled_for_outcomes?: boolean
+          sampling_policy_version?: string | null
+          sampling_stratum?: string | null
+          scan_run_id?: string | null
+          scanner_policy_version?: string | null
+          schema_version?: string
+          selected_at?: string | null
+          selected_k?: number | null
+          selection_reason?: string | null
+          selection_seed?: string | null
+          source_event_id?: string | null
+          source_event_type?: string | null
+          stage_reached?: string | null
+          token_id?: string | null
+          tracking_status?: string
+          triage_run_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outcome_enrollments_token_id_fkey"
+            columns: ["token_id"]
+            isOneToOne: false
+            referencedRelation: "tokens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       outcome_sampler_runs: {
         Row: {
           batches_sent: number
