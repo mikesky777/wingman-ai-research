@@ -111,14 +111,31 @@ export const NON_MEASURING_COLLECTION_HEALTHS: readonly EvidenceCollectionHealth
   "UNKNOWN",
 ] as const;
 
-/** Broad subject area a fact belongs to. Future sources extend this union. */
-export type EvidenceDomain =
-  | "market"
-  | "provenance"
-  | "holders"
-  | "creator"
-  | "participation"
-  | "social";
+/**
+ * Broad subject area a fact belongs to.
+ *
+ * Existing domains are unchanged. Future senses are added to the registry
+ * below rather than by loosening the type to arbitrary strings: the union stays
+ * closed and validated, so a typo can never invent a domain at runtime.
+ */
+export const EVIDENCE_DOMAINS = [
+  "market",
+  "provenance",
+  "holders",
+  "creator",
+  "participation",
+  "social",
+  // Reserved for future senses; nothing emits these yet and no stage reads them.
+  "wallet",
+  "developer",
+  "liquidity_flow",
+] as const;
+
+export type EvidenceDomain = (typeof EVIDENCE_DOMAINS)[number];
+
+export function isEvidenceDomain(value: string): value is EvidenceDomain {
+  return (EVIDENCE_DOMAINS as readonly string[]).includes(value);
+}
 
 /** Primitive fact values supported by the evidence layer. */
 export type EvidenceValue = number | string | boolean | null;
