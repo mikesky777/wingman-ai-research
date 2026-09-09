@@ -13,7 +13,103 @@
  *   - Only facts a source actually supplied are emitted. Nothing is fabricated.
  */
 
+/**
+ * Current emitters stay on evidence/v1 so existing production output is
+ * byte-identical. New senses (social, wallet, developer, liquidity flow) emit
+ * evidence/v1.1, which adds affiliation, attributionStatus and collectionHealth.
+ * Historical v1 rows are never rewritten and remain readable: the v1.1 fields
+ * are optional and absence means "not classified", never a negative fact.
+ */
 export const EVIDENCE_SCHEMA_VERSION = "evidence/v1";
+export const EVIDENCE_SCHEMA_VERSION_V1_1 = "evidence/v1.1";
+
+export type EvidenceSchemaVersion =
+  | typeof EVIDENCE_SCHEMA_VERSION
+  | typeof EVIDENCE_SCHEMA_VERSION_V1_1;
+
+/**
+ * Feature-version convention (prospective, evidence/v1.1 onward):
+ *
+ *   <domain>.<feature_name>/v<major>      e.g. "social.mention_velocity/v1"
+ *
+ * A derived feature whose DEFINITION changes gets a new version suffix and a
+ * new key; it never reuses the old key with new meaning. Directly observed
+ * provider facts keep their plain dotted keys (e.g. "market.liquidity_usd").
+ * Existing keys are deliberately NOT renamed by this convention.
+ */
+export const FEATURE_KEY_VERSION_PATTERN = /^[a-z0-9_]+\.[a-z0-9_]+\/v\d+$/;
+
+export function isVersionedFeatureKey(key: string): boolean {
+  return FEATURE_KEY_VERSION_PATTERN.test(key);
+}
+
+/**
+ * Source relationship of the observation. Describes WHO produced it, never
+ * whether it is positive, negative or corroborating. Consumers must decide
+ * explicitly how (or whether) affiliation affects their own policy.
+ *
+ * This is deliberately NOT wired into Deep Research independence/origin logic:
+ * `distinctIndependentEvidenceOrigins` and the Opportunity gate remain
+ * authoritative and untouched.
+ */
+export type EvidenceAffiliation =
+  | "PROJECT"
+  | "COMMUNITY"
+  | "INDEPENDENT"
+  | "MIRROR"
+  | "UNKNOWN";
+
+export const EVIDENCE_AFFILIATIONS: readonly EvidenceAffiliation[] = [
+  "PROJECT",
+  "COMMUNITY",
+  "INDEPENDENT",
+  "MIRROR",
+  "UNKNOWN",
+] as const;
+
+/**
+ * Whether the observation can be tied to an exact Solana mint.
+ * Ticker, name, fuzzy text, popularity or a previously-known token are NEVER
+ * sufficient to claim RESOLVED_MINT.
+ */
+export type EvidenceAttributionStatus = "RESOLVED_MINT" | "UNRESOLVED_TOKEN_ATTRIBUTION";
+
+export const EVIDENCE_ATTRIBUTION_STATUSES: readonly EvidenceAttributionStatus[] = [
+  "RESOLVED_MINT",
+  "UNRESOLVED_TOKEN_ATTRIBUTION",
+] as const;
+
+/**
+ * Quality of the COLLECTION ATTEMPT that produced (or failed to produce) this
+ * observation. It describes data collection, never the token. Provider-level
+ * operational health stays with `provider_health/v1`; this is per-attempt.
+ */
+export type EvidenceCollectionHealth =
+  | "HEALTHY"
+  | "DEGRADED"
+  | "RATE_LIMITED"
+  | "UNAVAILABLE"
+  | "NOT_CONFIGURED"
+  | "PARTIAL"
+  | "UNKNOWN";
+
+export const EVIDENCE_COLLECTION_HEALTHS: readonly EvidenceCollectionHealth[] = [
+  "HEALTHY",
+  "DEGRADED",
+  "RATE_LIMITED",
+  "UNAVAILABLE",
+  "NOT_CONFIGURED",
+  "PARTIAL",
+  "UNKNOWN",
+] as const;
+
+/** Collection states under which a numeric zero can NEVER be recorded. */
+export const NON_MEASURING_COLLECTION_HEALTHS: readonly EvidenceCollectionHealth[] = [
+  "RATE_LIMITED",
+  "UNAVAILABLE",
+  "NOT_CONFIGURED",
+  "UNKNOWN",
+] as const;
 
 /** Broad subject area a fact belongs to. Future sources extend this union. */
 export type EvidenceDomain =
