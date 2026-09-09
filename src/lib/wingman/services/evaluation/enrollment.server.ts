@@ -61,8 +61,8 @@ function toRow(record: EnrollmentRecord) {
     outcome_horizons: [...record.horizons],
     stage_reached: record.stageReached,
     rejection_reason: record.rejectionReason,
-    rejection_details: record.rejectionDetails ?? null,
-    lane_rejections: record.laneRejections ?? null,
+    rejection_details: (record.rejectionDetails ?? null) as never,
+    lane_rejections: (record.laneRejections ?? null) as never,
     scanner_policy_version: record.scannerPolicyVersion,
     tracking_status: record.trackingStatus,
   };
