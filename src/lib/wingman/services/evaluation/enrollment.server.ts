@@ -165,7 +165,7 @@ export async function resolveRejectSamplingEligibility(
 ): Promise<RejectSamplingEligibility> {
   const { data, error } = await supabaseAdmin
     .from("scan_runs")
-    .select("id, status, calibration_mode, discovery_health, production_cycle_run_id")
+    .select("id, status, discovery_health, production_cycle_run_id")
     .eq("id", scanRunId)
     .maybeSingle();
   if (error || !data) {
@@ -174,13 +174,13 @@ export async function resolveRejectSamplingEligibility(
   const row = data as Row;
   const cycleId = (row["production_cycle_run_id"] as string | null) ?? null;
   if (!cycleId) return { eligible: false, reason: "NOT_FULL_CYCLE_SCAN", productionCycleRunId: null };
-  if (row["calibration_mode"] === true) {
-    return { eligible: false, reason: "CALIBRATION_SCAN", productionCycleRunId: cycleId };
-  }
   if (row["status"] !== "completed") {
     return { eligible: false, reason: "SCAN_NOT_COMPLETED", productionCycleRunId: cycleId };
   }
-  if (row["discovery_health"] === "PROVIDER_UNAVAILABLE") {
+  // `calibration_mode` is a LEGACY scanner run flag (true for ordinary
+  // production scans) and is deliberately not the discriminator here; Full
+  // Cycle ownership is. Health uses the same OK rule as packet generation.
+  if (row["discovery_health"] !== "OK") {
     return { eligible: false, reason: "SCAN_NOT_HEALTHY", productionCycleRunId: cycleId };
   }
   return { eligible: true, reason: "FULL_CYCLE_HEALTHY_PRODUCTION_SCAN", productionCycleRunId: cycleId };
