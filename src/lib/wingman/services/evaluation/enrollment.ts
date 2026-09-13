@@ -60,19 +60,24 @@ export const REJECT_STRATA = ["hard_filters", "quantitative", "enriched_not_sele
 export type RejectStratum = (typeof REJECT_STRATA)[number];
 
 /** Conservative evaluation-data budget. NOT a scanner threshold. */
-export const MAX_REJECTS_PER_STRATUM = 8;
-export const MAX_REJECTS_PER_SCAN = 24;
+export const MAX_REJECTS_PER_STRATUM = 4;
+export const MAX_REJECTS_PER_SCAN = 12;
 
 /**
- * Scanner reject sampling is DISABLED by default.
- *
- * Phase 3A.2 capacity check (real volumes: 48 healthy completed scans / 7d,
- * 796 mints currently inside the 7-day tracking window) projects up to
- * 48 x 24 = 1,152 additional tracked mints, i.e. ~2.45x the current steady
- * state. That exceeds the ~2x provider-load ceiling, so the infrastructure
- * ships inert and the capacity guard below enforces it at runtime too.
+ * Phase 3A.2A activation identity. Persisted on every new reject enrollment so
+ * this cohort is distinguishable from the inert `outcome_enrollment/v1` era.
+ * The SELECTION hash material still uses SAMPLING_POLICY_VERSION, so
+ * deterministic selection is unchanged.
  */
-export const REJECT_SAMPLING_ENABLED = false;
+export const SCANNER_REJECT_SAMPLING_VERSION = "scanner_reject_outcome_sampling/v1";
+
+/**
+ * Scanner reject sampling is ENABLED (Phase 3A.2A) but only for healthy
+ * production Full Cycle scans, at 4 per stratum / 12 per scan. At that budget
+ * the projected additional tracked mints stay inside the ~2x provider-load
+ * ceiling; the capacity guard below still enforces it at runtime.
+ */
+export const REJECT_SAMPLING_ENABLED = true;
 
 /** Provider-load ceiling: enrollment may not more than ~2x tracked mints. */
 export const CAPACITY_MAX_LOAD_MULTIPLE = 2;

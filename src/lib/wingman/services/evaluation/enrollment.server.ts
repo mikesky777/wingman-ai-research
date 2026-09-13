@@ -13,7 +13,7 @@ import {
   MAX_REJECTS_PER_STRATUM,
   OUTCOME_ENROLLMENT_VERSION,
   REJECT_SAMPLING_ENABLED,
-  SAMPLING_POLICY_VERSION,
+  SCANNER_REJECT_SAMPLING_VERSION,
   buildEnrollment,
   projectCapacity,
   sampleRejects,
@@ -129,10 +129,15 @@ export interface ScanEnrollmentCandidate {
 export interface ScanEnrollmentResult {
   ok: boolean;
   version: string;
+  samplingVersion: string;
   exhaustiveEnrolled: number;
   rejectEligible: number;
   rejectSampled: number;
   rejectSamplingEnabled: boolean;
+  /** Why this scan is (or is not) an eligible reject-sampling cohort. */
+  eligibilityReason: string;
+  newlyTrackedMints: number;
+  reusedTrackedMints: number;
   capacity: CapacityProjection | null;
   strata: {
     stratum: string;
@@ -142,6 +147,43 @@ export interface ScanEnrollmentResult {
   }[];
   status: "ENROLLED" | "ENROLLMENT_FAILED" | "UNKNOWN";
   message: string | null;
+}
+
+export interface RejectSamplingEligibility {
+  eligible: boolean;
+  reason: string;
+  productionCycleRunId: string | null;
+}
+
+/**
+ * Phase 3A.2A scope gate. Only a healthy, completed, non-calibration scan that
+ * belongs to a Full Cycle run may contribute sampled rejects. Manual, debug,
+ * failed, calibration and replay scans are excluded.
+ */
+export async function resolveRejectSamplingEligibility(
+  scanRunId: string,
+): Promise<RejectSamplingEligibility> {
+  const { data, error } = await supabaseAdmin
+    .from("scan_runs")
+    .select("id, status, discovery_health, production_cycle_run_id")
+    .eq("id", scanRunId)
+    .maybeSingle();
+  if (error || !data) {
+    return { eligible: false, reason: "SCAN_RUN_NOT_READABLE", productionCycleRunId: null };
+  }
+  const row = data as Row;
+  const cycleId = (row["production_cycle_run_id"] as string | null) ?? null;
+  if (!cycleId) return { eligible: false, reason: "NOT_FULL_CYCLE_SCAN", productionCycleRunId: null };
+  if (row["status"] !== "completed") {
+    return { eligible: false, reason: "SCAN_NOT_COMPLETED", productionCycleRunId: cycleId };
+  }
+  // `calibration_mode` is a LEGACY scanner run flag (true for ordinary
+  // production scans) and is deliberately not the discriminator here; Full
+  // Cycle ownership is. Health uses the same OK rule as packet generation.
+  if (row["discovery_health"] !== "OK") {
+    return { eligible: false, reason: "SCAN_NOT_HEALTHY", productionCycleRunId: cycleId };
+  }
+  return { eligible: true, reason: "FULL_CYCLE_HEALTHY_PRODUCTION_SCAN", productionCycleRunId: cycleId };
 }
 
 const QUALIFYING = new Set(["BASE", "REACCEL"]);
@@ -171,14 +213,27 @@ export async function enrollScanEvents(input: {
   nowIso?: string;
 }): Promise<ScanEnrollmentResult> {
   const nowIso = input.nowIso ?? new Date().toISOString();
-  const enabled = input.rejectSamplingEnabled ?? REJECT_SAMPLING_ENABLED;
+  const eligibility =
+    input.rejectSamplingEnabled === undefined
+      ? await resolveRejectSamplingEligibility(input.scanRunId)
+      : {
+          eligible: input.rejectSamplingEnabled,
+          reason: input.rejectSamplingEnabled ? "CALLER_FORCED_ENABLED" : "CALLER_FORCED_DISABLED",
+          productionCycleRunId: input.productionCycleRunId ?? null,
+        };
+  const cycleRunId = input.productionCycleRunId ?? eligibility.productionCycleRunId;
+  const enabled = REJECT_SAMPLING_ENABLED && eligibility.eligible;
   const result: ScanEnrollmentResult = {
     ok: true,
     version: OUTCOME_ENROLLMENT_VERSION,
+    samplingVersion: SCANNER_REJECT_SAMPLING_VERSION,
     exhaustiveEnrolled: 0,
     rejectEligible: 0,
     rejectSampled: 0,
     rejectSamplingEnabled: enabled,
+    eligibilityReason: eligibility.reason,
+    newlyTrackedMints: 0,
+    reusedTrackedMints: 0,
     capacity: null,
     strata: [],
     status: "ENROLLED",
@@ -199,7 +254,7 @@ export async function enrollScanEvents(input: {
         sourceEventType: "SCAN_CANDIDATE",
         sourceEventId: `${input.scanRunId}:${candidate.contractAddress}`,
         scanRunId: input.scanRunId,
-        productionCycleRunId: input.productionCycleRunId ?? null,
+        productionCycleRunId: cycleRunId,
         cohortRef: `scan_runs:${input.scanRunId}`,
         decisionAt: input.completedAt,
         baseline: candidate.baseline,
@@ -268,24 +323,45 @@ export async function enrollScanEvents(input: {
       // Already-tracked mints reuse the existing observation stream and add no
       // provider load; only genuinely new mints count against capacity.
       const additional = selectedMints.filter((mint) => !tracked.has(mint)).length;
+      result.newlyTrackedMints = additional;
+      result.reusedTrackedMints = selectedMints.length - additional;
       const capacity = projectCapacity(await countTrackedMints(), additional);
       result.capacity = capacity;
 
       if (!capacity.safe) {
-        result.message = `Reject sampling skipped: ${capacity.reason}`;
+        result.message = `SAMPLING_CAPACITY_DEFERRED: ${capacity.reason}`;
+        // Evaluation-only audit trail: the sample was computed but not enrolled.
+        for (const sample of samples) {
+          if (sample.eligibleN === 0) continue;
+          await supabaseAdmin.from("outcome_enrollment_strata").upsert(
+            {
+              scan_run_id: input.scanRunId,
+              sampling_policy_version: SCANNER_REJECT_SAMPLING_VERSION,
+              stratum: sample.stratum,
+              eligible_population_n: sample.eligibleN,
+              selected_k: 0,
+              inclusion_probability: 0,
+              seed_material: sample.seedMaterial,
+              selected_at: nowIso,
+              deferral_reason: `SAMPLING_CAPACITY_DEFERRED:${capacity.reason}`,
+            },
+            { onConflict: "scan_run_id,sampling_policy_version,stratum", ignoreDuplicates: true },
+          );
+        }
       } else {
         for (const sample of samples) {
           if (sample.selectedK === 0) continue;
           await supabaseAdmin.from("outcome_enrollment_strata").upsert(
             {
               scan_run_id: input.scanRunId,
-              sampling_policy_version: SAMPLING_POLICY_VERSION,
+              sampling_policy_version: SCANNER_REJECT_SAMPLING_VERSION,
               stratum: sample.stratum,
               eligible_population_n: sample.eligibleN,
               selected_k: sample.selectedK,
               inclusion_probability: sample.inclusionProbability,
               seed_material: sample.seedMaterial,
               selected_at: nowIso,
+              deferral_reason: null,
             },
             { onConflict: "scan_run_id,sampling_policy_version,stratum", ignoreDuplicates: true },
           );
@@ -299,12 +375,12 @@ export async function enrollScanEvents(input: {
                 sourceEventType: "SCAN_CANDIDATE_REJECT",
                 sourceEventId: `${input.scanRunId}:${event.contractAddress}`,
                 scanRunId: input.scanRunId,
-                productionCycleRunId: input.productionCycleRunId ?? null,
+                productionCycleRunId: cycleRunId,
                 cohortRef: `scan_runs:${input.scanRunId}`,
                 decisionAt: input.completedAt,
                 baseline: event.baseline,
                 enrollmentType: "SAMPLED",
-                samplingPolicyVersion: SAMPLING_POLICY_VERSION,
+                samplingPolicyVersion: SCANNER_REJECT_SAMPLING_VERSION,
                 samplingStratum: event.stratum,
                 eligiblePopulationN: sample.eligibleN,
                 selectedK: sample.selectedK,
@@ -326,7 +402,7 @@ export async function enrollScanEvents(input: {
         }
       }
     } else {
-      result.message = "Reject sampling disabled by policy (capacity)";
+      result.message = `Reject sampling not applied: ${eligibility.reason}`;
     }
 
     await persistEnrollments(records);

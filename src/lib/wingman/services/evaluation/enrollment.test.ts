@@ -12,6 +12,7 @@ import {
   MAX_REJECTS_PER_STRATUM,
   OUTCOME_ENROLLMENT_VERSION,
   REJECT_SAMPLING_ENABLED,
+  SCANNER_REJECT_SAMPLING_VERSION,
   SAMPLING_POLICY_VERSION,
   baselineValidity,
   buildEnrollment,
@@ -49,8 +50,17 @@ describe("outcome enrollment contract", () => {
     expect([...ENROLLMENT_HORIZONS]).toEqual(["1h", "4h", "12h", "24h", "3d", "7d"]);
   });
 
-  it("3. ships reject sampling disabled by default", () => {
-    expect(REJECT_SAMPLING_ENABLED).toBe(false);
+  it("3. ships reject sampling enabled with the conservative 3A.2A budget", () => {
+    expect(REJECT_SAMPLING_ENABLED).toBe(true);
+    expect(SCANNER_REJECT_SAMPLING_VERSION).toBe("scanner_reject_outcome_sampling/v1");
+    expect(MAX_REJECTS_PER_STRATUM).toBe(4);
+    expect(MAX_REJECTS_PER_SCAN).toBe(12);
+  });
+
+  it("3a. samples every eligible candidate when a stratum is under budget", () => {
+    const samples = sampleRejects("scan-1", many(2, "h", "hard_filters"));
+    expect(samples[0]?.selectedK).toBe(2);
+    expect(samples[0]?.inclusionProbability).toBe(1);
   });
 
   it("4. treats a missing baseline as NOT_EVALUABLE, never zero", () => {
@@ -127,7 +137,7 @@ describe("outcome enrollment contract", () => {
 
   it("15. records the ACTUAL inclusion probability, not the budget", () => {
     const samples = sampleRejects("scan-1", many(16, "h", "hard_filters"));
-    expect(samples[0]?.inclusionProbability).toBeCloseTo(8 / 16, 6);
+    expect(samples[0]?.inclusionProbability).toBeCloseTo(4 / 16, 6);
   });
 
   it("16. records eligible population size for later weighting", () => {

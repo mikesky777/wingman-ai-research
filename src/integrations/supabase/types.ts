@@ -1352,6 +1352,7 @@ export type Database = {
       outcome_enrollment_strata: {
         Row: {
           created_at: string
+          deferral_reason: string | null
           eligible_population_n: number
           id: string
           inclusion_probability: number
@@ -1364,6 +1365,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          deferral_reason?: string | null
           eligible_population_n: number
           id?: string
           inclusion_probability: number
@@ -1376,6 +1378,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          deferral_reason?: string | null
           eligible_population_n?: number
           id?: string
           inclusion_probability?: number
