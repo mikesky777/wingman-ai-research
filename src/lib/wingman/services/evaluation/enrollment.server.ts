@@ -213,14 +213,27 @@ export async function enrollScanEvents(input: {
   nowIso?: string;
 }): Promise<ScanEnrollmentResult> {
   const nowIso = input.nowIso ?? new Date().toISOString();
-  const enabled = input.rejectSamplingEnabled ?? REJECT_SAMPLING_ENABLED;
+  const eligibility =
+    input.rejectSamplingEnabled === undefined
+      ? await resolveRejectSamplingEligibility(input.scanRunId)
+      : {
+          eligible: input.rejectSamplingEnabled,
+          reason: input.rejectSamplingEnabled ? "CALLER_FORCED_ENABLED" : "CALLER_FORCED_DISABLED",
+          productionCycleRunId: input.productionCycleRunId ?? null,
+        };
+  const cycleRunId = input.productionCycleRunId ?? eligibility.productionCycleRunId;
+  const enabled = REJECT_SAMPLING_ENABLED && eligibility.eligible;
   const result: ScanEnrollmentResult = {
     ok: true,
     version: OUTCOME_ENROLLMENT_VERSION,
+    samplingVersion: SCANNER_REJECT_SAMPLING_VERSION,
     exhaustiveEnrolled: 0,
     rejectEligible: 0,
     rejectSampled: 0,
     rejectSamplingEnabled: enabled,
+    eligibilityReason: eligibility.reason,
+    newlyTrackedMints: 0,
+    reusedTrackedMints: 0,
     capacity: null,
     strata: [],
     status: "ENROLLED",
