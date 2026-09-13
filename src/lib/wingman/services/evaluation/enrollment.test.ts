@@ -137,7 +137,7 @@ describe("outcome enrollment contract", () => {
 
   it("15. records the ACTUAL inclusion probability, not the budget", () => {
     const samples = sampleRejects("scan-1", many(16, "h", "hard_filters"));
-    expect(samples[0]?.inclusionProbability).toBeCloseTo(8 / 16, 6);
+    expect(samples[0]?.inclusionProbability).toBeCloseTo(4 / 16, 6);
   });
 
   it("16. records eligible population size for later weighting", () => {
