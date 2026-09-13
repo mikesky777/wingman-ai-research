@@ -129,10 +129,15 @@ export interface ScanEnrollmentCandidate {
 export interface ScanEnrollmentResult {
   ok: boolean;
   version: string;
+  samplingVersion: string;
   exhaustiveEnrolled: number;
   rejectEligible: number;
   rejectSampled: number;
   rejectSamplingEnabled: boolean;
+  /** Why this scan is (or is not) an eligible reject-sampling cohort. */
+  eligibilityReason: string;
+  newlyTrackedMints: number;
+  reusedTrackedMints: number;
   capacity: CapacityProjection | null;
   strata: {
     stratum: string;
@@ -142,6 +147,43 @@ export interface ScanEnrollmentResult {
   }[];
   status: "ENROLLED" | "ENROLLMENT_FAILED" | "UNKNOWN";
   message: string | null;
+}
+
+export interface RejectSamplingEligibility {
+  eligible: boolean;
+  reason: string;
+  productionCycleRunId: string | null;
+}
+
+/**
+ * Phase 3A.2A scope gate. Only a healthy, completed, non-calibration scan that
+ * belongs to a Full Cycle run may contribute sampled rejects. Manual, debug,
+ * failed, calibration and replay scans are excluded.
+ */
+export async function resolveRejectSamplingEligibility(
+  scanRunId: string,
+): Promise<RejectSamplingEligibility> {
+  const { data, error } = await supabaseAdmin
+    .from("scan_runs")
+    .select("id, status, calibration_mode, discovery_health, production_cycle_run_id")
+    .eq("id", scanRunId)
+    .maybeSingle();
+  if (error || !data) {
+    return { eligible: false, reason: "SCAN_RUN_NOT_READABLE", productionCycleRunId: null };
+  }
+  const row = data as Row;
+  const cycleId = (row["production_cycle_run_id"] as string | null) ?? null;
+  if (!cycleId) return { eligible: false, reason: "NOT_FULL_CYCLE_SCAN", productionCycleRunId: null };
+  if (row["calibration_mode"] === true) {
+    return { eligible: false, reason: "CALIBRATION_SCAN", productionCycleRunId: cycleId };
+  }
+  if (row["status"] !== "completed") {
+    return { eligible: false, reason: "SCAN_NOT_COMPLETED", productionCycleRunId: cycleId };
+  }
+  if (row["discovery_health"] === "PROVIDER_UNAVAILABLE") {
+    return { eligible: false, reason: "SCAN_NOT_HEALTHY", productionCycleRunId: cycleId };
+  }
+  return { eligible: true, reason: "FULL_CYCLE_HEALTHY_PRODUCTION_SCAN", productionCycleRunId: cycleId };
 }
 
 const QUALIFYING = new Set(["BASE", "REACCEL"]);
