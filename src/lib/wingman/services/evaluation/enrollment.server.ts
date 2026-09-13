@@ -14,6 +14,7 @@ import {
   OUTCOME_ENROLLMENT_VERSION,
   REJECT_SAMPLING_ENABLED,
   SAMPLING_POLICY_VERSION,
+  SCANNER_REJECT_SAMPLING_VERSION,
   buildEnrollment,
   projectCapacity,
   sampleRejects,
@@ -254,7 +255,7 @@ export async function enrollScanEvents(input: {
         sourceEventType: "SCAN_CANDIDATE",
         sourceEventId: `${input.scanRunId}:${candidate.contractAddress}`,
         scanRunId: input.scanRunId,
-        productionCycleRunId: input.productionCycleRunId ?? null,
+        productionCycleRunId: cycleRunId,
         cohortRef: `scan_runs:${input.scanRunId}`,
         decisionAt: input.completedAt,
         baseline: candidate.baseline,
@@ -375,12 +376,12 @@ export async function enrollScanEvents(input: {
                 sourceEventType: "SCAN_CANDIDATE_REJECT",
                 sourceEventId: `${input.scanRunId}:${event.contractAddress}`,
                 scanRunId: input.scanRunId,
-                productionCycleRunId: input.productionCycleRunId ?? null,
+                productionCycleRunId: cycleRunId,
                 cohortRef: `scan_runs:${input.scanRunId}`,
                 decisionAt: input.completedAt,
                 baseline: event.baseline,
                 enrollmentType: "SAMPLED",
-                samplingPolicyVersion: SAMPLING_POLICY_VERSION,
+                samplingPolicyVersion: SCANNER_REJECT_SAMPLING_VERSION,
                 samplingStratum: event.stratum,
                 eligiblePopulationN: sample.eligibleN,
                 selectedK: sample.selectedK,
@@ -402,7 +403,7 @@ export async function enrollScanEvents(input: {
         }
       }
     } else {
-      result.message = "Reject sampling disabled by policy (capacity)";
+      result.message = `Reject sampling not applied: ${eligibility.reason}`;
     }
 
     await persistEnrollments(records);
