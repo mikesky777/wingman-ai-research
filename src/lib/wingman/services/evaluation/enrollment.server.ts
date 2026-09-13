@@ -323,24 +323,45 @@ export async function enrollScanEvents(input: {
       // Already-tracked mints reuse the existing observation stream and add no
       // provider load; only genuinely new mints count against capacity.
       const additional = selectedMints.filter((mint) => !tracked.has(mint)).length;
+      result.newlyTrackedMints = additional;
+      result.reusedTrackedMints = selectedMints.length - additional;
       const capacity = projectCapacity(await countTrackedMints(), additional);
       result.capacity = capacity;
 
       if (!capacity.safe) {
-        result.message = `Reject sampling skipped: ${capacity.reason}`;
+        result.message = `SAMPLING_CAPACITY_DEFERRED: ${capacity.reason}`;
+        // Evaluation-only audit trail: the sample was computed but not enrolled.
+        for (const sample of samples) {
+          if (sample.eligibleN === 0) continue;
+          await supabaseAdmin.from("outcome_enrollment_strata").upsert(
+            {
+              scan_run_id: input.scanRunId,
+              sampling_policy_version: SCANNER_REJECT_SAMPLING_VERSION,
+              stratum: sample.stratum,
+              eligible_population_n: sample.eligibleN,
+              selected_k: 0,
+              inclusion_probability: 0,
+              seed_material: sample.seedMaterial,
+              selected_at: nowIso,
+              deferral_reason: `SAMPLING_CAPACITY_DEFERRED:${capacity.reason}`,
+            },
+            { onConflict: "scan_run_id,sampling_policy_version,stratum", ignoreDuplicates: true },
+          );
+        }
       } else {
         for (const sample of samples) {
           if (sample.selectedK === 0) continue;
           await supabaseAdmin.from("outcome_enrollment_strata").upsert(
             {
               scan_run_id: input.scanRunId,
-              sampling_policy_version: SAMPLING_POLICY_VERSION,
+              sampling_policy_version: SCANNER_REJECT_SAMPLING_VERSION,
               stratum: sample.stratum,
               eligible_population_n: sample.eligibleN,
               selected_k: sample.selectedK,
               inclusion_probability: sample.inclusionProbability,
               seed_material: sample.seedMaterial,
               selected_at: nowIso,
+              deferral_reason: null,
             },
             { onConflict: "scan_run_id,sampling_policy_version,stratum", ignoreDuplicates: true },
           );
