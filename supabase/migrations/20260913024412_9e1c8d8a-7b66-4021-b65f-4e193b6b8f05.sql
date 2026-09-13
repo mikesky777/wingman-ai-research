@@ -1,0 +1,1 @@
+ALTER TABLE public.outcome_enrollment_strata ADD COLUMN IF NOT EXISTS deferral_reason TEXT;
