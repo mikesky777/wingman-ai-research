@@ -1041,6 +1041,191 @@ export type Database = {
           },
         ]
       }
+      learning_decision_events: {
+        Row: {
+          attribution_status: string
+          chain: string
+          cohort_ref: string | null
+          contract_address: string
+          created_at: string
+          decision_at: string
+          deep_research_run_id: string | null
+          enrollment_type: string | null
+          entry_evaluation_id: string | null
+          funnel_stage: string
+          id: string
+          inclusion_probability: number | null
+          input_schema_version: string | null
+          outcome_enrollment_id: string | null
+          population_class: string | null
+          production_cycle_run_id: string | null
+          production_policy_version: string | null
+          projected_at: string
+          projection_mode: string
+          projection_version: string
+          sampling_policy_version: string | null
+          sampling_stratum: string | null
+          scan_run_id: string | null
+          schema_version: string
+          source_artifact_type: string
+          source_artifact_version: string | null
+          source_event_id: string
+          thesis_report_id: string | null
+          token_id: string | null
+          triage_run_id: string | null
+        }
+        Insert: {
+          attribution_status: string
+          chain?: string
+          cohort_ref?: string | null
+          contract_address: string
+          created_at?: string
+          decision_at: string
+          deep_research_run_id?: string | null
+          enrollment_type?: string | null
+          entry_evaluation_id?: string | null
+          funnel_stage: string
+          id?: string
+          inclusion_probability?: number | null
+          input_schema_version?: string | null
+          outcome_enrollment_id?: string | null
+          population_class?: string | null
+          production_cycle_run_id?: string | null
+          production_policy_version?: string | null
+          projected_at?: string
+          projection_mode: string
+          projection_version: string
+          sampling_policy_version?: string | null
+          sampling_stratum?: string | null
+          scan_run_id?: string | null
+          schema_version?: string
+          source_artifact_type: string
+          source_artifact_version?: string | null
+          source_event_id: string
+          thesis_report_id?: string | null
+          token_id?: string | null
+          triage_run_id?: string | null
+        }
+        Update: {
+          attribution_status?: string
+          chain?: string
+          cohort_ref?: string | null
+          contract_address?: string
+          created_at?: string
+          decision_at?: string
+          deep_research_run_id?: string | null
+          enrollment_type?: string | null
+          entry_evaluation_id?: string | null
+          funnel_stage?: string
+          id?: string
+          inclusion_probability?: number | null
+          input_schema_version?: string | null
+          outcome_enrollment_id?: string | null
+          population_class?: string | null
+          production_cycle_run_id?: string | null
+          production_policy_version?: string | null
+          projected_at?: string
+          projection_mode?: string
+          projection_version?: string
+          sampling_policy_version?: string | null
+          sampling_stratum?: string | null
+          scan_run_id?: string | null
+          schema_version?: string
+          source_artifact_type?: string
+          source_artifact_version?: string | null
+          source_event_id?: string
+          thesis_report_id?: string | null
+          token_id?: string | null
+          triage_run_id?: string | null
+        }
+        Relationships: []
+      }
+      learning_feature_snapshots: {
+        Row: {
+          affiliation: string | null
+          captured_at: string | null
+          collection_health: string | null
+          contract_address: string
+          created_at: string
+          decision_at: string
+          feature_key: string
+          feature_semantic_version: number
+          funnel_stage: string
+          id: string
+          learning_event_id: string
+          observed_at: string | null
+          production_policy_version: string | null
+          projection_version: string
+          schema_version: string
+          source: string
+          source_event_id: string
+          source_reference: string
+          status: string
+          token_id: string | null
+          value_boolean: boolean | null
+          value_number: number | null
+          value_text: string | null
+        }
+        Insert: {
+          affiliation?: string | null
+          captured_at?: string | null
+          collection_health?: string | null
+          contract_address: string
+          created_at?: string
+          decision_at: string
+          feature_key: string
+          feature_semantic_version: number
+          funnel_stage: string
+          id?: string
+          learning_event_id: string
+          observed_at?: string | null
+          production_policy_version?: string | null
+          projection_version: string
+          schema_version?: string
+          source: string
+          source_event_id: string
+          source_reference: string
+          status: string
+          token_id?: string | null
+          value_boolean?: boolean | null
+          value_number?: number | null
+          value_text?: string | null
+        }
+        Update: {
+          affiliation?: string | null
+          captured_at?: string | null
+          collection_health?: string | null
+          contract_address?: string
+          created_at?: string
+          decision_at?: string
+          feature_key?: string
+          feature_semantic_version?: number
+          funnel_stage?: string
+          id?: string
+          learning_event_id?: string
+          observed_at?: string | null
+          production_policy_version?: string | null
+          projection_version?: string
+          schema_version?: string
+          source?: string
+          source_event_id?: string
+          source_reference?: string
+          status?: string
+          token_id?: string | null
+          value_boolean?: boolean | null
+          value_number?: number | null
+          value_text?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "learning_feature_snapshots_learning_event_id_fkey"
+            columns: ["learning_event_id"]
+            isOneToOne: false
+            referencedRelation: "learning_decision_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       live_call_events: {
         Row: {
           created_at: string
@@ -1406,6 +1591,7 @@ export type Database = {
           decision_class: string | null
           eligible_population_n: number | null
           enrollment_type: string
+          event_key: string | null
           funnel_stage: string
           id: string
           inclusion_probability: number | null
@@ -1446,6 +1632,7 @@ export type Database = {
           decision_class?: string | null
           eligible_population_n?: number | null
           enrollment_type: string
+          event_key?: string | null
           funnel_stage: string
           id?: string
           inclusion_probability?: number | null
@@ -1486,6 +1673,7 @@ export type Database = {
           decision_class?: string | null
           eligible_population_n?: number | null
           enrollment_type?: string
+          event_key?: string | null
           funnel_stage?: string
           id?: string
           inclusion_probability?: number | null
