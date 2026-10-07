@@ -214,7 +214,7 @@ const SEVERITY: Record<string, number> = { LOW: 0, MODERATE: 1, HIGH: 2, CRITICA
 export function projectThesisGates(row: Row, ctx: FeatureContext): LearningFeature[] {
   const gd = obj(row.gate_diagnostics);
   const origin = obj(gd?.originGate);
-  const keys = [
+  const keys: [string, string, string, string, string, string] = [
     "gate.operational_eligibility/v1",
     "gate.allowed_verdict/v1",
     "gate.thesis_score/v1",
@@ -239,7 +239,7 @@ export function projectThesisGates(row: Row, ctx: FeatureContext): LearningFeatu
     pf(keys[1], str(row.verdict) ? p.allowedVerdicts.includes(row.verdict as never) : null),
     pf(keys[2], score === null ? null : score >= p.minThesisScore),
     pf(keys[3], ec === null ? null : ec >= p.minEvidenceConfidence),
-    pf(keys[4], sev && sev in SEVERITY ? SEVERITY[sev] <= SEVERITY[p.maxBearSeverity] : null),
+    pf(keys[4], sev && sev in SEVERITY ? (SEVERITY[sev] ?? 9) <= (SEVERITY[p.maxBearSeverity] ?? 1) : null),
     originStatus === "PASS" || originStatus === "FAIL"
       ? feature(keys[5], "text", originStatus, ctx)
       : statusFeature(keys[5], "NOT_EVALUATED", ctx),
