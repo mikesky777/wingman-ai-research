@@ -76,11 +76,9 @@ export async function persistEnrollments(records: EnrollmentRecord[]): Promise<n
     const chunk = records.slice(i, i + 200).map(toRow);
     const { error } = await supabaseAdmin
       .from("outcome_enrollments")
-      .upsert(chunk, {
-        onConflict:
-          "contract_address,funnel_stage,decision_class,source_event_id,scan_run_id,triage_run_id",
-        ignoreDuplicates: true,
-      });
+      // `event_key` is a generated column over the same six identity fields
+      // (null-safe). ON CONFLICT cannot target the older expression index.
+      .upsert(chunk, { onConflict: "event_key", ignoreDuplicates: true });
     if (error) throw new Error(`Enrollment persistence failed: ${error.message}`);
     written += chunk.length;
   }
