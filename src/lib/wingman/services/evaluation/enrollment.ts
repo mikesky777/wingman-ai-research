@@ -242,6 +242,15 @@ export function sampleRejects(
   return out;
 }
 
+/**
+ * outcome_capacity_guard/v2 — zero-baseline bootstrap.
+ * tracked > 0: unchanged ratio guard (projected/current <= 2x).
+ * tracked = 0: no fake denominator; an absolute allowance of genuinely NEW
+ * mints (matches the 12/scan reject maximum). Reused mints never count.
+ */
+export const CAPACITY_GUARD_VERSION = "outcome_capacity_guard/v2";
+export const BOOTSTRAP_NEW_MINT_ALLOWANCE = 12;
+
 export interface CapacityProjection {
   currentTrackedMints: number;
   /** New unique mints this enrollment pass would add to the sampler. */
@@ -250,30 +259,42 @@ export interface CapacityProjection {
   loadMultiple: number;
   safe: boolean;
   reason: string;
+  guardVersion: string;
+  mode: "RATIO_GUARD" | "ZERO_BASELINE_BOOTSTRAP";
 }
 
-/**
- * Capacity guard. Enrollment may never silently multiply scheduled provider
- * requests: an unsafe projection blocks the sample instead of weakening
- * backoff or rate-limit behaviour.
- */
 export function projectCapacity(
   currentTrackedMints: number,
   additionalMints: number,
   maxMultiple = CAPACITY_MAX_LOAD_MULTIPLE,
 ): CapacityProjection {
   const projected = currentTrackedMints + additionalMints;
-  const multiple = currentTrackedMints > 0 ? projected / currentTrackedMints : additionalMints > 0 ? Infinity : 1;
+  if (currentTrackedMints <= 0) {
+    const safe = additionalMints <= BOOTSTRAP_NEW_MINT_ALLOWANCE;
+    return {
+      currentTrackedMints,
+      additionalMints,
+      projectedTrackedMints: projected,
+      loadMultiple: additionalMints > 0 ? Infinity : 1,
+      safe,
+      reason: safe
+        ? `ZERO_BASELINE_BOOTSTRAP_WITHIN_${BOOTSTRAP_NEW_MINT_ALLOWANCE}`
+        : `ZERO_BASELINE_BOOTSTRAP_${additionalMints}_EXCEEDS_${BOOTSTRAP_NEW_MINT_ALLOWANCE}`,
+      guardVersion: CAPACITY_GUARD_VERSION,
+      mode: "ZERO_BASELINE_BOOTSTRAP",
+    };
+  }
+  const multiple = projected / currentTrackedMints;
   const safe = multiple <= maxMultiple;
   return {
     currentTrackedMints,
     additionalMints,
     projectedTrackedMints: projected,
-    loadMultiple: Number.isFinite(multiple) ? Number(multiple.toFixed(3)) : multiple,
+    loadMultiple: Number(multiple.toFixed(3)),
     safe,
-    reason: safe
-      ? "WITHIN_CAPACITY"
-      : `PROJECTED_LOAD_${Number.isFinite(multiple) ? multiple.toFixed(2) : "INF"}X_EXCEEDS_${maxMultiple}X`,
+    reason: safe ? "WITHIN_CAPACITY" : `PROJECTED_LOAD_${multiple.toFixed(2)}X_EXCEEDS_${maxMultiple}X`,
+    guardVersion: CAPACITY_GUARD_VERSION,
+    mode: "RATIO_GUARD",
   };
 }
 
