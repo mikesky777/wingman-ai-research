@@ -164,6 +164,18 @@ describe("outcome enrollment contract", () => {
     expect(projection.loadMultiple).toBeGreaterThan(CAPACITY_MAX_LOAD_MULTIPLE);
   });
 
+  it("19a. zero baseline bootstraps up to 12 new mints instead of blocking forever", () => {
+    const ok = projectCapacity(0, 12);
+    expect(ok).toMatchObject({ safe: true, mode: "ZERO_BASELINE_BOOTSTRAP", guardVersion: "outcome_capacity_guard/v2" });
+    expect(projectCapacity(0, 13).safe).toBe(false);
+    expect(projectCapacity(0, 0).safe).toBe(true);
+  });
+
+  it("19b. non-zero baseline keeps the 2x ratio guard", () => {
+    expect(projectCapacity(5, 6)).toMatchObject({ safe: false, mode: "RATIO_GUARD" });
+    expect(projectCapacity(5, 5)).toMatchObject({ safe: true, mode: "RATIO_GUARD" });
+  });
+
   it("20. marks exhaustive enrollments with inclusion probability 1", () => {
     const record = buildEnrollment({
       contractAddress: "Mint1",
