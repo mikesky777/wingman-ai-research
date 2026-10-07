@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1791340592300,
+      "tag": "0000_learning_feature_layer_v1_and_enrollment_key",
+      "breakpoints": true
+    }
+  ]
+}
