@@ -60,7 +60,7 @@ export const OUTCOME_KEY_DENYLIST = [
 ];
 
 export function assertNotOutcomeKey(key: string): void {
-  const feature = key.split("/")[0].toLowerCase();
+  const feature = (key.split("/")[0] ?? "").toLowerCase();
   for (const word of OUTCOME_KEY_DENYLIST) {
     if (feature.includes(word)) throw new Error(`OUTCOME_FIREWALL: feature key ${key} looks outcome-derived`);
   }

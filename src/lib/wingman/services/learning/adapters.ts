@@ -18,7 +18,9 @@ import {
   type ProjectionResult,
 } from "./contracts";
 
-type Row = Record<string, unknown>;
+// Frozen artifact rows are loosely typed; adapters read an explicit allow-list.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Row = any;
 
 const str = (v: unknown): string | null => (typeof v === "string" && v !== "" ? v : null);
 const obj = (v: unknown): Row | null => (v && typeof v === "object" && !Array.isArray(v) ? (v as Row) : null);

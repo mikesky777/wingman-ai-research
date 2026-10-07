@@ -22,7 +22,9 @@ import {
   type ProjectionResult,
 } from "./contracts";
 
-type Row = Record<string, unknown>;
+// Frozen artifact rows are loosely typed; adapters read an explicit allow-list.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Row = any;
 // The learning tables are newer than some generated type helpers; keep writes loosely typed.
 const db = supabaseAdmin as unknown as { from: (t: string) => any };
 
